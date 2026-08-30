@@ -43,11 +43,14 @@ Before changing code, read the project control files in this order:
 10. `docs/ROADMAP.md`
 11. `docs/DECISIONS.md`
 12. `docs/TEST_MATRIX.md`
+13. `.github/PULL_REQUEST_TEMPLATE.md`
 
 The files above are part of the product, not optional notes. A successful implementation that does not update the relevant status/memory/roadmap/changelog documentation is not considered complete.
 
 ## Current state
 
-Planning/governance foundation only. No production bot implementation has started yet.
+- P0 planning/governance foundation: **complete**.
+- Production bot implementation: **not started**.
+- Next task: **P1.1 — application skeleton and quality baseline**.
 
-See `docs/CURRENT_STATUS.md` for the exact handoff point.
+See `docs/CURRENT_STATUS.md` for the exact handoff point and verified state.
