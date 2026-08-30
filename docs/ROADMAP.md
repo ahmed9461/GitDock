@@ -11,7 +11,7 @@ Do not mark a phase complete merely because code exists. Its acceptance criteria
 
 ---
 
-## P0 — Planning & governance foundation
+## P0 — Planning & governance foundation ✅
 
 Goal: make the project self-describing before feature code starts.
 
@@ -25,16 +25,17 @@ Goal: make the project self-describing before feature code starts.
 - [x] Telegram UI/UX specification.
 - [x] Security model.
 - [x] Build protocol.
-- [ ] Test matrix.
-- [ ] Decision log.
-- [ ] Changelog.
-- [ ] Final consistency pass + mark P0 complete.
+- [x] Test matrix.
+- [x] Decision log.
+- [x] Changelog.
+- [x] Pull request completion checklist.
+- [x] Final consistency pass + mark P0 complete.
 
 Acceptance:
 
-- a new session can understand scope, architecture, UX, security, current state, and next task without chat history;
-- post-build documentation rules are explicit;
-- no production feature is falsely marked implemented.
+- [x] a new session can understand scope, architecture, UX, security, current state, and next task without chat history;
+- [x] post-build documentation rules are explicit;
+- [x] no production feature is falsely marked implemented.
 
 ---
 
