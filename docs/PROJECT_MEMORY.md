@@ -91,7 +91,12 @@ A green test run with stale project state documentation is not considered Done.
 
 ## Current implementation fact
 
-As of 2026-08-31, the repository contains project governance/planning only. Production bot code has not started yet.
+As of 2026-08-31:
+
+- P0 planning/governance foundation is complete.
+- Production bot code has not started yet.
+- The exact next task is P1.1: application skeleton + configuration + HTTP/bot bootstrap + persistence baseline + quality gates.
+- The repository now includes a PR checklist so future merges must explicitly confirm tests, architecture, security, Telegram UX, and project-memory updates.
 
 ## Do not forget later
 
