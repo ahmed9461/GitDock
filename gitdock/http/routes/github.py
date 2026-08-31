@@ -14,7 +14,7 @@ from gitdock.github.connection import GitHubConnectionError
 router = APIRouter()
 
 
-@router.get(GITHUB_SETUP_CALLBACK_PATH)
+@router.get(GITHUB_SETUP_CALLBACK_PATH, response_model=None)
 async def github_setup_callback(
     request: Request,
     state: str = "",
@@ -40,7 +40,7 @@ async def github_setup_callback(
     return RedirectResponse(redirect.url, status_code=302)
 
 
-@router.get(GITHUB_OAUTH_CALLBACK_PATH)
+@router.get(GITHUB_OAUTH_CALLBACK_PATH, response_model=None)
 async def github_oauth_callback(
     request: Request,
     state: str = "",
