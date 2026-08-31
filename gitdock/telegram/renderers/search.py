@@ -104,11 +104,7 @@ def render_owner_prompt() -> str:
 
 
 def render_topic_prompt() -> str:
-    return (
-        "🏷 Topic\n\n"
-        "أرسل اسم Topic مثل: machine-learning\n"
-        "أرسل - لإزالة هذا الفلتر."
-    )
+    return "🏷 Topic\n\nأرسل اسم Topic مثل: machine-learning\nأرسل - لإزالة هذا الفلتر."
 
 
 def render_search_validation_error(message: str) -> str:
