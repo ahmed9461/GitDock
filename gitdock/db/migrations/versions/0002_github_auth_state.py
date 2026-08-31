@@ -15,6 +15,10 @@ depends_on = None
 
 
 def upgrade() -> None:
+    op.add_column(
+        "github_accounts",
+        sa.Column("refresh_token_expires_at", sa.DateTime(timezone=True), nullable=True),
+    )
     op.create_table(
         "github_authorization_states",
         sa.Column("id", sa.Integer(), primary_key=True),
@@ -55,3 +59,4 @@ def downgrade() -> None:
         table_name="github_authorization_states",
     )
     op.drop_table("github_authorization_states")
+    op.drop_column("github_accounts", "refresh_token_expires_at")
