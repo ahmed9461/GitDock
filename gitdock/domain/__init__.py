@@ -1,0 +1,1 @@
+"""GitDock domain package."""

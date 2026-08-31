@@ -16,14 +16,29 @@ GitDock is not only a notification bot. The target product includes:
 - Generated clone/update/setup/run commands for Windows, Linux, and macOS based on repository contents.
 - Strong confirmation gates for destructive operations.
 
+## Verified foundation
+
+P1 establishes the tested runtime foundation:
+
+- Python 3.12 and 3.13 CI targets.
+- aiogram 3.x Telegram bootstrap with owner-only middleware.
+- FastAPI `/health`, `/ready`, and Telegram webhook ingress.
+- Async SQLAlchemy 2.x + Alembic.
+- PostgreSQL production baseline; SQLite only for portable local development/tests.
+- Structured logging with secret redaction.
+- Ruff, mypy, pytest, compile, pip-audit, detect-secrets, and PostgreSQL migration gates.
+- PEP 751 runtime locks for Python 3.12/3.13 Linux with CI drift verification.
+
+Final P1 verification: GitHub Actions run `33344826152` passed both Python quality jobs and the PostgreSQL 17 migration round trip.
+
 ## Architecture baseline
 
 - Python 3.12+
 - aiogram 3.x
-- FastAPI for Telegram/GitHub webhook ingress
+- FastAPI for Telegram/GitHub webhook ingress and OAuth callbacks
 - httpx for GitHub REST/GraphQL clients
 - SQLAlchemy 2.x async + Alembic
-- PostgreSQL in production; SQLite is allowed only for local development/tests
+- PostgreSQL in production
 - GitHub App authentication; avoid long-lived broad PATs
 - Persistent database-backed webhook inbox/job processing for restart safety
 
@@ -50,7 +65,7 @@ The files above are part of the product, not optional notes. A successful implem
 ## Current state
 
 - P0 planning/governance foundation: **complete**.
-- Production bot implementation: **not started**.
-- Next task: **P1.1 — application skeleton and quality baseline**.
+- P1 project skeleton & quality gates: **verified complete**.
+- Current implementation target after P1 merge verification: **P2.1 — GitHub App authentication foundation**.
 
-See `docs/CURRENT_STATUS.md` for the exact handoff point and verified state.
+See `docs/CURRENT_STATUS.md` for the exact handoff point, verification evidence, and next task.
