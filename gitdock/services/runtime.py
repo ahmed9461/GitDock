@@ -44,8 +44,7 @@ def create_runtime_services(
     assert settings.credential_encryption_key is not None
     cipher = CredentialCipher(
         {
-            settings.credential_encryption_key_version:
-                settings.credential_encryption_key.get_secret_value()
+            settings.credential_encryption_key_version: settings.credential_encryption_key.get_secret_value()
         },
         settings.credential_encryption_key_version,
     )
