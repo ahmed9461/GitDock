@@ -28,6 +28,38 @@ GitDock is deliberately broader than a GitHub notification bot. The planned prod
 - Persistent DB-backed event inbox/job processing is preferred over an in-memory queue for webhook reliability across restarts.
 - Production process should be suitable for systemd deployment.
 
+## P1 foundation implementation memory
+
+P1.1 implementation exists on branch `feat/p1-foundation` and draft PR #1. It is deliberately not merged while quality gates are unverified.
+
+Current direct runtime pins selected on 2026-08-31:
+
+- aiogram 3.31.0
+- FastAPI 0.141.1
+- HTTPX 0.28.1
+- SQLAlchemy 2.0.52
+- Alembic 1.19.1
+- asyncpg 0.31.0
+- pydantic-settings 2.15.0
+- Uvicorn 0.52.4
+
+The feature branch currently contains:
+
+- typed `GITDOCK_*` settings and production-safety validation;
+- FastAPI factory with `/health`, `/ready`, and Telegram webhook ingress;
+- aiogram development polling and production webhook-ready dispatcher wiring;
+- owner-only message/callback middleware;
+- async SQLAlchemy engine/session baseline;
+- initial identity/account models and Alembic migration;
+- JSON structured logging and secret redaction baseline;
+- unit/integration test scaffolding;
+- Ruff/mypy/pytest/pip-audit/detect-secrets/compile CI checks;
+- PostgreSQL migration round-trip CI job.
+
+Do not describe P1 as complete yet. Two GitHub Actions runs (`33343624229` and `33343758121`) failed before any job step started; jobs exposed no steps and logs were unavailable through the connected API. The code therefore has not received the required full CI verification. Local compile passed and eight targeted config/redaction tests passed, but the local execution environment could not install missing aiogram/aiosqlite/Ruff/mypy packages because it could not reach PyPI.
+
+Direct requirements are exactly pinned, but a complete transitive/hash lock has not yet been generated. This remains part of finishing the P1 quality baseline.
+
 ## GitHub authentication decision
 
 Primary authentication is a **GitHub App**, not a broad long-lived PAT.
@@ -87,16 +119,16 @@ Permissions follow least privilege and should be introduced by feature milestone
 - `CHANGELOG.md`
 - other affected control docs
 
-A green test run with stale project state documentation is not considered Done.
+A green test run with stale project state documentation is not considered Done. A failed/partial build must leave the blocker and safe handoff state documented instead of falsely marking roadmap items complete.
 
 ## Current implementation fact
 
 As of 2026-08-31:
 
 - P0 planning/governance foundation is complete.
-- Production bot code has not started yet.
-- The exact next task is P1.1: application skeleton + configuration + HTTP/bot bootstrap + persistence baseline + quality gates.
-- The repository now includes a PR checklist so future merges must explicitly confirm tests, architecture, security, Telegram UX, and project-memory updates.
+- P1.1 foundation code has started and exists on `feat/p1-foundation` / draft PR #1.
+- P1.1 is **not verified complete** because GitHub-hosted CI has not begun runner steps successfully.
+- The exact next task is to resolve the GitHub Actions pre-run blocker, run all configured gates, fix any real code failures found, finalize dependency locking, then merge P1 through PR.
 
 ## Do not forget later
 
