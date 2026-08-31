@@ -79,9 +79,9 @@ async def test_get_page_parses_fixture_and_validated_next_link() -> None:
             json=payload,
             headers={
                 "Link": (
-                    '<https://api.github.com/installation/repositories?per_page=2&page=2>; '
+                    "<https://api.github.com/installation/repositories?per_page=2&page=2>; "
                     'rel="next", '
-                    '<https://api.github.com/installation/repositories?per_page=2&page=4>; '
+                    "<https://api.github.com/installation/repositories?per_page=2&page=4>; "
                     'rel="last"'
                 ),
                 "X-RateLimit-Limit": "5000",
