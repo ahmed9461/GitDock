@@ -1,5 +1,5 @@
-from pydantic import SecretStr
 import pytest
+from pydantic import SecretStr
 from sqlalchemy import select
 
 from gitdock.db.base import Base
@@ -55,7 +55,7 @@ async def test_binding_persists_only_after_app_and_user_installation_identity_ma
         user = User()
         session.add(user)
         await session.flush()
-        service = InstallationBindingService(FakeAuthClient(installation(), installation()))  # type: ignore[arg-type]
+        service = InstallationBindingService(FakeAuthClient(installation(), installation()))
         bound = await service.bind(
             session,
             user_id=user.id,
@@ -87,7 +87,7 @@ async def test_binding_rejects_spoofed_candidate_identity_before_database_write(
         session.add(user)
         await session.flush()
         service = InstallationBindingService(
-            FakeAuthClient(installation(account_id=10), installation(account_id=999))  # type: ignore[arg-type]
+            FakeAuthClient(installation(account_id=10), installation(account_id=999))
         )
         with pytest.raises(InstallationBindingError, match="did not match"):
             await service.bind(
