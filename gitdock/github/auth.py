@@ -252,7 +252,9 @@ class GitHubAuthClient:
         now = self._clock().astimezone(UTC)
         expires_at = self._expiry_from_seconds(now, data.get("expires_in"))
         refresh_raw = data.get("refresh_token")
-        refresh_token = SecretStr(refresh_raw) if isinstance(refresh_raw, str) and refresh_raw else None
+        refresh_token = (
+            SecretStr(refresh_raw) if isinstance(refresh_raw, str) and refresh_raw else None
+        )
         refresh_expires_at = self._expiry_from_seconds(now, data.get("refresh_token_expires_in"))
         return UserAccessToken(
             token=access_token,
