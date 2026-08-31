@@ -6,11 +6,22 @@ import asyncio
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Protocol
 
 from gitdock.core.constants import INSTALLATION_TOKEN_REFRESH_MARGIN_SECONDS
-from gitdock.github.auth import GitHubAuthClient, InstallationAccessToken
+from gitdock.github.auth import InstallationAccessToken
 
 Clock = Callable[[], datetime]
+
+
+class InstallationTokenSource(Protocol):
+    async def create_installation_token(
+        self,
+        installation_id: int,
+        *,
+        permissions: Mapping[str, str] | None = None,
+        repository_ids: Sequence[int] | None = None,
+    ) -> InstallationAccessToken: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,7 +51,7 @@ class InstallationTokenProvider:
 
     def __init__(
         self,
-        client: GitHubAuthClient,
+        client: InstallationTokenSource,
         *,
         refresh_margin: timedelta | None = None,
         clock: Clock | None = None,
