@@ -11,11 +11,11 @@ Last updated: 2026-08-31
 
 **Current phase:** P2 — GitHub App connection & read-only core
 
-**Current item:** P2.1 — GitHub App authentication foundation — implementation verified; documentation/PR closeout in progress.
+**Current item:** P2.1 — GitHub App authentication foundation — implementation verified; replacement PR closeout in progress.
 
 **Next implementation item after merge:** P2.2 — GitHub gateway foundation.
 
-P2.1 implementation on `feat/p2-github-app-auth` passed the full configured CI suite in run `33348203305`. Do not start P2.2/P2.3 or repository write/admin features until PR #4 is merged and the merged `main` state is verified.
+P2.1 implementation on `feat/p2-github-app-auth` passed the full configured CI suite in run `33348203305`, and the fully documentation-synchronized head passed run `33348487790`. Draft PR #4 was closed without merge only because the connector's draft-to-ready GraphQL mutation failed internally. **PR #5** is the non-draft replacement merge target. Do not start P2.2/P2.3 or repository write/admin features until PR #5 is merged and the merged `main` state is verified.
 
 ## P1 verified foundation
 
@@ -70,14 +70,22 @@ PR #2 was merged only after Pull Request CI run `33345131414` completed successf
 
 ## P2.1 verification evidence
 
-Pre-closeout PR CI run `33348203305` passed all configured jobs:
+Implementation CI run `33348203305` passed all configured jobs, and documentation-synchronized run `33348487790` repeated the full suite successfully:
 
 - Python 3.12: Ruff format, Ruff lint, mypy, **37 pytest tests**, compile validation, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff — all passed.
 - Python 3.13: the same gates, including **37 pytest tests** and PEP 751 lock regeneration/diff — all passed.
 - PostgreSQL 17: Alembic upgrade -> downgrade to base -> upgrade to head — passed.
-- `pip-audit` reported no known vulnerabilities for the pinned runtime requirements in this verification run.
+- `pip-audit` reported no known vulnerabilities for the pinned runtime requirements in these verification runs.
 
 The P2.1 dependency set adds exact runtime pins for `PyJWT==2.13.0` and `cryptography==50.0.1`; the Python 3.12 and 3.13 Linux PEP 751 locks were regenerated and verified byte-for-byte by CI.
+
+## PR replacement history
+
+- PR #4 was the original P2.1 draft and reached a fully green, documentation-synchronized head.
+- The connector's `markPullRequestReadyForReview` mutation failed internally because it requested a GitHub GraphQL `Repository.fullDatabaseId` field that does not exist.
+- PR #4 was therefore closed **without merge**; no code or quality gate was bypassed.
+- PR #5 was opened non-draft from the same feature branch as the replacement merge target.
+- The branch commit moved during the replacement workflow, so PR #5 must receive its own green CI on its final head before merge.
 
 ## Dependency locking policy
 
@@ -95,11 +103,12 @@ Locks use standardized PEP 751 output from `pip lock` and are interpreter/platfo
 
 ## Exact next task
 
-1. Finish P2.1 project-control documentation synchronization in PR #4.
-2. Require a green CI run for that exact documentation-synchronized head.
-3. Mark PR #4 ready and merge only while the verified head is unchanged.
+1. Finish P2.1 replacement-PR documentation synchronization in PR #5.
+2. Require a green CI run for the exact final PR #5 head.
+3. Merge PR #5 only while that verified head SHA is unchanged.
 4. Verify the merged `main` CI state.
-5. Then start **P2.2 — GitHub gateway foundation** on a new branch from verified `main`.
+5. Synchronize post-merge project state if required by the project-control contract.
+6. Then start **P2.2 — GitHub gateway foundation** on a new branch from verified `main`.
 
 ## Rules that remain in force
 
@@ -112,4 +121,4 @@ Locks use standardized PEP 751 output from `pip lock` and are interpreter/platfo
 
 ## Handoff instruction
 
-Read root `AGENTS.md`, this file, `docs/PROJECT_MEMORY.md`, `docs/ROADMAP.md`, `docs/SECURITY_MODEL.md`, `docs/TEST_MATRIX.md`, and the P2-relevant architecture sections. Complete only the PR #4 closeout/merge before starting P2.2; do not rebuild P1 or skip ahead.
+Read root `AGENTS.md`, this file, `docs/PROJECT_MEMORY.md`, `docs/ROADMAP.md`, `docs/SECURITY_MODEL.md`, `docs/TEST_MATRIX.md`, and the P2-relevant architecture sections. Complete only PR #5 verification/merge and post-merge state verification before starting P2.2; do not rebuild P1 or skip ahead.
