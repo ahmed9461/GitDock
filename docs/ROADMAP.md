@@ -111,9 +111,9 @@ Squash-merged through PR #5 as `81dfaf406d046205b39980d6a64c681ea3ab18c6`; post-
 
 P2.1 additionally verifies restart-safe hashed one-time state, PKCE S256 with encrypted verifier storage, and dual app/user-context installation identity verification before binding.
 
-### P2.2 GitHub gateway foundation ✅ (implementation verified; merge closeout pending)
+### P2.2 GitHub gateway foundation ✅
 
-Implementation head `ca6c0beb4ea96f661e9e891b04e69228bf6c4de3` passed CI run `33406986504`; full CI must run again on the final documentation-synchronized head before merge.
+Squash-merged through PR #7 into `main` as `4bffdcc8322857aaa16e94aaafe8b5a9d52e69c2`; post-merge `main` CI run `33409825480` passed.
 
 - [x] typed REST client wrapper.
 - [x] pagination helper with canonical GitHub API URL validation, loop guard, and page limit.
@@ -124,21 +124,35 @@ Implementation head `ca6c0beb4ea96f661e9e891b04e69228bf6c4de3` passed CI run `33
 
 P2.2 contract coverage includes canonical headers, parser boundaries, list/keyed pagination, malicious pagination target rejection, authentication/permission/not-found/conflict/validation/rate-limit categories, request/rate metadata, safe GET retry, and default no-write-retry behavior.
 
-### P2.3 Home + repository read screens
+### P2.3 Home + repository read screens — implementation verified, closeout in progress
 
-- [ ] GitHub connection screen.
-- [ ] Home status screen.
-- [ ] repository list/pagination/filter basics.
-- [ ] repository dashboard metadata.
-- [ ] refresh and empty/error states.
+Implementation head `a6d57d5a99b58004fab4dbf84b9b6742a9475523` passed full CI run `33423169021` with **65 tests** on Python 3.12 and the complete equivalent gate set on Python 3.13; PostgreSQL 17 migration round trip also passed. P2.3 remains [~] until documentation-head CI, PR merge, post-merge `main` CI, and final handoff synchronization are complete.
+
+- [x] GitHub connection screen and runtime setup/OAuth callback wiring.
+- [x] Home status screen.
+- [x] installed repository list.
+- [x] stable application pagination.
+- [x] repository filters: all/private/public/active/archived/source/fork.
+- [x] repository dashboard metadata.
+- [x] refresh, empty, stale-selection, and mapped GitHub error states.
+- [x] compact versioned repository callbacks resolved server-side.
+- [x] minimal non-authoritative `repositories_cache` + Alembic migration `0003`.
+- [x] repository details revalidated from GitHub before render.
+- [x] read-only Telegram renderers/keyboards/handlers with thin handler boundary.
+- [x] contract/integration/unit coverage expanding the suite from 49 to 65 tests.
+- [~] final documentation-head CI + non-draft PR + merge + post-merge `main` verification.
 
 Acceptance:
 
-- owner can connect/bind GitHub App installation safely;
-- GitDock lists only accessible installed repositories;
-- tokens are not exposed in logs/Telegram;
-- rate/auth/permission failures render correctly;
-- no write permission is required for the read-only flow.
+- [x] owner can start the safe GitHub App installation/user-authorization flow from Telegram;
+- [x] setup `installation_id` still passes through P2.1 dual-context verification before binding;
+- [x] GitDock lists repositories returned for the bound installation(s);
+- [x] compact repository callbacks are scoped to the GitDock user and active installation context;
+- [x] repository detail is refreshed from GitHub before display rather than trusting cache as authority;
+- [x] tokens/OAuth/PKCE/private keys/raw GitHub error bodies are not exposed through Telegram repository screens/cache;
+- [x] rate/auth/permission/not-found/transient classes have safe renderer paths;
+- [x] no repository write/admin permission is required for the read-only flow;
+- [~] merge/post-merge governance closeout still required before P2.3 is marked verified complete.
 
 ---
 
@@ -156,8 +170,8 @@ Acceptance:
 
 ### P3.2 User-context authorization
 
-- [ ] GitHub App user authorization completed.
-- [ ] one-time state validation.
+- [ ] GitHub App user authorization completed for durable user-context features that genuinely require it.
+- [ ] one-time state validation reused through the established auth foundation.
 - [ ] encrypted token storage/refresh behavior as applicable.
 - [ ] disconnect/revoke local binding flow.
 
