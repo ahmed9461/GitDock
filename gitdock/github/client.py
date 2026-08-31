@@ -25,8 +25,12 @@ from gitdock.core.constants import (
     RETRY_BASE_DELAY_SECONDS,
     RETRY_MAX_DELAY_SECONDS,
 )
-from gitdock.github.errors import GitHubErrorKind, GitHubGatewayError, GitHubTransientError
-from gitdock.github.errors import translate_http_error
+from gitdock.github.errors import (
+    GitHubErrorKind,
+    GitHubGatewayError,
+    GitHubTransientError,
+    translate_http_error,
+)
 from gitdock.github.models import GitHubPage, GitHubRateLimit, GitHubResponse
 from gitdock.github.pagination import parse_pagination_links, validate_github_api_target
 
@@ -283,7 +287,7 @@ def _build_headers(token: SecretStr | None) -> dict[str, str]:
     return headers
 
 
-def _parse_page_items(
+def _parse_page_items[T](
     payload: object,
     item_parser: Parser[T],
     item_key: str | None,
