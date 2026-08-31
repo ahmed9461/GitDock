@@ -119,9 +119,7 @@ class GitHubConnectionService:
                 installation_database_id = bound_installation.id
 
         async with self._session_factory() as session:
-            reloaded_installation = await session.get(
-                GitHubInstallation, installation_database_id
-            )
+            reloaded_installation = await session.get(GitHubInstallation, installation_database_id)
             if reloaded_installation is None:
                 raise GitHubConnectionError("verified GitHub installation could not be reloaded")
             session.expunge(reloaded_installation)
