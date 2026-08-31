@@ -341,9 +341,7 @@ def _parse_rate_limit(response: httpx.Response) -> GitHubRateLimit:
     return GitHubRateLimit(
         resource=response.headers.get("X-RateLimit-Resource"),
         limit=_parse_optional_non_negative_int(response.headers.get("X-RateLimit-Limit")),
-        remaining=_parse_optional_non_negative_int(
-            response.headers.get("X-RateLimit-Remaining")
-        ),
+        remaining=_parse_optional_non_negative_int(response.headers.get("X-RateLimit-Remaining")),
         used=_parse_optional_non_negative_int(response.headers.get("X-RateLimit-Used")),
         reset_at=_parse_reset_at(response.headers.get("X-RateLimit-Reset")),
         retry_after_seconds=_parse_retry_after(
