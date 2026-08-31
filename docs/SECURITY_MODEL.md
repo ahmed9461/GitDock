@@ -24,14 +24,16 @@ Untrusted inputs include:
 - repository names/paths/README text/file contents;
 - archive member paths and metadata;
 - GitHub API responses as external data that still require structural validation;
-- OAuth callback parameters until state validation succeeds.
+- OAuth/setup callback parameters until server-side state and GitHub identity validation succeeds;
+- `installation_id` returned through GitHub's setup/install redirect until independently verified through GitHub App and authenticated-user contexts.
 
 Trusted only after validation:
 
 - configured owner Telegram ID;
 - GitHub App private key loaded from secure deployment storage;
 - webhook secret from secure deployment configuration;
-- validated/persisted confirmation state.
+- validated/persisted confirmation state;
+- a GitHub installation binding whose installation/account identity matched in both the App-authenticated and authenticated-user contexts.
 
 ## 3. Telegram access control
 
@@ -60,7 +62,8 @@ GitHub App permissions start with no privileges and should be enabled by capabil
 - send tokens to Telegram;
 - include tokens in exception messages or audit rows;
 - embed a token in a clone command shown to the user;
-- store plaintext user access tokens in the database.
+- store plaintext user access tokens in the database;
+- assume a GitHub token's type or validity from a fixed legacy prefix/length alone.
 
 ### At rest
 
@@ -70,6 +73,10 @@ If GitHub user access/refresh material must be persisted:
 - keep the encryption master key outside the database and repository;
 - store token metadata separately from ciphertext;
 - design for key rotation/versioning.
+
+P2.1 implements this baseline with version-aware Fernet encryption. Access/refresh ciphertext, access expiry, refresh expiry, and key version are stored separately. Old-key decryption/new-key encryption is supported during rotation windows.
+
+A user access token used only to prove that an authenticated GitHub user can access an installation is not persisted merely because the proof flow used it. Durable user-token storage is reserved for features that actually require durable user context.
 
 Do not invent custom cryptography.
 
@@ -93,13 +100,38 @@ Reference: https://docs.github.com/en/webhooks/using-webhooks/validating-webhook
 ## 7. OAuth/user authorization security
 
 - Use cryptographically random, high-entropy `state` values.
-- Bind authorization state to one Telegram user and one intended flow.
+- Bind authorization state to one GitDock user and one intended flow.
 - Store state server-side with short expiry.
 - State is one-time use.
-- Reject missing, mismatched, expired, or already-consumed state.
+- Reject missing, mismatched, expired, wrong-flow, or already-consumed state.
 - Exchange authorization code only server-side.
-- Redact codes/tokens from logs.
+- Use PKCE S256 for the GitHub user-authorization flow.
+- Redact codes/tokens/state/PKCE verifier from logs.
 - Validate the resulting GitHub identity and bind it explicitly to the intended GitDock user.
+
+### Implemented P2.1 state-storage rules
+
+- The raw state value is never persisted. GitDock stores only `SHA-256(state)` for lookup/comparison.
+- The PKCE code verifier is encrypted before persistence and includes the credential-encryption key version.
+- State consumption is an atomic database update constrained by digest, intended flow, unconsumed status, and expiry. The successful update returns the minimum data needed to complete the flow.
+- State survives process restart because it is database-backed rather than volatile FSM-only data.
+
+### Implemented P2.1 installation-binding rule
+
+GitHub's setup/install redirect may contain an `installation_id`. GitDock treats that value only as an **untrusted candidate identifier**.
+
+Before persisting a user-to-installation binding GitDock must:
+
+1. consume the intended installation-flow state;
+2. start a fresh authenticated GitHub user-authorization step using one-time state + PKCE;
+3. fetch the candidate installation using GitHub App JWT context;
+4. fetch the same installation using the authenticated user access token;
+5. require installation ID, account ID, account login, and account type to match across both contexts;
+6. reject a suspended installation;
+7. reject an installation already bound to another GitDock user;
+8. persist only after all checks pass.
+
+Do not simplify this to trusting the query-string `installation_id` or matching account login alone.
 
 ## 8. Permission model
 
@@ -249,7 +281,11 @@ Structured logger must redact keys/patterns including:
 - `webhook_secret`
 - private key material
 - OAuth codes
+- OAuth state
+- PKCE verifier
 - Telegram bot token
+
+Authentication HTTP errors must not echo raw GitHub response bodies that may contain credential material.
 
 Do not log full webhook bodies by default for private repositories. Prefer event IDs and selected safe metadata.
 
@@ -277,13 +313,17 @@ Raw traceback stays in protected logs with redaction. Telegram receives a stable
 
 ## 22. Dependency/supply-chain baseline
 
-During P1:
+During P1/P2.1:
 
-- pin/lock dependencies using the chosen Python dependency workflow;
+- exact direct runtime pins are maintained in `requirements.txt`;
+- Python/platform-specific runtime selections/hashes are committed as PEP 751 locks generated by `pip lock`;
+- CI regenerates and byte-compares locks for Python 3.12 and 3.13 Linux;
 - use maintained libraries;
-- add dependency vulnerability review/update process;
+- run dependency vulnerability review (`pip-audit`) in CI;
 - do not install packages dynamically based on Telegram input;
-- CI should include a secret scan and dependency/security checks when tooling is selected.
+- CI includes repository secret scanning.
+
+P2.1 crypto/JWT runtime dependencies are exactly pinned to `PyJWT==2.13.0` and `cryptography==50.0.1` and are included in both supported runtime locks.
 
 ## 23. Deployment baseline
 
@@ -298,20 +338,3 @@ Before public production use:
 - PostgreSQL credentials least-privileged;
 - backups configured and restore tested;
 - health endpoint must not leak secrets/config values.
-
-## 24. Security Definition of Done for risky features
-
-A Tier 2/3 feature is not complete until tests cover:
-
-- authorized success;
-- unauthorized Telegram user;
-- missing GitHub permission;
-- expired confirmation;
-- reused confirmation;
-- target changed/stale state;
-- GitHub rejection;
-- network timeout/uncertain outcome reconciliation where relevant;
-- audit record behavior;
-- secret redaction.
-
-Archive sync additionally requires traversal/link/size/count/secret-warning tests.
