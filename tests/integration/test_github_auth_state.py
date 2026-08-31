@@ -2,8 +2,8 @@ import base64
 import hashlib
 from datetime import UTC, datetime, timedelta
 
-from cryptography.fernet import Fernet
 import pytest
+from cryptography.fernet import Fernet
 from sqlalchemy import select
 
 from gitdock.db.base import Base
