@@ -73,4 +73,4 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Load and cache process-level settings."""
 
-    return Settings()  # type: ignore[call-arg]
+    return Settings()
