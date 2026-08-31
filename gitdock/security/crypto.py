@@ -57,7 +57,9 @@ class CredentialCipher:
         try:
             plaintext = cipher.decrypt(ciphertext)
         except InvalidToken as exc:
-            raise CredentialEncryptionError("credential ciphertext could not be authenticated") from exc
+            raise CredentialEncryptionError(
+                "credential ciphertext could not be authenticated"
+            ) from exc
         try:
             return plaintext.decode("utf-8")
         except UnicodeDecodeError as exc:
