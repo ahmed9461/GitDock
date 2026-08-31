@@ -1,6 +1,6 @@
 # GitDock — Security Model
 
-Status: mandatory baseline
+Status: mandatory baseline + verified P2.1/P2.2 foundations + P2.3 repository-read controls
 
 ## 1. Security goals
 
@@ -25,7 +25,9 @@ Untrusted inputs include:
 - archive member paths and metadata;
 - GitHub API responses as external data that still require structural validation;
 - OAuth/setup callback parameters until server-side state and GitHub identity validation succeeds;
-- `installation_id` returned through GitHub's setup/install redirect until independently verified through GitHub App and authenticated-user contexts.
+- `installation_id` returned through GitHub's setup/install redirect until independently verified through GitHub App and authenticated-user contexts;
+- repository IDs carried in Telegram callback data until server-side user/installation/cache validation succeeds;
+- local repository cache contents as potentially stale navigation state, never authorization proof.
 
 Trusted only after validation:
 
@@ -33,7 +35,8 @@ Trusted only after validation:
 - GitHub App private key loaded from secure deployment storage;
 - webhook secret from secure deployment configuration;
 - validated/persisted confirmation state;
-- a GitHub installation binding whose installation/account identity matched in both the App-authenticated and authenticated-user contexts.
+- a GitHub installation binding whose installation/account identity matched in both App-authenticated and authenticated-user contexts;
+- repository read state revalidated against the current user's active bound installation and, for detail display, refreshed from GitHub.
 
 ## 3. Telegram access control
 
@@ -45,13 +48,19 @@ v1 is owner-only.
 - Callback queries must also re-check authorization; a callback payload is not proof of identity.
 - Production Telegram webhook should use Telegram's webhook secret-token mechanism when configured and validate the expected header.
 
+### P2.3 repository callback rule
+
+Repository callbacks are compact/versioned transport data only. The repository ID in a callback must be resolved server-side inside the current GitDock user context and a currently bound, unsuspended GitHub installation. A callback or cache row alone never grants access.
+
+The current integration suite verifies that a repository callback cached for one GitDock user is rejected for a different user.
+
 ## 4. GitHub App over broad PAT
 
 Default rule: do not use a broad permanent PAT as the product's primary credential model.
 
-Use GitHub App permissions and token contexts with least privilege.
+Use GitHub App permissions and token contexts with least privilege. GitHub App permissions start with no privileges and should be enabled by capability/milestone. Installation access tokens are short-lived and are generated as needed.
 
-GitHub App permissions start with no privileges and should be enabled by capability/milestone. Installation access tokens are short-lived and are generated as needed.
+P2.3 repository list/detail remains Tier 0 read-only and uses repository metadata/read capability. It does not introduce repository write/admin permission.
 
 ## 5. Credential handling
 
@@ -63,7 +72,9 @@ GitHub App permissions start with no privileges and should be enabled by capabil
 - include tokens in exception messages or audit rows;
 - embed a token in a clone command shown to the user;
 - store plaintext user access tokens in the database;
-- assume a GitHub token's type or validity from a fixed legacy prefix/length alone.
+- assume a GitHub token's type or validity from a fixed legacy prefix/length alone;
+- store credentials, OAuth material, or private keys in `repositories_cache`;
+- render OAuth codes, PKCE verifier/state, tokens, or raw upstream auth errors in setup/OAuth HTML pages.
 
 ### At rest
 
@@ -109,14 +120,14 @@ Reference: https://docs.github.com/en/webhooks/using-webhooks/validating-webhook
 - Redact codes/tokens/state/PKCE verifier from logs.
 - Validate the resulting GitHub identity and bind it explicitly to the intended GitDock user.
 
-### Implemented P2.1 state-storage rules
+### Implemented state-storage rules
 
 - The raw state value is never persisted. GitDock stores only `SHA-256(state)` for lookup/comparison.
 - The PKCE code verifier is encrypted before persistence and includes the credential-encryption key version.
-- State consumption is an atomic database update constrained by digest, intended flow, unconsumed status, and expiry. The successful update returns the minimum data needed to complete the flow.
+- State consumption is an atomic database update constrained by digest, intended flow, unconsumed status, and expiry.
 - State survives process restart because it is database-backed rather than volatile FSM-only data.
 
-### Implemented P2.1 installation-binding rule
+### Implemented installation-binding rule
 
 GitHub's setup/install redirect may contain an `installation_id`. GitDock treats that value only as an **untrusted candidate identifier**.
 
@@ -131,6 +142,8 @@ Before persisting a user-to-installation binding GitDock must:
 7. reject an installation already bound to another GitDock user;
 8. persist only after all checks pass.
 
+P2.3 wires this flow to actual FastAPI setup/OAuth routes. UI wiring does not change the trust rule. Setup and OAuth callback error pages use stable local copy and do not echo raw GitHub bodies, OAuth codes, or tokens.
+
 Do not simplify this to trusting the query-string `installation_id` or matching account login alone.
 
 ## 8. Permission model
@@ -141,35 +154,21 @@ High-power permissions such as repository `Administration: write` and `Workflows
 
 Repository operations must still respect the actual user's/repository's authority and GitHub branch protection/rules.
 
+P2.3 list/detail uses metadata/read only. Repository detail may request an installation token narrowed to the selected repository ID.
+
 Reference: https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app
 
 ## 9. Confirmation security
 
 A Telegram button is not itself durable authorization for a destructive operation.
 
-Pending confirmations include:
+Pending confirmations include opaque random ID, Telegram user id, operation type, target repository/resource, branch/ref/path and expected SHA when relevant, risk tier, intended payload summary/hash where practical, expiration, and consumed state.
 
-- opaque random ID;
-- Telegram user id;
-- operation type;
-- target repository/resource;
-- branch/ref/path and expected SHA when relevant;
-- risk tier;
-- exact intended payload summary/hash where practical;
-- expiration;
-- consumed state.
-
-On confirm:
-
-- re-check Telegram authorization;
-- load pending confirmation server-side;
-- ensure unexpired/unconsumed;
-- ensure target still matches;
-- re-check relevant preconditions;
-- atomically consume or mark executing;
-- apply once.
+On confirm: re-check Telegram authorization, load server-side state, verify unexpired/unconsumed target/preconditions, atomically consume/mark executing, then apply once.
 
 Tier 3 deletion additionally requires exact repository name entry before final button confirmation.
+
+P2.3 is read-only and does not use write confirmations; later repository administration must not infer write authority from the P2.3 repository cache.
 
 ## 10. Stale-state/conflict protection
 
@@ -182,40 +181,19 @@ For file updates and batch operations:
 
 For merges/actions, refresh critical state immediately before the final write where practical.
 
+For P2.3 repository reads, stale callback/cache state is refreshed against GitHub before detail render. A not-found/inaccessible repository removes or rejects stale cache context rather than continuing from local metadata.
+
 ## 11. Archive/ZIP security
 
 Uploaded archives are untrusted.
 
-Before extraction:
+Before extraction enforce upload size limits, inspect members, reject absolute/traversal/device/special/link entries per policy, enforce depth/count/uncompressed-size limits, detect duplicate normalized paths, and prevent writes outside isolated workspace.
 
-- enforce uploaded size limits;
-- inspect member list;
-- reject absolute paths;
-- normalize paths and reject `..` traversal escaping workspace;
-- reject device/special file types;
-- reject or safely handle symlinks/hardlinks; v1 default is reject archive links;
-- enforce max path depth;
-- enforce file count;
-- enforce total uncompressed size;
-- detect duplicate/conflicting normalized paths;
-- prevent overwrite outside the isolated workspace.
-
-After extraction:
-
-- never execute uploaded code;
-- never automatically source `.env` or shell files;
-- scan/flag secret-like filenames/content before GitHub upload where feasible;
-- clean temporary workspace after completion/expiry.
+After extraction never execute uploaded code, never automatically source `.env` or shell files, scan/flag secret-like content where feasible, and clean temporary workspace after completion/expiry.
 
 ## 12. Secret-like file safeguards for project sync
 
-Default warnings/blocklist candidates include:
-
-- `.env` (except explicitly safe examples such as `.env.example` after review)
-- private keys (`*.pem`, `id_rsa`, etc.)
-- credential/token files
-- local database files when unexpected
-- auth/session cache directories
+Default warnings/blocklist candidates include `.env` except reviewed safe examples, private keys, credential/token files, unexpected local databases, and auth/session cache directories.
 
 The scanner is a safety layer, not a guarantee. It must avoid claiming that an upload is secret-free.
 
@@ -226,7 +204,28 @@ The scanner is a safety layer, not a guarantee. It must avoid claiming that an u
 - Do not allow UI short IDs to be interpreted directly as paths without server-side resolution.
 - Treat `.github/workflows/*` as a special protected area requiring Workflows capability.
 
-## 14. Command-generation safety
+## 14. Repository callback/cache safety — P2.3
+
+`repositories_cache` exists because Telegram callback payloads are small; it is not a shadow authorization database.
+
+Mandatory rules:
+
+- cache only safe non-secret repository metadata/context;
+- scope rows to a GitDock user and bound GitHub installation;
+- use stable GitHub repository ID for compact callback resolution;
+- do not embed arbitrary long repository `owner/name` in callbacks;
+- validate callback parser/version/positive IDs before use;
+- require the cached row to belong to the current GitDock user;
+- require the related installation to belong to that user and be unsuspended;
+- obtain the repository read token through the normal installation-token provider;
+- re-fetch GitHub repository detail before rendering;
+- if GitHub reports not found/inaccessible, delete/reject stale callback cache state;
+- never use cache existence as evidence of write/admin permission;
+- never place access tokens, refresh tokens, OAuth code/state, PKCE verifier, private key, or raw upstream bodies in cache rows.
+
+Current P2.3 tests verify callback size/round-trip, long-name non-embedding, cross-user rejection, repository-scoped detail token request, stale cache pruning, and disconnected state.
+
+## 15. Command-generation safety
 
 Clone/setup/run feature generates commands only.
 
@@ -236,39 +235,39 @@ Clone/setup/run feature generates commands only.
 - Treat repository-controlled scripts and README content as untrusted instructions.
 - Inferred run/setup commands come from trusted templates plus detected project metadata, with uncertainty labeled.
 
-## 15. SSRF/network restrictions
+## 16. SSRF/network restrictions
 
 Core GitHub clients should target configured official GitHub API/GraphQL endpoints and approved GitHub hosts. Do not implement a generic “fetch URL from Telegram” capability as part of the GitHub gateway.
 
-Redirects/downloads (for artifacts/releases) need host and size validation according to the feature's design.
+Redirects/downloads for artifacts/releases need host and size validation according to that feature's design.
 
-### Implemented P2.2 REST gateway rules
+### Implemented REST gateway rules
 
 - The canonical REST transport accepts repository-relative API paths or HTTPS URLs whose host is exactly `api.github.com`.
 - Scheme-relative URLs, credential-bearing URLs, non-HTTPS absolute URLs, and external hosts are rejected before network I/O.
-- Pagination `Link` targets are validated through the same canonical host policy before they can be followed.
-- The REST client does not follow HTTP redirects automatically; later artifact/release download flows must introduce a separate reviewed redirect policy rather than weakening the core API client.
-- A repeated pagination next-link is treated as an unexpected gateway failure, and page traversal is capped by the configured safety limit.
+- Pagination `Link` targets use the same canonical host policy.
+- The REST client does not follow HTTP redirects automatically.
+- Repeated pagination next-link is an unexpected gateway failure and page traversal is capped.
 
-These rules make pagination incapable of becoming an arbitrary URL fetcher merely because GitHub/external input supplied a `Link` value.
+These rules make pagination incapable of becoming an arbitrary URL fetcher merely because external input supplied a `Link` value.
 
-## 16. GitHub API writes
+## 17. GitHub API writes
 
 - Use preconditions/current SHA where endpoints support them.
-- Serialize conflicting Contents API create/update/delete operations for the same path; GitHub documents conflicts when create/update and delete operations are run concurrently.
-- Batch multi-file changes coherently instead of racing many independent writes.
-- Do not blindly retry destructive/non-idempotent writes after an uncertain network result; first reconcile state.
+- Serialize conflicting Contents API operations for the same path.
+- Batch multi-file changes coherently instead of racing independent writes.
+- Do not blindly retry destructive/non-idempotent writes after uncertain network result; first reconcile state.
 
-### Implemented P2.2 retry boundary
+### Retry boundary
 
 - `GET` and `HEAD` use bounded retry behavior for transient network failures and selected transient HTTP statuses.
 - Writes are `RetryMode.NEVER` by default. A higher layer must explicitly opt an operation into safe retry only when its semantics/preconditions make replay safe.
 - Backoff is bounded exponential delay with jitter and the global configured retry ceiling.
-- Rate-limit responses are translated and surfaced with parsed rate-limit metadata instead of being blindly retried as generic transient failures.
+- Rate-limit responses are surfaced distinctly with parsed metadata instead of being blindly retried.
 
 Reference: https://docs.github.com/en/rest/repos/contents
 
-## 17. GitHub Actions safety
+## 18. GitHub Actions safety
 
 - Actions read is separate from Actions write.
 - Manual dispatch requires showing workflow, ref, and input values before confirmation.
@@ -278,83 +277,70 @@ Reference: https://docs.github.com/en/rest/repos/contents
 
 Reference: https://docs.github.com/en/rest/actions/workflows
 
-## 18. Database security
+## 19. Database security
 
 - Parameterized ORM/query use only; no string-concatenated SQL from user input.
 - Unique constraints for delivery IDs and identity bindings.
 - Transactions for consume-and-execute confirmation transitions where applicable.
 - Migration scripts reviewed/tested.
-- Database backups and access controls are deployment concerns to document before production launch.
+- Database backups/access controls are deployment concerns to document before production launch.
+- P2.3 migration `0003` is included in PostgreSQL 17 upgrade -> downgrade -> upgrade CI.
+- Repository cache is safe metadata/context only; credentials live only in their dedicated encrypted credential model where required.
 
-## 19. Logging/redaction
+## 20. Logging/redaction
 
-Structured logger must redact keys/patterns including:
+Structured logger must redact keys/patterns including authorization, token/access/refresh token, client/webhook secret, private key material, OAuth codes/state, PKCE verifier, credential key, and Telegram bot token.
 
-- `authorization`
-- `token`
-- `access_token`
-- `refresh_token`
-- `client_secret`
-- `webhook_secret`
-- private key material
-- OAuth codes
-- OAuth state
-- PKCE verifier
-- Telegram bot token
+Authentication/gateway HTTP errors must not echo raw GitHub response bodies that may contain credential material.
 
-Authentication HTTP errors must not echo raw GitHub response bodies that may contain credential material.
-
-P2.2 extends the same rule to the general GitHub REST gateway: translated exceptions expose stable categories, status/request identifiers and safe rate-limit metadata, but do not embed the raw GitHub response body. Parser/shape failures likewise use a stable generic message rather than dumping returned payloads.
+P2.3 setup/OAuth HTML errors and Telegram repository error renderers consume stable local categories/messages rather than raw upstream bodies.
 
 Do not log full webhook bodies by default for private repositories. Prefer event IDs and selected safe metadata.
 
-## 20. Audit log
+## 21. Audit log
 
-Audit user-triggered writes with:
-
-- operation id;
-- Telegram user id;
-- GitHub account/installation identity;
-- repository;
-- operation name;
-- resource target;
-- timestamp;
-- result/status;
-- GitHub response identifiers such as commit/issue/PR/run IDs.
+Audit user-triggered writes with operation id, Telegram user id, GitHub account/installation identity, repository, operation/resource, timestamp, result/status, and safe GitHub result identifiers.
 
 Do not place secret content or full sensitive file contents in audit rows.
 
-## 21. Error handling
+P2.3 introduces no GitHub write and therefore does not treat read-cache synchronization as a write-audit substitute.
+
+## 22. Error handling
 
 User-facing errors must reveal enough to resolve the issue but not infrastructure secrets.
 
-Raw traceback stays in protected logs with redaction. Telegram receives a stable operation/correlation ID.
+Raw traceback stays in protected logs with redaction. Telegram receives stable local errors/correlation where appropriate.
 
-P2.2 defines stable gateway categories for authentication, permission, not-found, conflict, validation, rate-limit, transient, and unexpected response failures. Application services/renderers must consume these categories rather than branch on arbitrary GitHub body text.
+Gateway categories remain authentication, permission, not-found, conflict, validation, rate-limit, transient, and unexpected. P2.3 maps these to Arabic repository UI messages plus a distinct stale-selection message.
 
-## 22. Dependency/supply-chain baseline
-
-During P1/P2.1/P2.2:
+## 23. Dependency/supply-chain baseline
 
 - exact direct runtime pins are maintained in `requirements.txt`;
 - Python/platform-specific runtime selections/hashes are committed as PEP 751 locks generated by `pip lock`;
 - CI regenerates and byte-compares locks for Python 3.12 and 3.13 Linux;
 - use maintained libraries;
-- run dependency vulnerability review (`pip-audit`) in CI;
-- do not install packages dynamically based on Telegram input;
+- run `pip-audit` in CI;
+- do not install packages dynamically from Telegram input;
 - CI includes repository secret scanning.
 
-P2.1 crypto/JWT runtime dependencies are exactly pinned to `PyJWT==2.13.0` and `cryptography==50.0.1` and are included in both supported runtime locks.
+P2.3 introduces no runtime dependency drift. Implementation CI `33423169021` reports no known runtime vulnerabilities, no secret-scan findings, and no PEP 751 lock drift.
 
-P2.2 introduces no new runtime dependency or database schema change; it builds on the already pinned `httpx` transport and standard-library parsing primitives. The implementation-head CI run `33406986504` reported no known runtime vulnerabilities, no secret-scan findings, and no PEP 751 lock drift.
+## 24. Known non-blocking maintenance warnings
 
-## 23. Deployment baseline
+Green P2.3 CI currently reports:
+
+- Starlette/FastAPI `TestClient` deprecation warning for the current `httpx` integration/future `httpx2` direction;
+- Alembic deprecation warning because `alembic.ini` does not explicitly set `path_separator` for `prepend_sys_path`.
+
+These warnings are tracked maintenance debt; they are not test failures and must not be silently forgotten.
+
+## 25. Deployment baseline
 
 Before public production use:
 
-- HTTPS required for webhook endpoints;
+- HTTPS required for webhook/setup/OAuth endpoints;
 - restrict service filesystem permissions;
-- private key file readable only by service account;
+- private key readable only by service account;
 - environment/secrets not world-readable;
 - run service as non-root where practical;
 - reverse proxy request-size/time limits aligned with upload policy;
