@@ -10,103 +10,93 @@ Last updated: 2026-08-31
 - P1 — Project skeleton & quality gates ✅
 - P2.1 — GitHub App authentication foundation ✅
 - P2.2 — GitHub gateway foundation ✅
+- P2.3 — Home + repository read screens ✅
 
-**Current phase:** P2 — GitHub App connection & read-only core
+**Current phase:** P3 — Search & repository administration
 
-**Current item:** P2.3 — Home + repository read screens — implementation verified on `feat/p2-repository-read`; merge closeout pending.
+**Next implementation item:** **P3.1 — GitHub repository search**.
 
-## P2.2 final verification
+## P2.3 final closeout
 
-P2.2 was squash-merged through non-draft PR #7 into `main` as commit `4bffdcc8322857aaa16e94aaafe8b5a9d52e69c2`.
+P2.3 was squash-merged through non-draft PR #8 into `main` as commit:
+
+`939d218d76fd87f3ba6cf0a80a89b4a816aac557`
 
 Verification evidence:
 
-- implementation-head CI `33406986504` — green;
-- synchronized Draft PR #6 CI `33409265057` — green;
-- replacement PR #7 CI `33409418512` — green;
-- final PR #7 head `153e30cc86499918f300a74e074213affd92f319` CI `33409670775` — green;
-- post-merge `main` CI `33409825480` — green.
+- implementation-head CI `33423169021` — green;
+- documentation-synchronized branch-head CI `33424505117` — green;
+- PR #8 CI `33424652835` — green;
+- post-merge `main` CI `33424799759` — green.
 
-Python 3.12 and 3.13 each passed Ruff format/lint, mypy, **49 pytest tests**, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff. PostgreSQL 17 migration upgrade -> downgrade -> upgrade also passed.
-
-P2.2 durable invariants remain mandatory:
-
-- `GitHubRestClient` is the canonical REST transport boundary;
-- normal Telegram/application code does not issue raw GitHub HTTP;
-- pagination targets are restricted to canonical HTTPS `api.github.com`;
-- raw GitHub bodies/tokens are not exposed through gateway errors;
-- GET/HEAD may retry bounded transient failures; writes do not retry by default;
-- GitHub remains source of truth.
-
-## P2.3 verified implementation
-
-Implementation head `a6d57d5a99b58004fab4dbf84b9b6742a9475523` passed CI run `33423169021`.
-
-Verified on the implementation head:
+Final verified gate set:
 
 - Python 3.12: Ruff format ✅, Ruff lint ✅, mypy ✅, **65 pytest tests ✅**, compile ✅, `pip-audit` ✅, `detect-secrets` ✅, PEP 751 lock regeneration/diff ✅;
-- Python 3.13: the same complete quality/security/lock gate set ✅;
-- PostgreSQL 17 migration chain including `0003` upgrade -> downgrade -> upgrade ✅;
-- `pip-audit` reported no known runtime vulnerabilities.
+- Python 3.13: same configured complete gate set ✅;
+- PostgreSQL 17: Alembic upgrade -> downgrade -> re-upgrade including migration `0003` ✅;
+- `pip-audit`: no known runtime vulnerabilities reported ✅.
 
-Implemented read-only user experience:
+## What P2.3 delivered
 
-- [x] GitHub connection/home state and Arabic Telegram home screen.
-- [x] working GitHub App setup + OAuth callback wiring using the existing P2.1 state/PKCE/binding services.
-- [x] installed-repository list sourced from GitHub installation context.
-- [x] stable pagination and repository filters: all/private/public/active/archived/source/fork.
-- [x] repository dashboard metadata: visibility, archive/fork state, default branch, language, stars/forks, description, updated time.
-- [x] refresh, empty, stale-selection, auth/permission/not-found/rate/transient user-facing states.
-- [x] compact versioned Telegram callbacks with repository ID resolved server-side.
-- [x] minimal `repositories_cache` and Alembic migration `0003` for callback/context resolution.
-- [x] repository detail is re-fetched from GitHub before rendering; stale/not-found cache entries are removed.
-- [x] thin Telegram handlers wired through application services and the P2.2 gateway.
-- [x] contract/integration/unit UI coverage expanding the suite from 49 to **65 tests**.
+- working Arabic Telegram home/connection state;
+- working GitHub App installation/setup + OAuth callback wiring through the existing secure P2.1 state/PKCE/dual-context binding flow;
+- installed repository list sourced through the P2.2 gateway;
+- stable pagination and filters: all/private/public/active/archived/source/fork;
+- repository dashboard metadata: visibility, archive/fork state, default branch, language, stars/forks, description, update time;
+- refresh, disconnected/empty, stale-selection, authentication, permission, not-found, rate-limit, transient/error states;
+- compact versioned repository callbacks that remain under Telegram callback limits;
+- minimal `repositories_cache` + Alembic migration `0003` for server-side callback/navigation context;
+- repository callback resolution scoped to GitDock user + active unsuspended installation;
+- repository detail re-fetch from GitHub before render;
+- stale cache pruning when repositories leave an installation;
+- owner identity and runtime composition services;
+- expanded test suite from 49 to **65 tests**.
 
-### P2.3 security/architecture invariants
+## P2.3 durable invariants
 
-- Tier 0 read-only only; P2.3 introduces no repository write/admin feature.
-- No new GitHub write permission is required.
-- `repositories_cache` is **not** authoritative GitHub state. It stores only safe non-secret metadata/context needed for compact callbacks and navigation.
-- Repository callbacks do not embed arbitrary long `owner/name`; they carry a compact versioned repository identifier plus navigation context.
-- Callback repository resolution is scoped to the GitDock user and a currently bound, unsuspended installation.
-- Repository detail is revalidated from GitHub before display.
-- Tokens, OAuth codes, PKCE material, private keys, and raw upstream error bodies are never rendered to Telegram or stored in the repository cache.
-- Setup `installation_id` remains untrusted until the P2.1 dual-context verification flow succeeds.
 - GitHub remains source of truth.
+- `repositories_cache` is navigation/callback context only; it is not authorization proof and not a shadow GitHub database.
+- Cache rows contain no access/refresh tokens, OAuth code/state, PKCE material, private keys, or raw GitHub error bodies.
+- Repository callbacks use compact stable repository IDs + navigation context instead of arbitrary long `owner/name` strings.
+- Repository selection is resolved server-side against the current GitDock user and bound unsuspended installation.
+- Repository detail is revalidated from GitHub before display.
+- P2.3 remains Tier 0 read-only and introduced no repository write/admin permission.
+- Setup `installation_id` is still untrusted until P2.1 dual-context verification completes.
+- Telegram handlers remain thin; application services own use cases and the GitHub gateway owns normal HTTP details.
 
 ## Known non-blocking maintenance warnings
 
-The green CI currently reports deprecation warnings that do not fail the build:
+The verified P2.3 suite still reports two recorded deprecation warnings:
 
-- Starlette/FastAPI `TestClient` warns that its current `httpx` integration is deprecated in favor of the future `httpx2` path.
-- Alembic warns that `alembic.ini` has no explicit `path_separator`; it falls back to legacy `prepend_sys_path` splitting.
+- Starlette/FastAPI `TestClient` warning about the current `httpx` integration/future `httpx2` direction;
+- Alembic warning because `alembic.ini` does not yet set explicit `path_separator` for `prepend_sys_path`.
 
-These are maintenance follow-ups, not hidden test failures. Do not claim a zero-warning suite until they are resolved.
+They are maintenance debt, not hidden test failures.
 
-## P2.3 closeout still required
+## P3.1 scope — next
 
-P2.3 is **not yet marked verified complete** until all of the following happen on an unchanged final head:
+Build **GitHub repository search** without adding repository writes:
 
-1. project-control documentation is synchronized;
-2. full CI is green again on that documentation-synchronized head;
-3. a non-draft PR is opened from the exact green head;
-4. PR CI is green and the PR is mergeable;
-5. merge uses the verified expected head SHA;
-6. post-merge `main` CI is green;
-7. final handoff documents record the merge commit and `main` CI result.
+- search query flow using GitHub repository search;
+- typed search-result model over the canonical P2.2 REST transport;
+- stars/forks/language/license/archived/updated metadata;
+- sort by stars/update;
+- filters for language/min-stars/owner/topic/archive as planned;
+- result pagination;
+- result detail screen;
+- clone-command entry point may be shown but command-generation implementation remains P4.3 unless explicitly scoped;
+- safe no-results/rate/auth/error states;
+- Telegram callbacks remain compact/versioned;
+- public search results must not be inserted into installed `repositories_cache` as if they belonged to a GitHub App installation.
 
-Do not begin P3.1 before this closeout is finished.
+### P3.1 boundaries
 
-## Rules that remain in force
-
-- GitHub App remains the primary credential model.
-- A setup/install `installation_id` is untrusted until dual-context verification.
-- GitHub remains source of truth.
-- Telegram handlers stay thin; services own use cases; gateway owns GitHub HTTP.
-- No secrets/tokens/private keys/OAuth material are committed, logged, cached as repository metadata, or rendered to Telegram.
-- P2.3 introduces no write/admin feature.
+- Do not implement repository creation/settings/deletion yet; that is P3.3.
+- Do not introduce write/admin GitHub permission for search.
+- Do not bypass `GitHubRestClient` with raw HTTP in handlers/services.
+- Do not treat search results as installed-repository authorization context.
+- Do not start P4 file browsing from the search milestone.
 
 ## Handoff instruction
 
-Read `AGENTS.md` and the mandatory pre-flight documents. Continue only P2.3 closeout on `feat/p2-repository-read`. After final documentation-head CI, PR merge, and post-merge `main` verification, mark P2.3 complete and move to **P3.1 — GitHub repository search**.
+Read `AGENTS.md` and mandatory pre-flight docs, branch from verified `main`, mark **P3.1 Active**, then build the repository-search use case through the existing gateway/service/Telegram boundaries. Preserve D-013, D-016, and D-017.
