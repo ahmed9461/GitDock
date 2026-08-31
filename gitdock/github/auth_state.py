@@ -122,6 +122,7 @@ class GitHubAuthorizationStateService:
                 GitHubAuthorizationState.code_verifier_key_version,
                 GitHubAuthorizationState.candidate_installation_id,
             )
+            .execution_options(synchronize_session=False)
         )
         result = await session.execute(statement)
         row = result.one_or_none()
