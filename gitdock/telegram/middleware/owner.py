@@ -10,8 +10,13 @@ from aiogram.types import TelegramObject
 
 
 def actor_id(event: TelegramObject) -> int | None:
+    """Return the Telegram actor id only when it is a valid integer."""
+
     user = getattr(event, "from_user", None)
-    return getattr(user, "id", None)
+    if user is None:
+        return None
+    value = getattr(user, "id", None)
+    return value if isinstance(value, int) else None
 
 
 class OwnerOnlyMiddleware(BaseMiddleware):
