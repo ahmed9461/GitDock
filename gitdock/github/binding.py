@@ -2,12 +2,24 @@
 
 from __future__ import annotations
 
+from typing import Protocol
+
 from pydantic import SecretStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from gitdock.db.models.identity import GitHubInstallation
-from gitdock.github.auth import GitHubAuthClient, InstallationIdentity
+from gitdock.github.auth import InstallationIdentity
+
+
+class InstallationVerifier(Protocol):
+    async def get_app_installation(self, installation_id: int) -> InstallationIdentity: ...
+
+    async def get_user_installation(
+        self,
+        user_token: SecretStr,
+        installation_id: int,
+    ) -> InstallationIdentity: ...
 
 
 class InstallationBindingError(RuntimeError):
@@ -17,7 +29,7 @@ class InstallationBindingError(RuntimeError):
 class InstallationBindingService:
     """Bind only installations verified through both app and user authentication contexts."""
 
-    def __init__(self, auth_client: GitHubAuthClient) -> None:
+    def __init__(self, auth_client: InstallationVerifier) -> None:
         self._auth_client = auth_client
 
     async def bind(
@@ -42,9 +54,7 @@ class InstallationBindingService:
             raise InstallationBindingError("GitHub App installation is suspended")
 
         result = await session.execute(
-            select(GitHubInstallation).where(
-                GitHubInstallation.installation_id == installation_id
-            )
+            select(GitHubInstallation).where(GitHubInstallation.installation_id == installation_id)
         )
         existing = result.scalar_one_or_none()
         if existing is not None and existing.user_id != user_id:
