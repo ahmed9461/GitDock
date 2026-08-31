@@ -2,7 +2,7 @@
 
 Status: authoritative quality expectations. Concrete tool commands are finalized in P1.
 
-P2.2 implementation verification reference: GitHub Actions run `33406986504` passed the current suite on Python 3.12, Python 3.13, and the PostgreSQL 17 migration job. The suite now contains **49 tests**, including **12 GitHub gateway contract tests**. Checkmarks below remain conservative: a box is marked only where the current suite directly exercises that requirement.
+P2.3 implementation verification reference: GitHub Actions run `33423169021` passed the current suite on Python 3.12, Python 3.13, and the PostgreSQL 17 migration job. The suite now contains **65 tests**. P2.3 adds repository REST contracts, GitHub callback-route integration, owner identity, repository read/cache integration, and repository UI/callback coverage on top of the P2.2 gateway suite. Checkmarks below remain conservative: a box is marked only where the current suite directly exercises that requirement.
 
 ## 1. Test layers
 
@@ -96,13 +96,15 @@ Not every box applies to every read-only helper; document exclusions sensibly.
 - [x] owner command accepted.
 - [x] non-owner command ignored/rejected per policy.
 - [x] non-owner callback blocked.
-- [ ] stale callback version rejected safely.
-- [ ] callback short ID resolves only inside intended user/session context.
-- [ ] callback cannot cross users in future multi-user tests.
-- [ ] Back returns to correct parent state.
+- [ ] stale callback version rejected safely beyond current parser rejection coverage.
+- [x] repository callback short ID resolves only inside intended GitDock user/installation context.
+- [x] repository callback cannot cross GitDock users in the current service integration test.
+- [x] repository detail callback carries back page/filter context and generated callback stays within Telegram's 64-byte limit.
 - [ ] Cancel invalidates active operation/confirmation.
-- [ ] Home resets navigation safely without applying pending writes.
-- [ ] repeated callback does not duplicate completed write.
+- [x] Home/read-only navigation does not apply repository writes.
+- [ ] repeated callback does not duplicate completed write; not applicable to P2.3 because it is read-only.
+
+P2.3 UI unit coverage additionally verifies that a 200-character repository name is not embedded in callback payloads and that repository callbacks round-trip with a maximum signed 64-bit repository ID while remaining within Telegram's callback size limit.
 
 ## 5. GitHub authentication
 
@@ -113,16 +115,18 @@ Not every box applies to every read-only helper; document exclusions sensibly.
 - [x] cached token reused only while valid.
 - [x] near-expiry token refreshed.
 - [ ] expired token path refreshes/retries appropriately.
-- [ ] suspended/deleted installation handled.
-- [ ] repo outside installation rejected cleanly.
+- [ ] suspended/deleted installation handled end-to-end through a live GitHub response.
+- [x] repository callback outside the current GitDock user's cached/installation context is rejected cleanly.
 
-Additional P2.1 contract coverage:
+Additional P2.1/P2.3 contract coverage:
 
 - [x] GitHub REST API version header is sent by the auth client.
 - [x] installation token parsing does not assume legacy token length/format.
 - [x] installation token cache is scoped by requested permissions/repository IDs.
+- [x] repository detail requests a token narrowed to the selected repository ID.
 - [x] spoofed setup/install candidate identity is rejected before database binding.
 - [x] installation binding persists only after app-context and authenticated-user-context identity match.
+- [x] actual FastAPI setup/OAuth callback routes are registered and exercise safe success/error paths.
 
 ### User authorization
 
@@ -141,7 +145,7 @@ Additional P2.1 contract coverage:
 
 ## 5.1 GitHub gateway foundation — P2.2
 
-Implemented contract/mock coverage on the verified implementation head:
+Implemented contract/mock coverage:
 
 - [x] canonical `Accept`, GitHub API version, and `User-Agent` headers are sent.
 - [x] optional bearer authorization header is injected without exposing the token through result representations.
@@ -158,7 +162,7 @@ Implemented contract/mock coverage on the verified implementation head:
 - [x] transient safe `GET` requests retry with bounded exponential backoff.
 - [x] write requests are not retried by default.
 - [x] explicitly declared safe operations can opt into retry behavior.
-- [x] P2.2 adds no dependency/schema drift: `pip-audit`, `detect-secrets`, PEP 751 lock regeneration/diff, and PostgreSQL migration CI remain green.
+- [x] P2.2/P2.3 keep `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff green.
 
 Deferred intentionally to later feature milestones:
 
@@ -169,18 +173,32 @@ Deferred intentionally to later feature milestones:
 
 ## 6. Repository list/dashboard/search
 
-- [ ] pagination stable.
-- [ ] public/private/archive/fork metadata rendered correctly.
-- [ ] very long repository names do not break callback limits.
-- [ ] empty repository list.
-- [ ] inaccessible repository disappears/errors correctly after installation change.
+### P2.3 repository list/dashboard — verified implementation coverage
+
+- [x] installed-repository payload parsed into typed repository snapshots.
+- [x] pagination stable at the application service boundary.
+- [x] private/public metadata rendered correctly.
+- [x] archived/source/fork metadata and filters implemented.
+- [x] default branch/language/stars/forks/update metadata rendered where available.
+- [x] very long repository names do not break callback limits and are not embedded in callback payloads.
+- [x] empty/disconnected home/repository state has a safe renderer/service path.
+- [x] repository detail resolves compact ID only inside the same GitDock user context.
+- [x] repository detail requests a repository-scoped installation token and re-fetches GitHub before render.
+- [x] repositories removed from the installation are pruned from local callback cache on refresh.
+- [x] repository cache is non-authoritative and contains no credential fields.
+- [x] filter coverage includes private and the filter implementation covers public/active/archived/source/fork branches.
+- [x] GitHub gateway rate-limit category has a safe user-facing repository renderer mapping.
+- [x] stale repository selection has a safe user-facing state.
+
+### P3.1 search — intentionally deferred
+
 - [ ] search query validation.
 - [ ] sort by stars.
 - [ ] sort by update.
 - [ ] language/min-star/owner/topic filters.
-- [ ] archived filter.
-- [ ] no-results state.
-- [ ] rate-limit state.
+- [ ] archived search filter.
+- [ ] search no-results state.
+- [ ] public search pagination.
 
 ## 7. Repository administration
 
@@ -415,6 +433,7 @@ Inject fake secrets and verify they do not appear in captured logs:
 - [x] OAuth code.
 - [x] PKCE verifier/state keyed values.
 - [x] general GitHub gateway error translation does not echo token-like response-body text.
+- [x] P2.3 setup/OAuth error pages avoid rendering OAuth code/token/raw upstream error material.
 - [ ] private key marker/body fixture.
 
 ## 21. Migrations
@@ -422,7 +441,7 @@ Inject fake secrets and verify they do not appear in captured logs:
 For every schema migration:
 
 - [x] clean upgrade from base in automated test/CI coverage.
-- [x] upgrade from previous schema through the current Alembic chain.
+- [x] upgrade from previous schema through the current Alembic chain including P2.3 `0003`.
 - [ ] explicit schema-assertion coverage for every expected index/unique constraint.
 - [ ] explicit non-destructive data-preservation fixture for upgrade/downgrade.
 - [x] downgrade tested for the current migration chain.
@@ -432,8 +451,9 @@ For every schema migration:
 
 Before production-grade release:
 
-- [ ] connect GitHub App.
+- [ ] connect GitHub App against the dedicated live test account/repository.
 - [ ] list private test repository.
+- [ ] verify P2.3 Telegram pagination/filter/detail against live GitHub test data.
 - [ ] create test repository.
 - [ ] rename/description update.
 - [ ] create branch.
@@ -446,6 +466,15 @@ Before production-grade release:
 - [ ] verify delete flow only on disposable test repository.
 - [ ] restart service with a queued webhook and confirm recovery.
 
-## 23. Release gate
+## 23. Known non-blocking test-tool warnings
+
+CI run `33423169021` is green but reports:
+
+- Starlette/FastAPI `TestClient` deprecation warning for the current `httpx` integration/future `httpx2` direction.
+- Alembic deprecation warning because `alembic.ini` does not yet set explicit `path_separator` for `prepend_sys_path`.
+
+These warnings are recorded maintenance debt. They are not test failures and must not be silently forgotten.
+
+## 24. Release gate
 
 A release cannot be called production-ready while known applicable mandatory tests in this matrix are absent or failing. `docs/CURRENT_STATUS.md` must state any intentionally deferred test category.
