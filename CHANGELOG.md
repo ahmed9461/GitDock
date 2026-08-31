@@ -30,7 +30,7 @@ The project follows an `Unreleased` section during active development. Versionin
 
 - GitHub Actions workflow uses Node 24-generation `actions/checkout@v6` and `actions/setup-python@v6`.
 - `docs/BUILD_PROTOCOL.md` now contains concrete bootstrap, quality, secret-scan, PostgreSQL migration, PEP 751 lock-generation, and lock-drift commands.
-- Project handoff/roadmap state now records P1 as verified complete and P2 GitHub App authentication as the next implementation phase.
+- Project handoff/roadmap state records P1 as merged and verified on `main`, with P2.1 GitHub App authentication as the next implementation target.
 - Secret scanning ignores generated Git/cache metadata and PEP 751 lock entropy while retaining explicit scanning for project source; the known PostgreSQL CI-only credential is narrowly allowlisted in the workflow.
 
 ### Fixed
@@ -51,11 +51,11 @@ The project follows an `Unreleased` section during active development. Versionin
 
 ### Verification
 
-P1 final verification on GitHub Actions run `33344826152`:
+P1 was squash-merged into `main` through PR #2 as commit `6f0a93694418c278e400a4c23b84e2f08ac56bdb`.
 
-- Python 3.12 quality job: passed all configured checks; pytest reported 15 passed.
-- Python 3.13 quality job: passed all configured checks; pytest reported 15 passed.
-- PostgreSQL 17 migration round trip: passed.
-- PEP 751 committed lock regeneration/diff: passed for both Python versions.
+- PR #2 CI run `33345131414`: passed all Python 3.12, Python 3.13, and PostgreSQL 17 jobs.
+- Post-merge `main` CI run `33345193470`: passed all configured checks.
+- Python 3.12 and 3.13 each passed Ruff format/lint, mypy, 15 pytest tests, compile validation, pip-audit, detect-secrets, and PEP 751 lock-drift verification.
+- PostgreSQL 17 migration round trip passed: upgrade -> downgrade -> upgrade.
 
 The earlier GitHub Actions zero-step failures were resolved after the repository became public when private-repository included Actions quota had been exhausted; they were infrastructure/quota failures rather than application-test failures.
