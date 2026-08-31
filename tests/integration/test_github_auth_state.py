@@ -32,9 +32,10 @@ async def test_authorization_state_is_hashed_encrypted_user_bound_and_one_time()
         user = User()
         session.add(user)
         await session.flush()
+        user_id = user.id
         request = await service.create(
             session,
-            user_id=user.id,
+            user_id=user_id,
             flow=AuthorizationFlow.USER_AUTHORIZATION,
             candidate_installation_id=987,
         )
@@ -53,7 +54,7 @@ async def test_authorization_state_is_hashed_encrypted_user_bound_and_one_time()
         )
         await session.commit()
 
-        assert consumed.user_id == user.id
+        assert consumed.user_id == user_id
         assert consumed.candidate_installation_id == 987
         challenge = (
             base64.urlsafe_b64encode(
@@ -92,9 +93,10 @@ async def test_wrong_flow_does_not_consume_state_and_expired_state_is_rejected()
         user = User()
         session.add(user)
         await session.flush()
+        user_id = user.id
         request = await service.create(
             session,
-            user_id=user.id,
+            user_id=user_id,
             flow=AuthorizationFlow.INSTALLATION_BINDING,
         )
         await session.commit()
@@ -113,11 +115,11 @@ async def test_wrong_flow_does_not_consume_state_and_expired_state_is_rejected()
             expected_flow=AuthorizationFlow.INSTALLATION_BINDING,
         )
         await session.commit()
-        assert consumed.user_id == user.id
+        assert consumed.user_id == user_id
 
         another = await service.create(
             session,
-            user_id=user.id,
+            user_id=user_id,
             flow=AuthorizationFlow.INSTALLATION_BINDING,
         )
         await session.commit()
