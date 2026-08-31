@@ -154,11 +154,7 @@ class RepositoryReadService:
             if row is None:
                 raise RepositorySelectionError("repository selection is stale")
             installation = await session.get(GitHubInstallation, row.installation_db_id)
-            if (
-                installation is None
-                or installation.user_id != user_id
-                or installation.suspended
-            ):
+            if installation is None or installation.user_id != user_id or installation.suspended:
                 raise RepositorySelectionError("repository installation is unavailable")
             owner_login = row.owner_login
             name = row.name
@@ -200,8 +196,7 @@ class RepositoryReadService:
                 )
             ).all()
             return tuple(
-                InstallationContext(row.id, row.installation_id, row.account_login)
-                for row in rows
+                InstallationContext(row.id, row.installation_id, row.account_login) for row in rows
             )
 
     async def _refresh_all(
@@ -240,9 +235,7 @@ class RepositoryReadService:
         repositories: dict[int, tuple[int, RepositorySnapshot]],
     ) -> None:
         existing_rows = (
-            await session.scalars(
-                select(RepositoryCache).where(RepositoryCache.user_id == user_id)
-            )
+            await session.scalars(select(RepositoryCache).where(RepositoryCache.user_id == user_id))
         ).all()
         existing = {row.github_repository_id: row for row in existing_rows}
 
