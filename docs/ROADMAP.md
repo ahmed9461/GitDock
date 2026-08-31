@@ -124,9 +124,9 @@ Squash-merged through PR #7 into `main` as `4bffdcc8322857aaa16e94aaafe8b5a9d52e
 
 P2.2 contract coverage includes canonical headers, parser boundaries, list/keyed pagination, malicious pagination target rejection, authentication/permission/not-found/conflict/validation/rate-limit categories, request/rate metadata, safe GET retry, and default no-write-retry behavior.
 
-### P2.3 Home + repository read screens — implementation verified, closeout in progress
+### P2.3 Home + repository read screens ✅
 
-Implementation head `a6d57d5a99b58004fab4dbf84b9b6742a9475523` passed full CI run `33423169021` with **65 tests** on Python 3.12 and the complete equivalent gate set on Python 3.13; PostgreSQL 17 migration round trip also passed. P2.3 remains [~] until documentation-head CI, PR merge, post-merge `main` CI, and final handoff synchronization are complete.
+Squash-merged through non-draft PR #8 into `main` as `939d218d76fd87f3ba6cf0a80a89b4a816aac557`; post-merge `main` CI run `33424799759` passed.
 
 - [x] GitHub connection screen and runtime setup/OAuth callback wiring.
 - [x] Home status screen.
@@ -140,7 +140,7 @@ Implementation head `a6d57d5a99b58004fab4dbf84b9b6742a9475523` passed full CI ru
 - [x] repository details revalidated from GitHub before render.
 - [x] read-only Telegram renderers/keyboards/handlers with thin handler boundary.
 - [x] contract/integration/unit coverage expanding the suite from 49 to 65 tests.
-- [~] final documentation-head CI + non-draft PR + merge + post-merge `main` verification.
+- [x] documentation-head CI + non-draft PR + squash merge + post-merge `main` verification.
 
 Acceptance:
 
@@ -152,7 +152,7 @@ Acceptance:
 - [x] tokens/OAuth/PKCE/private keys/raw GitHub error bodies are not exposed through Telegram repository screens/cache;
 - [x] rate/auth/permission/not-found/transient classes have safe renderer paths;
 - [x] no repository write/admin permission is required for the read-only flow;
-- [~] merge/post-merge governance closeout still required before P2.3 is marked verified complete.
+- [x] merge/post-merge governance closeout completed and verified.
 
 ---
 

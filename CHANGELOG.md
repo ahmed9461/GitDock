@@ -30,8 +30,9 @@ The project follows an `Unreleased` section during active development. Versionin
 - Canonical GitHub REST request metadata remains centralized: API `2026-03-10`, `application/vnd.github+json`, and `User-Agent: GitDock/0.1`.
 - GitHub HTTP timeout/retry/page-limit constants remain centralized rather than handler-local.
 - GitHub pagination/absolute REST targets remain restricted to canonical HTTPS `api.github.com`; the gateway is not a generic URL fetcher.
-- P2.2 is now recorded as squash-merged through PR #7 as `4bffdcc8322857aaa16e94aaafe8b5a9d52e69c2`, with post-merge `main` CI `33409825480` green.
-- Repository UI callbacks now carry compact versioned repository IDs plus navigation context rather than arbitrary repository `owner/name` strings.
+- P2.2 is recorded as squash-merged through PR #7 as `4bffdcc8322857aaa16e94aaafe8b5a9d52e69c2`, with post-merge `main` CI `33409825480` green.
+- P2.3 is recorded as squash-merged through PR #8 as `939d218d76fd87f3ba6cf0a80a89b4a816aac557`, with post-merge `main` CI `33424799759` green.
+- Repository UI callbacks carry compact versioned repository IDs plus navigation context rather than arbitrary repository `owner/name` strings.
 - Repository list/detail data flows through application services and the P2.2 transport instead of Telegram handlers issuing GitHub HTTP.
 - GitHub repository detail is refreshed from GitHub before display; local repository cache is navigation/context state only.
 - Runtime dependencies remain unchanged by P2.3; existing PEP 751 locks are still byte-for-byte verified on Python 3.12 and 3.13.
@@ -81,15 +82,17 @@ P2.2:
 - post-merge `main` CI `33409825480` — green.
 - suite at P2.2: 49 tests; Python 3.12/3.13 and PostgreSQL 17 all green.
 
-P2.3 implementation verification:
+P2.3:
 
-- implementation head: `a6d57d5a99b58004fab4dbf84b9b6742a9475523`.
-- CI run `33423169021` — green on Python 3.12, Python 3.13, and PostgreSQL 17.
-- Python 3.12 log confirms **65 passed**; Python 3.13 passed the same configured suite/gates.
-- Ruff format/lint, mypy, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff all passed.
+- implementation-head CI `33423169021` — green.
+- documentation-synchronized branch-head CI `33424505117` — green.
+- PR #8 CI `33424652835` — green.
+- squash merge commit: `939d218d76fd87f3ba6cf0a80a89b4a816aac557`.
+- post-merge `main` CI `33424799759` — green.
+- Python 3.12 and 3.13 each passed Ruff format/lint, mypy, **65 pytest tests**, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff.
 - PostgreSQL 17 upgrade -> downgrade -> upgrade including migration `0003` passed.
 - `pip-audit` reported no known runtime vulnerabilities.
-- P2.3 is implementation-verified but not yet marked complete until documentation-head CI, PR merge, post-merge `main` CI, and final handoff sync succeed.
+- P2.3 is verified complete; P3.1 GitHub repository search is the next implementation milestone.
 
 ### Known maintenance warnings
 
