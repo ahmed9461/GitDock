@@ -39,58 +39,59 @@ Acceptance:
 
 ---
 
-## P1 — Project skeleton & quality gates `[BLOCKED]`
+## P1 — Project skeleton & quality gates ✅
 
-Implementation exists on `feat/p1-foundation` / draft PR #1. Verification is blocked because GitHub Actions jobs are failing before any runner step begins. See `docs/CURRENT_STATUS.md`.
+Verified by GitHub Actions run `33344826152` after committed PEP 751 lock verification was enabled.
 
 ### P1.1 Application skeleton
 
-- [~] Python package layout created according to architecture boundaries.
-- [~] Python version policy selected and documented.
-- [~] Dependency manager/lock strategy selected. Direct pins exist; complete transitive/hash lock still must be finalized.
-- [~] typed settings/config module.
-- [~] `.env.example` with placeholders only.
-- [~] `.gitignore` covers venv/cache/log/db/temp/secret artifacts.
-- [~] structured logging baseline with redaction hooks.
+- [x] Python package layout created according to architecture boundaries.
+- [x] Python version policy selected and documented; CI verifies 3.12 and 3.13.
+- [x] Dependency manager/lock strategy selected: exact direct pins + PEP 751 per-Python Linux runtime locks.
+- [x] typed settings/config module.
+- [x] `.env.example` with placeholders only.
+- [x] `.gitignore` covers venv/cache/log/db/temp/secret artifacts.
+- [x] structured logging baseline with redaction hooks.
 
 ### P1.2 HTTP/bot bootstrap
 
-- [~] FastAPI application boots.
-- [~] `/health` endpoint.
-- [~] readiness endpoint/check structure.
-- [~] aiogram bot/router bootstrap.
-- [~] development polling mode.
-- [~] production Telegram webhook-ready path.
-- [~] owner authorization middleware.
+- [x] FastAPI application boots under integration tests.
+- [x] `/health` endpoint.
+- [x] readiness endpoint/check structure.
+- [x] aiogram bot/router bootstrap.
+- [x] development polling mode.
+- [x] production Telegram webhook-ready path.
+- [x] owner authorization middleware.
 
 ### P1.3 Persistence
 
-- [~] async SQLAlchemy setup.
-- [~] PostgreSQL production configuration.
-- [~] Alembic initialized.
-- [~] initial identity/account tables.
-- [~] migration test from empty DB.
+- [x] async SQLAlchemy setup.
+- [x] PostgreSQL production configuration.
+- [x] Alembic initialized.
+- [x] initial identity/account tables.
+- [x] migration test from empty DB and upgrade/downgrade/re-upgrade on PostgreSQL 17.
 
 ### P1.4 Quality gates
 
-- [~] formatter configured.
-- [~] linter configured.
-- [~] type checker configured.
-- [~] unit test harness.
-- [~] async/integration test harness.
-- [~] secret scan configured.
-- [~] dependency/security check selected.
-- [~] CI workflow configured.
+- [x] formatter configured and green.
+- [x] linter configured and green.
+- [x] type checker configured and green.
+- [x] unit test harness.
+- [x] async/integration test harness.
+- [x] secret scan configured and green.
+- [x] dependency/security check selected and green.
+- [x] CI workflow configured with Python 3.12/3.13 + PostgreSQL migration job.
 - [x] exact check commands written into `docs/BUILD_PROTOCOL.md`.
+- [x] PEP 751 runtime lock regeneration/drift checks green for Python 3.12 and 3.13 Linux.
 
 Acceptance:
 
-- [ ] fresh clone can be configured without real secrets committed;
-- [ ] app starts locally with the pinned full dependency set;
-- [ ] health endpoint passes under the full suite;
-- [ ] unauthorized Telegram user is blocked/ignored under the full suite;
-- [ ] DB migration/bootstrap works on PostgreSQL CI;
-- [ ] all configured quality gates green.
+- [x] fresh clone can be configured without real secrets committed;
+- [x] app starts under the full pinned dependency set used by CI;
+- [x] health endpoint passes under the full suite;
+- [x] unauthorized Telegram user is blocked/ignored under the full suite;
+- [x] DB migration/bootstrap works on PostgreSQL CI;
+- [x] all configured quality gates green.
 
 ---
 
