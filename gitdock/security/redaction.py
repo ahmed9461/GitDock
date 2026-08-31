@@ -11,8 +11,8 @@ REDACTED = "[REDACTED]"
 _PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"(?i)(authorization\s*[:=]\s*)(?:bearer\s+)?[^\s,;]+"),
     re.compile(
-        r"(?i)((?:access_token|refresh_token|client_secret|webhook_secret|bot_token|oauth_code|token)"
-        r"\s*[:=]\s*)[^\s,;]+"
+        r"(?i)((?:access_token|refresh_token|client_secret|webhook_secret|bot_token|oauth_code|"
+        r"code_verifier|oauth_state|token)\s*[:=]\s*)[^\s,;]+"
     ),
     re.compile(r"\b\d{6,12}:[A-Za-z0-9_-]{20,}\b"),
     re.compile(r"-----BEGIN [^-]*PRIVATE KEY-----.*?-----END [^-]*PRIVATE KEY-----", re.DOTALL),
@@ -27,6 +27,9 @@ _SENSITIVE_KEYS = {
     "webhook_secret",
     "telegram_bot_token",
     "oauth_code",
+    "code",
+    "code_verifier",
+    "oauth_state",
     "private_key",
 }
 
