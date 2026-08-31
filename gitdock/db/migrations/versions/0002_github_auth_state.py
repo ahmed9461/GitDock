@@ -31,9 +31,7 @@ def upgrade() -> None:
         sa.Column(
             "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
         ),
-        sa.UniqueConstraint(
-            "state_digest", name="uq_github_authorization_states_state_digest"
-        ),
+        sa.UniqueConstraint("state_digest", name="uq_github_authorization_states_state_digest"),
     )
     op.create_index(
         "ix_github_authorization_states_state_digest",
