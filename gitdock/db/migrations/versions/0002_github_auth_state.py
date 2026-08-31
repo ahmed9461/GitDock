@@ -23,6 +23,7 @@ def upgrade() -> None:
         ),
         sa.Column("state_digest", sa.String(length=64), nullable=False),
         sa.Column("flow", sa.String(length=32), nullable=False),
+        sa.Column("candidate_installation_id", sa.BigInteger(), nullable=True),
         sa.Column("encrypted_code_verifier", sa.LargeBinary(), nullable=False),
         sa.Column("code_verifier_key_version", sa.Integer(), nullable=False),
         sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
