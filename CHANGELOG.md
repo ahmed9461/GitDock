@@ -40,7 +40,7 @@ The project follows an `Unreleased` section during active development. Versionin
 
 - GitHub Actions workflow uses Node 24-generation `actions/checkout@v6` and `actions/setup-python@v6`.
 - `docs/BUILD_PROTOCOL.md` contains concrete bootstrap, quality, secret-scan, PostgreSQL migration, PEP 751 lock-generation, and lock-drift commands.
-- Project handoff/roadmap state records P2.1 implementation as verified, with P2.2 GitHub gateway foundation as the next implementation item only after PR #4 merge/main verification.
+- Project handoff/roadmap state records P2.1 implementation as verified, with P2.2 GitHub gateway foundation as the next implementation item only after replacement PR #5 merge/main verification.
 - Runtime dependencies add exact pins `PyJWT==2.13.0` and `cryptography==50.0.1`.
 - Python 3.12/3.13 Linux PEP 751 runtime locks were regenerated to include the P2.1 crypto/JWT dependency graph and verified byte-for-byte by CI.
 - Secret scanning ignores generated Git/cache metadata and PEP 751 lock entropy while retaining explicit scanning for project source; the known PostgreSQL CI-only credential is narrowly allowlisted in the workflow.
@@ -79,11 +79,14 @@ P1 was squash-merged into `main` through PR #2 as commit `6f0a93694418c278e400a4
 - Python 3.12 and 3.13 each passed Ruff format/lint, mypy, 15 pytest tests, compile validation, pip-audit, detect-secrets, and PEP 751 lock-drift verification.
 - PostgreSQL 17 migration round trip passed: upgrade -> downgrade -> upgrade.
 
-P2.1 implementation verification on PR #4:
+P2.1 verification history:
 
-- CI run `33348203305`: all configured Python 3.12, Python 3.13, and PostgreSQL 17 jobs passed.
+- Draft PR #4 implementation CI run `33348203305`: all configured Python 3.12, Python 3.13, and PostgreSQL 17 jobs passed.
+- Draft PR #4 documentation-synchronized CI run `33348487790`: all configured jobs passed again.
 - Python 3.12 and 3.13 each passed Ruff format/lint, mypy, **37 pytest tests**, compile validation, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff.
 - PostgreSQL 17 migration round trip passed: upgrade -> downgrade -> upgrade.
-- `pip-audit` reported no known vulnerabilities for the pinned runtime requirements in the verification run.
+- `pip-audit` reported no known vulnerabilities for the pinned runtime requirements in the verification runs.
+- PR #4 was closed without merge only because the connector's draft-to-ready GraphQL mutation failed internally; replacement PR #5 was opened non-draft from the same feature branch.
+- A temporary empty `.tmp` file created during the PR-replacement workflow was immediately removed. Because those create/delete commits moved the branch SHA, PR #5 requires its own green final-head CI before merge; earlier green runs remain supporting evidence only.
 
 The earlier GitHub Actions zero-step failures were resolved after the repository became public when private-repository included Actions quota had been exhausted; they were infrastructure/quota failures rather than application-test failures.
