@@ -39,56 +39,58 @@ Acceptance:
 
 ---
 
-## P1 — Project skeleton & quality gates
+## P1 — Project skeleton & quality gates `[BLOCKED]`
+
+Implementation exists on `feat/p1-foundation` / draft PR #1. Verification is blocked because GitHub Actions jobs are failing before any runner step begins. See `docs/CURRENT_STATUS.md`.
 
 ### P1.1 Application skeleton
 
-- [ ] Python package layout created according to architecture boundaries.
-- [ ] Python version policy selected and documented.
-- [ ] Dependency manager/lock strategy selected.
-- [ ] typed settings/config module.
-- [ ] `.env.example` with placeholders only.
-- [ ] `.gitignore` covers venv/cache/log/db/temp/secret artifacts.
-- [ ] structured logging baseline with redaction hooks.
+- [~] Python package layout created according to architecture boundaries.
+- [~] Python version policy selected and documented.
+- [~] Dependency manager/lock strategy selected. Direct pins exist; complete transitive/hash lock still must be finalized.
+- [~] typed settings/config module.
+- [~] `.env.example` with placeholders only.
+- [~] `.gitignore` covers venv/cache/log/db/temp/secret artifacts.
+- [~] structured logging baseline with redaction hooks.
 
 ### P1.2 HTTP/bot bootstrap
 
-- [ ] FastAPI application boots.
-- [ ] `/health` endpoint.
-- [ ] readiness endpoint/check structure.
-- [ ] aiogram bot/router bootstrap.
-- [ ] development polling mode.
-- [ ] production Telegram webhook-ready path.
-- [ ] owner authorization middleware.
+- [~] FastAPI application boots.
+- [~] `/health` endpoint.
+- [~] readiness endpoint/check structure.
+- [~] aiogram bot/router bootstrap.
+- [~] development polling mode.
+- [~] production Telegram webhook-ready path.
+- [~] owner authorization middleware.
 
 ### P1.3 Persistence
 
-- [ ] async SQLAlchemy setup.
-- [ ] PostgreSQL production configuration.
-- [ ] Alembic initialized.
-- [ ] initial identity/account tables.
-- [ ] migration test from empty DB.
+- [~] async SQLAlchemy setup.
+- [~] PostgreSQL production configuration.
+- [~] Alembic initialized.
+- [~] initial identity/account tables.
+- [~] migration test from empty DB.
 
 ### P1.4 Quality gates
 
-- [ ] formatter configured.
-- [ ] linter configured.
-- [ ] type checker configured.
-- [ ] unit test harness.
-- [ ] async/integration test harness.
-- [ ] secret scan configured.
-- [ ] dependency/security check selected.
-- [ ] CI workflow configured.
-- [ ] exact check commands written into `docs/BUILD_PROTOCOL.md`.
+- [~] formatter configured.
+- [~] linter configured.
+- [~] type checker configured.
+- [~] unit test harness.
+- [~] async/integration test harness.
+- [~] secret scan configured.
+- [~] dependency/security check selected.
+- [~] CI workflow configured.
+- [x] exact check commands written into `docs/BUILD_PROTOCOL.md`.
 
 Acceptance:
 
-- fresh clone can be configured without real secrets committed;
-- app starts locally;
-- health endpoint passes;
-- unauthorized Telegram user is blocked/ignored;
-- DB migration/bootstrap works;
-- all configured quality gates green.
+- [ ] fresh clone can be configured without real secrets committed;
+- [ ] app starts locally with the pinned full dependency set;
+- [ ] health endpoint passes under the full suite;
+- [ ] unauthorized Telegram user is blocked/ignored under the full suite;
+- [ ] DB migration/bootstrap works on PostgreSQL CI;
+- [ ] all configured quality gates green.
 
 ---
 
