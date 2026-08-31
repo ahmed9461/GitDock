@@ -20,6 +20,8 @@ class GitHubAuthorizationState(Base):
     candidate_installation_id: Mapped[int | None] = mapped_column(BigInteger)
     encrypted_code_verifier: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     code_verifier_key_version: Mapped[int] = mapped_column(Integer, nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
