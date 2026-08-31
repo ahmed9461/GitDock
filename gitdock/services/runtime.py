@@ -42,12 +42,9 @@ def create_runtime_services(
 
     jwt_issuer = GitHubAppJwtIssuer.from_settings(settings)
     assert settings.credential_encryption_key is not None
-    cipher = CredentialCipher(
-        {
-            settings.credential_encryption_key_version: settings.credential_encryption_key.get_secret_value()
-        },
-        settings.credential_encryption_key_version,
-    )
+    encryption_key_version = settings.credential_encryption_key_version
+    encryption_key = settings.credential_encryption_key.get_secret_value()
+    cipher = CredentialCipher({encryption_key_version: encryption_key}, encryption_key_version)
     http_client = httpx.AsyncClient()
     auth_client = GitHubAuthClient(http_client, settings, jwt_issuer)
     token_provider = InstallationTokenProvider(auth_client)
