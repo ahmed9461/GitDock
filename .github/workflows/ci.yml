@@ -45,7 +45,7 @@ jobs:
         run: pip-audit -r requirements.txt
       - name: Secret scan
         run: |
-          detect-secrets scan --all-files --exclude-files '(^|/)\.git/|(^|/)\.(mypy|pytest|ruff)_cache/|(^|/)(tests|docs)/|(^|/)\.env\.example$' > /tmp/secrets.json
+          detect-secrets scan --all-files --exclude-files '(^|/)\.git/|(^|/)\.(mypy|pytest|ruff)_cache/|(^|/)(tests|docs)/|(^|/)\.env\.example$|(^|/)pylock\..*\.toml$' > /tmp/secrets.json
           python - <<'PY'
           import json
           from pathlib import Path
@@ -54,15 +54,10 @@ jobs:
           if results:
               raise SystemExit(f"Potential secrets detected: {sorted(results)}")
           PY
-      - name: Generate PEP 751 runtime lock
-        run: python -m pip lock -r requirements.txt -o "${{ matrix.lock-file }}"
-      - name: Upload runtime lock
-        uses: actions/upload-artifact@v6
-        with:
-          name: runtime-lock-${{ matrix.python-version }}
-          path: ${{ matrix.lock-file }}
-          if-no-files-found: error
-          retention-days: 3
+      - name: Verify PEP 751 runtime lock
+        run: |
+          python -m pip lock -r requirements.txt -o "/tmp/${{ matrix.lock-file }}"
+          diff -u "${{ matrix.lock-file }}" "/tmp/${{ matrix.lock-file }}"
 
   postgres-migration:
     runs-on: ubuntu-24.04
