@@ -101,7 +101,10 @@ class Settings(BaseSettings):
             raise ValueError("GitHub App auth requires GITDOCK_GITHUB_CLIENT_SECRET")
         if not self.github_private_key_path or not self.github_private_key_path.strip():
             raise ValueError("GitHub App auth requires GITDOCK_GITHUB_PRIVATE_KEY_PATH")
-        if self.credential_encryption_key is None or not self.credential_encryption_key.get_secret_value():
+        if (
+            self.credential_encryption_key is None
+            or not self.credential_encryption_key.get_secret_value()
+        ):
             raise ValueError("GitHub App auth requires GITDOCK_CREDENTIAL_ENCRYPTION_KEY")
 
     @property
