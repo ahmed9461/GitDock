@@ -33,7 +33,9 @@ class GitHubUserCredentialStore:
             else None
         )
         if refresh is not None and refresh.key_version != access.key_version:
-            raise RuntimeError("credential encryption key version changed during one persistence call")
+            raise RuntimeError(
+                "credential encryption key version changed during one persistence call"
+            )
 
         account.encrypted_access_token = access.ciphertext
         account.encrypted_refresh_token = refresh.ciphertext if refresh is not None else None
