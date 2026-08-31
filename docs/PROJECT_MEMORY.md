@@ -30,7 +30,11 @@ GitDock is broader than a GitHub notification bot. Planned product scope include
 
 ## P1 verified foundation
 
-P1 was implemented on `feat/p1-foundation` / PR #1 and verified green before merge preparation.
+P1 was implemented on `feat/p1-foundation`, verified through Pull Request CI, and squash-merged into `main` through **PR #2**.
+
+- P1 merge commit on `main`: `6f0a93694418c278e400a4c23b84e2f08ac56bdb`
+- PR #2 verification run: `33345131414` — green
+- post-merge `main` run: `33345193470` — green
 
 Verified runtime pins selected on 2026-08-31 include:
 
@@ -55,13 +59,15 @@ P1 foundation contains:
 - test harness and CI quality/security gates;
 - PostgreSQL 17 migration upgrade/downgrade/re-upgrade validation.
 
-Final P1 validation run: GitHub Actions `33344826152`.
+Post-merge `main` validation run `33345193470` verified:
 
 - Python 3.12: Ruff format/lint, mypy, 15 pytest tests, compile, pip-audit, detect-secrets, PEP 751 lock drift check — all passed.
 - Python 3.13: same gates — all passed.
 - PostgreSQL 17 Alembic upgrade -> downgrade -> upgrade — passed.
 
-Important P1 defect caught by tests: a module-global aiogram Router could not be attached to multiple Dispatcher instances. The correct design is now a router factory returning a fresh Router per Dispatcher. Preserve that lifecycle rule for future routers/tests.
+Important P1 defect caught by tests: a module-global aiogram Router could not be attached to multiple Dispatcher instances. The correct design is a router factory returning a fresh Router per Dispatcher. Preserve that lifecycle rule for future routers/tests.
+
+PR #1 was the original verified draft. The connector's ready-for-review mutation failed internally, so PR #1 was closed without merge and the exact same verified head was opened as non-draft PR #2. No code or quality gate was bypassed.
 
 ## Dependency reproducibility decision
 
@@ -146,9 +152,9 @@ A green test run with stale project state documentation is not Done.
 As of 2026-08-31:
 
 - P0 planning/governance is complete.
-- P1 project skeleton & quality gates are verified complete on PR #1.
-- PR #1 still needs ready-for-review/merge handling and a green `main` push CI confirmation before P2 coding starts.
-- The exact next product task after merge verification is **P2.1 — GitHub App authentication foundation**.
+- P1 project skeleton & quality gates are merged into `main` and verified green after merge.
+- `main` merge commit `6f0a93694418c278e400a4c23b84e2f08ac56bdb` passed post-merge CI run `33345193470`.
+- The exact next product task is **P2.1 — GitHub App authentication foundation**.
 
 ## Do not forget later
 
