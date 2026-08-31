@@ -1,0 +1,87 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feat/**", "fix/**", "refactor/**", "security/**"]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install -e .
+      - name: Format check
+        run: ruff format --check .
+      - name: Lint
+        run: ruff check .
+      - name: Type check
+        run: mypy gitdock
+      - name: Tests
+        run: pytest
+      - name: Compile check
+        run: python -m compileall -q gitdock
+      - name: Dependency audit
+        run: pip-audit -r requirements.txt
+      - name: Secret scan
+        run: |
+          detect-secrets scan --all-files --exclude-files '(^|/)(tests|docs)/|(^|/)\.env\.example$' > /tmp/secrets.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('/tmp/secrets.json').read_text())
+          results = data.get('results', {})
+          if results:
+              raise SystemExit(f"Potential secrets detected: {sorted(results)}")
+          PY
+
+  postgres-migration:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: gitdock
+          POSTGRES_PASSWORD: gitdock_test
+          POSTGRES_DB: gitdock_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gitdock -d gitdock_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      GITDOCK_DATABASE_URL: postgresql+asyncpg://gitdock:gitdock_test@127.0.0.1:5432/gitdock_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install runtime and migration dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+      - name: Upgrade, downgrade, and re-upgrade PostgreSQL schema
+        run: |
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head

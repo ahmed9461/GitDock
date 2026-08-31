@@ -1,0 +1,1 @@
+"""GitDock telegram package."""
