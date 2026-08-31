@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from aiogram import F, Router
 from aiogram.filters import CommandStart
-from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message, User as TelegramUser
+from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
+from aiogram.types import User as TelegramUser
 
 from gitdock.core.config import Settings
 from gitdock.github.errors import GitHubGatewayError
-from gitdock.services.repositories import HomeStatus, RepositoryFilter, RepositorySelectionError
+from gitdock.services.repositories import HomeStatus, RepositorySelectionError
 from gitdock.services.runtime import RuntimeServices
 from gitdock.telegram import callbacks
 from gitdock.telegram.keyboards.repositories import (
