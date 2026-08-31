@@ -15,10 +15,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13"]
+        include:
+          - python-version: "3.12"
+            lock-file: pylock.py312-linux.toml
+          - python-version: "3.13"
+            lock-file: pylock.py313-linux.toml
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
@@ -50,6 +54,15 @@ jobs:
           if results:
               raise SystemExit(f"Potential secrets detected: {sorted(results)}")
           PY
+      - name: Generate PEP 751 runtime lock
+        run: python -m pip lock -r requirements.txt -o "${{ matrix.lock-file }}"
+      - name: Upload runtime lock
+        uses: actions/upload-artifact@v6
+        with:
+          name: runtime-lock-${{ matrix.python-version }}
+          path: ${{ matrix.lock-file }}
+          if-no-files-found: error
+          retention-days: 3
 
   postgres-migration:
     runs-on: ubuntu-24.04
@@ -70,8 +83,8 @@ jobs:
     env:
       GITDOCK_DATABASE_URL: postgresql+asyncpg://gitdock:gitdock_test@127.0.0.1:5432/gitdock_test  # pragma: allowlist secret
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
