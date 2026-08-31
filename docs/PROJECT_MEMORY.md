@@ -71,7 +71,9 @@ PR #1 was the original verified draft. The connector's ready-for-review mutation
 
 ## P2.1 GitHub App authentication foundation
 
-P2.1 was implemented on `feat/p2-github-app-auth` in **PR #4**. The implementation head passed full CI run `33348203305` before documentation closeout.
+P2.1 was implemented on `feat/p2-github-app-auth`. **PR #4** was the original verified draft; **PR #5** is the non-draft replacement merge target after the same connector ready-for-review mutation failure recurred. PR #4 was closed without merge and no quality gate was bypassed.
+
+The implementation head passed full CI run `33348203305`, and a fully documentation-synchronized head passed full CI run `33348487790` before the PR replacement workflow. Because the branch commit moved during that replacement workflow, PR #5 must receive its own green CI on its final head before merge.
 
 Durable implementation facts:
 
@@ -107,12 +109,12 @@ The user access token used to prove installation access in the binding flow is n
 
 ### P2.1 verification evidence
 
-CI run `33348203305` verified the implementation head:
+CI run `33348203305` verified the implementation head, and run `33348487790` repeated the entire suite successfully on a documentation-synchronized head:
 
 - Python 3.12: Ruff format/lint, mypy, **37 pytest tests**, compile, pip-audit, detect-secrets, and PEP 751 lock regeneration/diff — green.
 - Python 3.13: same gates, including **37 pytest tests** — green.
 - PostgreSQL 17: Alembic upgrade -> downgrade to base -> upgrade to head — green.
-- `pip-audit`: no known vulnerabilities found for the pinned runtime requirements in that run.
+- `pip-audit`: no known vulnerabilities found for the pinned runtime requirements in those runs.
 
 P2.1 adds exact runtime pins:
 
@@ -120,6 +122,17 @@ P2.1 adds exact runtime pins:
 - cryptography 50.0.1
 
 Their transitive selections are captured in the Python 3.12/3.13 Linux PEP 751 locks and verified byte-for-byte by CI.
+
+### P2.1 PR replacement operational fact
+
+The connector's `markPullRequestReadyForReview` GraphQL mutation fails because it requests a `Repository.fullDatabaseId` field that GitHub does not expose. This is a connector/tooling failure, not a repository or CI failure.
+
+For P2.1:
+
+- PR #4 was closed without merge after the mutation failed;
+- PR #5 was opened non-draft from the same feature branch;
+- a temporary empty `.tmp` file was accidentally created during the replacement workflow and immediately deleted before PR #5 verification; no project content remains from that temporary file;
+- the create/delete commits moved the branch SHA, so previous green CI is supporting evidence only; final merge evidence must come from PR #5's own final-head CI.
 
 ## Dependency reproducibility decision
 
@@ -206,9 +219,9 @@ As of 2026-08-31:
 
 - P0 planning/governance is complete.
 - P1 project skeleton & quality gates are merged into `main` and verified green after merge.
-- P2.1 GitHub App authentication foundation implementation is verified green in PR #4; documentation/merge closeout is the only remaining work before moving on.
-- P2.1 implementation verification run: `33348203305`.
-- The exact next implementation task **after PR #4 is merged and `main` is verified** is **P2.2 — GitHub gateway foundation**.
+- P2.1 GitHub App authentication foundation implementation is verified; PR #5 is the current non-draft merge target and still requires a green CI run on its final head before merge.
+- P2.1 implementation verification run: `33348203305`; documentation-synchronized verification run: `33348487790`.
+- The exact next implementation task **after PR #5 is merged and `main` is verified** is **P2.2 — GitHub gateway foundation**.
 
 ## Do not forget later
 
