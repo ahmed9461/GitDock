@@ -109,18 +109,20 @@ class GitHubConnectionService:
 
         async with self._session_factory() as session:
             async with session.begin():
-                installation = await self._binding_service.bind(
+                bound_installation = await self._binding_service.bind(
                     session,
                     user_id=consumed.user_id,
                     user_access_token=user_token.token,
                     installation_id=installation_id,
                 )
                 await session.flush()
-                installation_database_id = installation.id
+                installation_database_id = bound_installation.id
 
         async with self._session_factory() as session:
-            installation = await session.get(GitHubInstallation, installation_database_id)
-            if installation is None:
+            reloaded_installation = await session.get(
+                GitHubInstallation, installation_database_id
+            )
+            if reloaded_installation is None:
                 raise GitHubConnectionError("verified GitHub installation could not be reloaded")
-            session.expunge(installation)
-            return installation
+            session.expunge(reloaded_installation)
+            return reloaded_installation
