@@ -185,6 +185,32 @@ References:
 
 ---
 
+## D-014 — PEP 751 runtime locks per Python/Linux target
+
+**Date:** 2026-08-31  
+**Status:** Accepted
+
+**Context:** Exact direct pins alone do not lock transitive dependency versions or selected distribution hashes. `pip freeze` would describe one environment rather than provide a standardized lock contract, while modern pip supports standardized PEP 751 `pylock.toml` generation.
+
+**Decision:** Keep `requirements.txt` as the human-maintained exact direct runtime dependency input and use `pip lock` to commit PEP 751 runtime lock files for every supported Python/Linux runtime target. Current files are `pylock.py312-linux.toml` and `pylock.py313-linux.toml`.
+
+CI must regenerate the matching lock under the same Python/platform target and fail if the generated file differs from the committed lock.
+
+**Consequences:**
+
+- transitive package selections and wheel hashes become reviewable and reproducible;
+- Python/platform-specific wheel selection is explicit instead of pretending one lock is universal;
+- adding a supported production Python/platform target requires its own verified lock;
+- entropy-based secret scanning excludes these generated lock files because package hashes are expected, but lock files are not a permitted place for credentials.
+
+References:
+
+- https://peps.python.org/pep-0751/
+- https://pip.pypa.io/en/stable/cli/pip_lock/
+- https://packaging.python.org/en/latest/specifications/pylock-toml/
+
+---
+
 ## Adding future decisions
 
 Never rewrite history to make an old decision disappear. Add a new decision with `Supersedes D-xxx`, then mark the older decision Superseded.
