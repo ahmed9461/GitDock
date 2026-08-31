@@ -64,7 +64,9 @@ def test_github_app_jwt_uses_rs256_client_id_and_bounded_lifetime() -> None:
 async def test_installation_token_contract_uses_api_version_and_accepts_new_token_shapes() -> None:
     settings = github_settings()
     private_pem, _ = rsa_private_key_pem()
-    issuer = GitHubAppJwtIssuer(settings.github_client_id or "", private_pem, clock=lambda: FIXED_NOW)
+    issuer = GitHubAppJwtIssuer(
+        settings.github_client_id or "", private_pem, clock=lambda: FIXED_NOW
+    )
     observed: dict[str, object] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -100,7 +102,9 @@ async def test_installation_token_contract_uses_api_version_and_accepts_new_toke
 async def test_oauth_exchange_uses_pkce_and_never_echoes_error_body() -> None:
     settings = github_settings()
     private_pem, _ = rsa_private_key_pem()
-    issuer = GitHubAppJwtIssuer(settings.github_client_id or "", private_pem, clock=lambda: FIXED_NOW)
+    issuer = GitHubAppJwtIssuer(
+        settings.github_client_id or "", private_pem, clock=lambda: FIXED_NOW
+    )
     captured_body = b""
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -137,7 +141,9 @@ async def test_oauth_exchange_uses_pkce_and_never_echoes_error_body() -> None:
 async def test_auth_http_error_does_not_include_response_secret() -> None:
     settings = github_settings()
     private_pem, _ = rsa_private_key_pem()
-    issuer = GitHubAppJwtIssuer(settings.github_client_id or "", private_pem, clock=lambda: FIXED_NOW)
+    issuer = GitHubAppJwtIssuer(
+        settings.github_client_id or "", private_pem, clock=lambda: FIXED_NOW
+    )
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(401, request=request, text="token=super-secret")
