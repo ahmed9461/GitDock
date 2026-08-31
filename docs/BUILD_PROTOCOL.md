@@ -183,23 +183,96 @@ Implementation cannot be called complete until it handles:
 - cleanup after success/cancel/expiry/failure;
 - audit trail.
 
-## 12. Check suite
+## 12. Check suite — concrete P1 commands
 
-Exact commands are established in P1 and then must be written here. The required categories are:
+### Bootstrap a fresh development environment
 
-```text
-format check
-lint
-type check
-unit tests
-integration tests
-contract/API mock tests
-migration validation
-secret scan
-security/dependency check
+Linux/macOS:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements-dev.txt
+python -m pip install -e .
 ```
 
-During early development, if one category is not configured yet, `docs/CURRENT_STATUS.md` must say so explicitly. Do not claim a full green build when required quality gates do not exist.
+Windows PowerShell:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements-dev.txt
+python -m pip install -e .
+```
+
+### Required quality checks
+
+Run from repository root:
+
+```bash
+ruff format --check .
+ruff check .
+mypy gitdock
+pytest
+python -m compileall -q gitdock
+pip-audit -r requirements.txt
+```
+
+Secret scan equivalent to CI:
+
+```bash
+detect-secrets scan --all-files \
+  --exclude-files '(^|/)(tests|docs)/|(^|/)\.env\.example$' \
+  > /tmp/gitdock-secrets.json
+python - <<'PY'
+import json
+from pathlib import Path
+
+results = json.loads(Path('/tmp/gitdock-secrets.json').read_text()).get('results', {})
+if results:
+    raise SystemExit(f"Potential secrets detected: {sorted(results)}")
+PY
+```
+
+### Migration validation
+
+Development/SQLite smoke:
+
+```bash
+export GITDOCK_DATABASE_URL='sqlite+aiosqlite:///./migration-test.db'
+alembic upgrade head
+alembic downgrade base
+alembic upgrade head
+```
+
+Production-relevant migration validation must also run against PostgreSQL. CI provides a PostgreSQL service and executes:
+
+```bash
+alembic upgrade head
+alembic downgrade base
+alembic upgrade head
+```
+
+### CI contract
+
+`.github/workflows/ci.yml` must execute:
+
+- Ruff format check;
+- Ruff lint;
+- mypy strict type check;
+- full pytest suite;
+- Python compile check;
+- pip-audit against runtime dependencies;
+- detect-secrets repository scan;
+- PostgreSQL migration upgrade/downgrade/re-upgrade.
+
+A workflow run that fails before any step starts is an infrastructure/pre-run failure and is **not** a green build or an application-test result. Record it in `docs/CURRENT_STATUS.md`; do not weaken checks to hide it.
+
+### Current dependency caveat
+
+`requirements.txt` and `requirements-dev.txt` exactly pin direct dependencies/tooling. They are not yet a full transitive hash lock. The final lock strategy must be settled before P1 is declared fully complete.
 
 ## 13. Test selection rule
 
@@ -263,7 +336,7 @@ Code and documentation describing code must not knowingly disagree at merge time
 
 When work is partial or checks fail:
 
-1. do not mark roadmap complete;
+1. do not mark roadmap items complete;
 2. keep or restore a coherent runnable state;
 3. write the blocker in `docs/CURRENT_STATUS.md` if handing off;
 4. record durable discoveries in `docs/PROJECT_MEMORY.md`;
