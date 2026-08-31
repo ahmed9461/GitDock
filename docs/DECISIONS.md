@@ -206,6 +206,33 @@ References:
 
 ---
 
+## D-017 — Repository cache is callback context, never authorization or source of truth
+
+**Date:** 2026-08-31  
+**Status:** Accepted
+
+**Context:** Telegram callback payloads are limited in size. Embedding arbitrary repository `owner/name` values creates callback-length and stale-context problems, while storing a broad shadow copy of GitHub repository state would contradict D-013 and risk treating stale local data as authority.
+
+**Decision:**
+
+- P2.3 uses a minimal `repositories_cache` only for safe non-secret repository metadata and server-side callback/navigation resolution.
+- Telegram repository callbacks are compact and versioned. They carry stable GitHub repository ID plus navigation context; they do not carry arbitrary long repository names or credentials.
+- A callback/cache hit is not authorization proof. The selected row must belong to the current GitDock user and resolve through a currently bound, unsuspended installation.
+- Repository detail is re-fetched from GitHub before rendering. If GitHub reports not found/inaccessible, stale local callback state is removed or rejected.
+- Installation tokens are obtained through the existing token provider and may be narrowed to the selected repository ID where supported.
+- No GitHub token, OAuth code/state, PKCE material, private key, or raw upstream error body is stored in repository cache rows.
+- P2.3 remains Tier 0 read-only; cache existence must never enable a write or imply write/admin permission.
+
+**Consequences:**
+
+- callbacks remain below Telegram's size limit even for very long repository names;
+- stale or cross-user callbacks fail closed;
+- GitHub remains authoritative while navigation remains fast and compact;
+- future repository search/file/issue/PR/Actions features can reuse the stable repository ID/context pattern without turning local cache into a shadow GitHub database;
+- cache schema may evolve for safe metadata/navigation, but credentials and authoritative write preconditions do not belong there.
+
+---
+
 ## Adding future decisions
 
 Never rewrite history to make an old decision disappear. Add a new decision with `Supersedes D-xxx`, then mark the older decision Superseded.
