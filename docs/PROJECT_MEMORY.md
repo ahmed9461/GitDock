@@ -37,17 +37,12 @@ Important lifecycle rule caught by P1 tests: create a fresh aiogram Router for e
 
 ## P2.1 GitHub App authentication foundation
 
-P2.1 was squash-merged through PR #5 as commit `81dfaf406d046205b39980d6a64c681ea3ab18c6`.
-
-- PR #5 final-head CI: `33348768686` — green.
-- Post-merge `main` CI: `33348851085` — green.
-- Python 3.12/3.13 each passed 37 tests plus format/lint/mypy/compile/audit/secret/lock checks.
-- PostgreSQL 17 migration round trip passed.
+P2.1 was squash-merged through PR #5 as commit `81dfaf406d046205b39980d6a64c681ea3ab18c6`; post-merge `main` CI `33348851085` is green.
 
 Durable auth facts:
 
 - GitHub App is primary auth; do not introduce a broad long-lived PAT as the normal credential model.
-- App JWTs use RS256 and configured GitHub App client ID issuer.
+- App JWTs use RS256 and configured GitHub App identity.
 - REST API version is pinned to `2026-03-10`.
 - Installation access tokens are short-lived and expiry-aware.
 - OAuth user authorization uses PKCE S256.
@@ -64,27 +59,63 @@ Do not simplify this to trusting a callback query parameter.
 
 ## P2.2 GitHub gateway foundation
 
-P2.2 is implemented on `feat/p2-github-gateway` in PR #6. Implementation head `ca6c0beb4ea96f661e9e891b04e69228bf6c4de3` passed CI run `33406986504`; documentation closeout/final-head CI and merge are still required before P2.3 starts.
+P2.2 was squash-merged through PR #7 into `main` as commit `4bffdcc8322857aaa16e94aaafe8b5a9d52e69c2`; post-merge `main` CI `33409825480` is green.
 
 Durable gateway facts:
 
 - `GitHubRestClient` is the canonical REST transport boundary.
 - Telegram handlers and normal application services must not issue raw GitHub HTTP requests.
 - Canonical outbound REST headers include GitHub media type, API version `2026-03-10`, and `User-Agent: GitDock/0.1`.
-- Payload parsing is caller-supplied at the gateway boundary; successful results carry typed data plus safe transport metadata.
-- `GitHubResponse[T]` and `GitHubPage[T]` carry request ID, status, pagination, and rate-limit metadata.
-- Pagination links are accepted only when they resolve to canonical HTTPS `api.github.com`; protocol-relative, credentialed, fragmented, external-host, or other unsafe targets are rejected before network I/O.
+- Payload parsing is caller-supplied at the gateway boundary.
+- `GitHubResponse[T]` and `GitHubPage[T]` carry safe request/status/pagination/rate-limit metadata.
+- Pagination links are accepted only when they resolve to canonical HTTPS `api.github.com`; protocol-relative, credentialed, fragmented, external-host, non-HTTPS, or noncanonical targets are rejected before network I/O.
 - Pagination iteration has repeated-next-link detection and a configured max-page safety bound.
 - The gateway is not a generic URL fetcher.
 - Stable error categories cover authentication, permission, not-found, conflict/precondition, validation, rate-limit, transient, and unexpected failures.
-- Gateway exceptions intentionally omit raw GitHub response bodies. Preserve safe status/request-id/rate metadata only.
-- Rate-limit metadata captures resource, limit, remaining, used, reset timestamp, and `Retry-After` where present.
-- GET/HEAD are retry-safe by default for bounded transient transport/5xx conditions.
-- Write-like methods do **not** retry by default. A non-read operation may use `RetryMode.SAFE` only when a higher layer has positively established retry/idempotency safety for that specific operation.
+- Gateway exceptions intentionally omit raw GitHub response bodies.
+- GET/HEAD are retry-safe by default for bounded transient conditions.
+- Write-like methods do **not** retry by default; explicit safe retry requires higher-level idempotency reasoning.
 - Redirects are not automatically followed by the REST gateway.
-- HTTP timeouts/retry/page limits are centralized constants, not handler-local magic numbers.
 
-P2.2 contract verification adds 12 tests, growing the suite from 37 to **49 tests**. CI run `33406986504` passed on Python 3.12 and 3.13, plus PostgreSQL 17. It also passed `pip-audit`, `detect-secrets`, compile, and byte-for-byte PEP 751 lock verification. No runtime dependency or DB schema change was needed for P2.2.
+P2.2 added 12 contract tests, growing the suite from 37 to 49 tests before P2.3.
+
+## P2.3 repository read implementation
+
+P2.3 implementation head `a6d57d5a99b58004fab4dbf84b9b6742a9475523` passed full CI run `33423169021` before documentation closeout.
+
+Verified implementation facts:
+
+- Python 3.12 and 3.13 each pass Ruff format/lint, mypy, **65 pytest tests**, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff.
+- PostgreSQL 17 upgrade -> downgrade -> upgrade passes with Alembic migration `0003`.
+- `pip-audit` reports no known runtime vulnerabilities on this implementation head.
+- The suite now covers repository REST parsing, GitHub setup/OAuth HTTP callbacks, owner identity persistence, repository read/cache service behavior, and Telegram callback/renderer/keyboard behavior.
+
+### Durable repository-read invariants
+
+- GitHub remains the source of truth for repositories.
+- `repositories_cache` is a **minimal non-authoritative callback/context cache**, not a shadow repository database.
+- The cache stores only safe non-secret repository metadata/context needed for compact Telegram navigation and server-side repository resolution.
+- Never store installation/user access tokens, OAuth codes/state, PKCE material, private keys, or raw GitHub error bodies in repository cache rows.
+- Telegram repository callbacks are compact and versioned. They use stable GitHub repository ID plus navigation context instead of arbitrary long `owner/name` values.
+- Callback resolution must be scoped to the current GitDock user and a currently bound, unsuspended GitHub installation.
+- A repository detail view must be re-fetched from GitHub before render. A GitHub not-found result removes the stale local cache row.
+- A cache hit is never authorization proof by itself.
+- Repository read flows request only metadata/read capabilities; P2.3 adds no repository write/admin behavior.
+- Repository listing supports all/private/public/active/archived/source/fork filters and stable application-level pagination.
+- Repository detail may show visibility, archived/fork state, default branch, language, stars/forks, description, and update time where available.
+- Future P3/P4/P6/P7 features must extend these services/gateways rather than bypass the P2.2 transport or make cache authoritative.
+
+### Working GitHub connection UI
+
+P2.3 wires the P2.1 authentication primitives into the actual FastAPI/Telegram runtime:
+
+- Telegram can create the short-lived GitHub installation/setup session.
+- GitHub setup callback continues into OAuth/PKCE verification.
+- OAuth callback completes the existing dual-context binding flow.
+- Success/error HTML pages never display tokens, OAuth codes, PKCE material, or raw upstream error bodies.
+- FastAPI GitHub callback routes explicitly disable response-model inference for Response subclasses; do not regress to a union annotation that FastAPI tries to model with Pydantic.
+
+P2.3 is not considered complete until its final documentation head, PR, merge, post-merge `main` CI, and final handoff update are all verified.
 
 ## Dependency reproducibility
 
@@ -101,7 +132,16 @@ The repository was initially private during P1 and the account's included privat
 
 Do not diagnose a zero-step Actions failure as code failure without checking whether a runner step actually started.
 
-Known connector issue: the connector's `markPullRequestReadyForReview` GraphQL mutation has failed because it requested nonexistent `Repository.fullDatabaseId`. Previous safe workaround was to close the verified Draft without merging, open a non-draft replacement from the same branch, and require new final-head CI before merge. Never bypass CI or merge a Draft merely to work around the connector.
+Known connector issue: the connector's Draft -> Ready GraphQL path has failed because it requested nonexistent `Repository.fullDatabaseId`. Safe prior workaround: close the verified Draft without merging, open a non-draft replacement from the same branch, and require new final-head CI before merge. Never bypass CI or merge a Draft merely to work around the connector.
+
+## Known non-blocking maintenance warnings
+
+As of P2.3 implementation CI:
+
+- FastAPI/Starlette `TestClient` emits a deprecation warning about the existing `httpx` integration and future `httpx2` direction.
+- Alembic emits a deprecation warning because `alembic.ini` has no explicit `path_separator` for `prepend_sys_path` handling.
+
+These warnings do not currently fail tests, but future maintenance should resolve them deliberately rather than forgetting them.
 
 ## GitHub write strategy
 
@@ -156,9 +196,11 @@ As of 2026-08-31:
 
 - P0 complete.
 - P1 merged and post-merge verified.
-- P2.1 merged as `81dfaf406d046205b39980d6a64c681ea3ab18c6` and post-merge CI `33348851085` is green.
-- P2.2 implementation is green in CI run `33406986504`; PR #6 remains Draft while documentation/final-head verification is completed.
-- The next implementation task **after P2.2 merge and post-merge `main` verification** is **P2.3 — Home + repository read screens**.
+- P2.1 merged as `81dfaf406d046205b39980d6a64c681ea3ab18c6`; post-merge CI `33348851085` green.
+- P2.2 merged as `4bffdcc8322857aaa16e94aaafe8b5a9d52e69c2`; post-merge CI `33409825480` green.
+- P2.3 implementation is green on `a6d57d5a99b58004fab4dbf84b9b6742a9475523`, CI `33423169021`, with 65 tests; documentation/final-head PR/merge/main-CI closeout is still required.
+- Do not start P3.1 until P2.3 closeout is complete.
+- The next implementation milestone after verified P2.3 is **P3.1 — GitHub repository search**.
 
 ## Do not forget later
 
