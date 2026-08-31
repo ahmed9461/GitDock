@@ -4,121 +4,74 @@ Last updated: 2026-08-31
 
 ## Project state
 
-**Completed phases:**
+**Completed phases/items:**
 
 - P0 — Planning and governance foundation ✅
 - P1 — Project skeleton & quality gates ✅
+- P2.1 — GitHub App authentication foundation ✅
 
 **Current phase:** P2 — GitHub App connection & read-only core
 
-**Current item:** P2.1 — GitHub App authentication foundation — implementation verified; replacement PR closeout in progress.
+**Current item:** P2.2 — GitHub gateway foundation — active on `feat/p2-github-gateway`.
 
-**Next implementation item after merge:** P2.2 — GitHub gateway foundation.
+**Next item after verified P2.2 merge:** P2.3 — Home + repository read screens.
 
-P2.1 implementation on `feat/p2-github-app-auth` passed the full configured CI suite in run `33348203305`, and the fully documentation-synchronized head passed run `33348487790`. Draft PR #4 was closed without merge only because the connector's draft-to-ready GraphQL mutation failed internally. **PR #5** is the non-draft replacement merge target. Do not start P2.2/P2.3 or repository write/admin features until PR #5 is merged and the merged `main` state is verified.
+## P2.1 final verification
 
-## P1 verified foundation
+P2.1 was squash-merged through PR #5 into `main` as commit `81dfaf406d046205b39980d6a64c681ea3ab18c6`.
 
-- [x] Python package/application boundaries created.
-- [x] Python 3.12 and 3.13 CI support.
-- [x] exact direct runtime/development pins.
-- [x] PEP 751 transitive/hash runtime locks:
-  - `pylock.py312-linux.toml`
-  - `pylock.py313-linux.toml`
-- [x] CI regenerates each lock with `pip lock` and rejects drift.
-- [x] typed `GITDOCK_*` configuration with fail-closed validation.
-- [x] `.env.example` contains placeholders only; real secrets are ignored/not committed.
-- [x] FastAPI factory, `/health`, `/ready`, and Telegram webhook ingress.
-- [x] Telegram webhook secret-header validation.
-- [x] aiogram polling/webhook-ready bootstrap and owner-only middleware.
-- [x] fresh Router factory per Dispatcher lifecycle.
-- [x] async SQLAlchemy engine/session baseline.
-- [x] initial users/Telegram/GitHub account/installation models.
-- [x] Alembic async baseline migration.
-- [x] structured JSON logging with secret redaction.
-- [x] Ruff format/lint, mypy, pytest, compile, pip-audit, detect-secrets, lock-drift, and PostgreSQL migration gates.
+Verification evidence:
 
-## P1 verification evidence
+- PR #5 final-head CI run `33348768686` — green.
+- Post-merge `main` CI run `33348851085` — green.
+- Python 3.12: Ruff format/lint, mypy, 37 pytest tests, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff — passed.
+- Python 3.13: same gates and 37 tests — passed.
+- PostgreSQL 17: Alembic upgrade -> downgrade -> upgrade — passed.
 
-PR #2 was merged only after Pull Request CI run `33345131414` completed successfully. Post-merge `main` run `33345193470` was also green on Python 3.12, Python 3.13, and PostgreSQL 17. P1 handoff synchronization was subsequently merged through PR #3 after CI run `33345364226` passed.
+The earlier PR #4 draft was closed without merge only because the connector's ready-for-review GraphQL mutation failed internally; no quality gate was bypassed.
 
-## P2.1 verified implementation
+## Active P2.2 scope
 
-- [x] grouped GitHub App configuration validation with fail-closed partial configuration handling.
-- [x] short-lived RS256 GitHub App JWT generation using the configured client ID as issuer.
-- [x] GitHub App installation discovery and safe installation identity parsing.
-- [x] installation access-token creation with permission/repository scoping and expiry-aware cache refresh.
-- [x] GitHub OAuth user-authorization scaffold with PKCE S256.
-- [x] restart-safe one-time authorization state persisted server-side as SHA-256 digest only.
-- [x] encrypted PKCE verifier persistence with encryption-key version metadata.
-- [x] two-stage installation candidate -> OAuth/user verification -> verified binding flow.
-- [x] encrypted GitHub user access/refresh credential persistence abstraction with access/refresh expiry metadata and key rotation support.
-- [x] central GitDock capability -> GitHub permission/token-context mapper.
-- [x] secret redaction coverage for GitHub auth material.
-- [x] Alembic migration for durable GitHub authorization state and refresh-token expiry metadata.
-- [x] unit/integration coverage expanded to 37 tests.
+Implement the GitHub transport/gateway foundation only:
 
-### P2.1 security invariants
+- [~] typed REST client wrapper.
+- [ ] pagination helper with trusted GitHub API next-link validation.
+- [ ] stable GitDock error translation.
+- [ ] rate-limit capture/model.
+- [ ] bounded retry policy for safe transient requests only.
+- [ ] contract test doubles/fixtures.
 
-- A raw `installation_id` returned through GitHub's setup/install flow is **untrusted candidate data**, not proof of ownership. GitDock binds only after the same installation identity is verified from both GitHub App authentication context and authenticated GitHub user context.
-- OAuth state is opaque, high entropy, user-bound, short-lived, server-side, and one-time use.
-- The raw OAuth state is not persisted; only its SHA-256 digest is stored.
-- PKCE uses S256; the verifier is encrypted at rest and never logged.
-- GitHub App private key, client secret, installation/user tokens, OAuth code, PKCE verifier, and credential-encryption keys must never be logged or committed.
-- Installation access-token handling does not assume a fixed token length or legacy token format.
-- GitHub user credential persistence uses authenticated encryption and versioned keys; the binding flow does not persist a user token merely because it was used to prove installation access.
+### P2.2 boundaries
 
-## P2.1 verification evidence
+- No Telegram repository screens in this item; those belong to P2.3.
+- No repository write/admin operations.
+- No raw GitHub HTTP calls from Telegram handlers/services outside the gateway.
+- GitHub API host is fixed/validated; pagination must not create an SSRF-capable arbitrary URL fetcher.
+- Authentication/authorization bodies, tokens, and raw sensitive response content must not enter exception messages or logs.
+- Retry GET/HEAD and explicitly safe operations only; do not create a generic blind write retry.
 
-Implementation CI run `33348203305` passed all configured jobs, and documentation-synchronized run `33348487790` repeated the full suite successfully:
+## Required P2.2 verification
 
-- Python 3.12: Ruff format, Ruff lint, mypy, **37 pytest tests**, compile validation, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff — all passed.
-- Python 3.13: the same gates, including **37 pytest tests** and PEP 751 lock regeneration/diff — all passed.
-- PostgreSQL 17: Alembic upgrade -> downgrade to base -> upgrade to head — passed.
-- `pip-audit` reported no known vulnerabilities for the pinned runtime requirements in these verification runs.
+Before P2.2 can be marked complete:
 
-The P2.1 dependency set adds exact runtime pins for `PyJWT==2.13.0` and `cryptography==50.0.1`; the Python 3.12 and 3.13 Linux PEP 751 locks were regenerated and verified byte-for-byte by CI.
-
-## PR replacement history
-
-- PR #4 was the original P2.1 draft and reached a fully green, documentation-synchronized head.
-- The connector's `markPullRequestReadyForReview` mutation failed internally because it requested a GitHub GraphQL `Repository.fullDatabaseId` field that does not exist.
-- PR #4 was therefore closed **without merge**; no code or quality gate was bypassed.
-- PR #5 was opened non-draft from the same feature branch as the replacement merge target.
-- The branch commit moved during the replacement workflow, so PR #5 must receive its own green CI on its final head before merge.
-
-## Dependency locking policy
-
-Human-maintained inputs:
-
-- `requirements.txt` — exact direct runtime pins
-- `requirements-dev.txt` — exact development/test pins
-
-Runtime reproducibility for current Linux targets:
-
-- `pylock.py312-linux.toml`
-- `pylock.py313-linux.toml`
-
-Locks use standardized PEP 751 output from `pip lock` and are interpreter/platform-specific. Any dependency change requires regenerated committed locks and green drift checks for both supported Python versions before merge.
-
-## Exact next task
-
-1. Finish P2.1 replacement-PR documentation synchronization in PR #5.
-2. Require a green CI run for the exact final PR #5 head.
-3. Merge PR #5 only while that verified head SHA is unchanged.
-4. Verify the merged `main` CI state.
-5. Synchronize post-merge project state if required by the project-control contract.
-6. Then start **P2.2 — GitHub gateway foundation** on a new branch from verified `main`.
+- Ruff format/lint green.
+- mypy green.
+- full pytest green on Python 3.12 and 3.13.
+- gateway contract tests cover headers, pagination, error categories, rate limits, safe retries, no unsafe write retry, and hostile pagination URL rejection.
+- compile check, `pip-audit`, `detect-secrets`, and PEP 751 lock drift green.
+- PostgreSQL migration CI remains green even though P2.2 is not expected to change schema.
+- project-control docs synchronized on the exact verified head.
+- PR merged only from an unchanged green head, then `main` CI verified.
 
 ## Rules that remain in force
 
-- Use a GitHub App, not a broad long-lived PAT, as the primary credential model.
-- Do not start repository write/admin features before their roadmap milestone and permission model.
-- Never commit or log real tokens, webhook secrets, client secrets, private keys, OAuth codes, PKCE verifiers, or credential-encryption keys.
-- PostgreSQL remains the production database; SQLite is development/test only.
-- Telegram handlers stay thin; GitHub HTTP details stay behind gateway/service layers.
-- A milestone is not complete until tests and project-control documentation are updated.
+- GitHub App remains the primary credential model; broad long-lived PATs are not introduced.
+- A setup/install `installation_id` remains untrusted until dual-context verification.
+- GitHub remains source of truth for GitHub resources.
+- Telegram handlers remain thin; transport details live in the gateway.
+- Secrets/tokens/private keys/OAuth material are never committed, logged, or rendered to Telegram.
+- No repository write/admin feature is pulled forward into P2.2.
 
 ## Handoff instruction
 
-Read root `AGENTS.md`, this file, `docs/PROJECT_MEMORY.md`, `docs/ROADMAP.md`, `docs/SECURITY_MODEL.md`, `docs/TEST_MATRIX.md`, and the P2-relevant architecture sections. Complete only PR #5 verification/merge and post-merge state verification before starting P2.2; do not rebuild P1 or skip ahead.
+Read `AGENTS.md`, `docs/PROJECT_MEMORY.md`, this file, `docs/CONSTANTS.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY_MODEL.md`, `docs/BUILD_PROTOCOL.md`, `docs/ROADMAP.md`, `docs/DECISIONS.md`, and `docs/TEST_MATRIX.md`. Continue only P2.2 until its full CI and documentation closeout are green; then start P2.3 from verified `main`.
