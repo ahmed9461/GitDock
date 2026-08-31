@@ -1,6 +1,6 @@
 # GitDock — Architecture Specification
 
-Status: baseline architecture + verified P2.2 transport implementation
+Status: baseline architecture + verified P2.1/P2.2 foundations + P2.3 repository-read implementation
 
 ## 1. Architectural goals
 
@@ -10,6 +10,7 @@ Status: baseline architecture + verified P2.2 transport implementation
 - Least-privilege authentication.
 - Easy owner-only v1 deployment with a clean path to multi-user support.
 - No hidden direct coupling between button callbacks and raw GitHub API calls.
+- GitHub remains authoritative for GitHub resources; local caches exist only for navigation/preferences/operation state where justified.
 
 ## 2. High-level topology
 
@@ -21,7 +22,7 @@ Telegram Client
 | FastAPI HTTP Ingress   |
 | - Telegram webhook     |
 | - GitHub webhook       |
-| - OAuth callback       |
+| - setup/OAuth callback |
 | - health/readiness     |
 +-----------+------------+
             |
@@ -59,7 +60,7 @@ PostgreSQL + Alembic
 
 ### Production
 
-- FastAPI serves Telegram webhook, GitHub webhook, OAuth callback, health/readiness.
+- FastAPI serves Telegram webhook, GitHub webhook, setup/OAuth callbacks, health/readiness.
 - PostgreSQL is required.
 - Service is suitable for systemd.
 - HTTPS terminates at a trusted reverse proxy or application deployment layer.
@@ -74,8 +75,11 @@ gitdock/
 │   ├── config.py
 │   ├── logging.py
 │   └── constants.py
+├── http/
+│   └── routes/
 ├── telegram/
 │   ├── bot.py
+│   ├── callbacks.py
 │   ├── routers/
 │   ├── keyboards/
 │   ├── renderers/
@@ -92,9 +96,13 @@ gitdock/
 │   ├── models.py
 │   ├── pagination.py
 │   ├── permissions.py
+│   ├── repositories.py
 │   └── token_provider.py
 ├── domain/
 ├── services/
+│   ├── identity.py
+│   ├── repositories.py
+│   └── runtime.py
 ├── db/
 ├── workers/
 └── security/
@@ -116,9 +124,17 @@ Responsible for receiving updates, rendering Arabic screens, building keyboards,
 
 Must not call GitHub HTTP endpoints directly, contain raw database queries, or embed durable business/risk rules.
 
+P2.3 follows this rule: `/start`, home, repository list/filter/detail, refresh, connect, and placeholder callbacks call application services/renderers; they do not construct GitHub REST requests directly.
+
 ### Application services
 
 Orchestrate use cases, domain rules, persistence, GitHub gateway, audit, permission checks, and confirmation flows.
+
+P2.3 introduces/uses:
+
+- owner identity resolution as a service boundary rather than handler-local SQL;
+- `RepositoryReadService` for home/list/filter/detail/cache synchronization;
+- a runtime composition root that wires auth, token provider, repository gateway, repository read service, and connection service once.
 
 ### Domain layer
 
@@ -144,11 +160,11 @@ P2.2 verified implementation:
 - GET/HEAD retry bounded transient failures by default; non-read methods default to no retry.
 - Explicit retry for a non-read operation requires a higher layer to opt into `RetryMode.SAFE` after establishing retry/idempotency safety.
 
-Future endpoint-specific repository/issue/PR/Actions methods build on this transport rather than creating parallel HTTP clients.
+P2.3 adds endpoint-specific typed repository parsing/list/detail on top of this transport. It does **not** introduce a parallel HTTP client.
 
 ### Persistence
 
-Stores GitDock state/preferences/audit/inbox. GitHub remains source of truth for GitHub resources; do not build a shadow GitHub database unnecessarily.
+Stores GitDock state/preferences/audit/inbox and narrowly justified cache/context. GitHub remains source of truth for GitHub resources; do not build a shadow GitHub database unnecessarily.
 
 ## 6. Authentication flows
 
@@ -160,12 +176,14 @@ Stores GitDock state/preferences/audit/inbox. GitHub remains source of truth for
 
 ### GitHub App installation
 
-1. Create a short-lived setup session bound to Telegram user.
+1. Create a short-lived setup session bound to Telegram/GitDock user.
 2. User installs/authorizes GitHub App.
 3. Treat returned `installation_id` only as untrusted candidate data.
 4. Perform authenticated user authorization with one-time state + PKCE.
 5. Resolve installation under App context and authenticated-user context.
 6. Bind only after account/installation identities match and installation is not suspended.
+
+P2.3 wires this existing P2.1 flow into actual Telegram and FastAPI routes. The setup callback continues to OAuth and the OAuth callback completes the same dual-context verification; UI wiring does not weaken the binding invariant.
 
 ### GitHub user authorization
 
@@ -180,11 +198,31 @@ Stores GitDock state/preferences/audit/inbox. GitHub remains source of truth for
 
 Permission strings are centralized, not scattered in handlers. Capabilities map to required GitHub App permissions and token context, allowing services to distinguish available, missing app permission, user/repository authority failure, installation exclusion, and invalid resource state.
 
+P2.3 is Tier 0 read-only. Repository list/detail uses repository metadata/read capability and does not request repository write/admin permission.
+
 ## 8. Database model baseline
 
 Core models include users/Telegram identities, GitHub accounts/installations, minimal repository cache/preferences, webhook delivery/event work state, pending confirmations, durable high-impact operation sessions, and append-oriented audit records.
 
 GitHub resource state remains authoritative remotely.
+
+### P2.3 `repositories_cache`
+
+Alembic migration `0003` adds the minimal repository cache needed for compact Telegram repository selection/navigation.
+
+Architecture invariants:
+
+- cache rows are scoped to a GitDock user and bound GitHub installation;
+- stable GitHub repository ID is the callback-resolution identifier;
+- only safe non-secret repository metadata/context is cached;
+- repository names are not required inside callback payloads;
+- cache is synchronized from GitHub installation repository reads;
+- repositories removed from the installation are pruned on refresh;
+- a detail lookup first validates local user/installation context, then re-fetches GitHub before rendering;
+- a GitHub not-found/inaccessible result invalidates stale callback cache state;
+- cache never stores tokens/OAuth/PKCE/private keys and never grants authority by itself.
+
+This is an implementation of D-013 and D-017, not an exception to them.
 
 ## 9. Webhook ingestion pipeline
 
@@ -225,6 +263,8 @@ Never execute repository instructions automatically. Detect project metadata, co
 
 REST Search API is sufficient for core discovery; GraphQL is introduced only where it materially improves a use case. Normalize results to GitDock models and avoid long-lived shadow search state.
 
+P3.1 search may reuse the repository detail/read model where appropriate, but search results must not be inserted into the installed-repository callback cache as if they belonged to an installation unless that relationship is independently established.
+
 ## 15. Error model
 
 P2.2 establishes transport categories:
@@ -239,6 +279,8 @@ P2.2 establishes transport categories:
 - unexpected GitHub/shape failure.
 
 Higher layers may add domain-specific context, but must not replace these with raw HTTP bodies or stack traces in Telegram.
+
+P2.3 repository renderers map these stable categories to short Arabic user-facing states and include a separate stale-selection state without exposing upstream body content.
 
 Transport errors may expose only safe metadata such as status code, GitHub request ID, and parsed rate-limit state.
 
@@ -261,16 +303,42 @@ Use correlation context such as Telegram update/user ID, GitHub delivery/request
 telegram -> services -> domain
                     -> github gateway
                     -> persistence
+http setup/oauth -> connection/auth services -> github gateway/auth client
 webhook ingress -> domain normalization -> services/notification
 ```
 
 Domain must not import Telegram or concrete HTTP clients. Endpoint-specific GitHub services/gateways depend on the P2.2 REST transport rather than bypass it.
 
-## 19. P2.2 contract verification
+## 19. Verified contract/integration progression
 
-CI run `33406986504` verified the transport on Python 3.12 and 3.13 with the complete 49-test suite. Twelve gateway contract tests cover canonical headers, fixture parsing, pagination, hostile-target rejection, error categories, rate limits, body/token non-leakage, transient safe retry, default no-write-retry, and explicit safe retry. PostgreSQL migration, audit, secret scan, compile, and PEP 751 lock checks remained green.
+P2.2 CI `33406986504` verified the transport with 49 tests.
 
-## 20. Source references for security/auth assumptions
+P2.3 implementation CI `33423169021` verified the extended architecture with **65 tests** on Python 3.12 and the same configured quality/security gate set on Python 3.13, plus PostgreSQL 17 migration upgrade/downgrade/re-upgrade.
+
+P2.3 coverage includes:
+
+- repository REST parsing/list/detail;
+- owner identity resolution;
+- repository list/filter/cache synchronization;
+- compact repository selection scoped to the current GitDock user/installation;
+- stale repository pruning;
+- disconnected home state;
+- setup/OAuth FastAPI routes;
+- callback size/round-trip/long-name safety;
+- Arabic home/list/detail renderers.
+
+The implementation-head suite is green but P2.3 is not Definition-of-Done complete until final documentation-head CI, PR merge, post-merge `main` CI, and final handoff sync are complete.
+
+## 20. Known non-blocking maintenance warnings
+
+Green P2.3 CI currently reports:
+
+- Starlette/FastAPI `TestClient` deprecation warning for the current `httpx` integration/future `httpx2` direction;
+- Alembic deprecation warning because `alembic.ini` does not explicitly configure `path_separator` for `prepend_sys_path`.
+
+These are tracked maintenance debt, not hidden test failures.
+
+## 21. Source references for security/auth assumptions
 
 - GitHub App permissions: https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app
 - Installation authentication: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation

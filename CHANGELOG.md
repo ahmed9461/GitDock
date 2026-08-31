@@ -16,19 +16,25 @@ The project follows an `Unreleased` section during active development. Versionin
 - P2.1 GitHub App authentication foundation: fail-closed settings, RS256 App JWT, installation token provider/cache, OAuth + PKCE S256, hashed one-time state, encrypted PKCE/user credentials, dual-context installation binding, and central capability/permission mapping.
 - P2.2 typed `GitHubRestClient` as the canonical REST transport boundary.
 - P2.2 typed `GitHubResponse[T]`, `GitHubPage[T]`, `GitHubRateLimit`, and validated pagination metadata models.
-- P2.2 stable error translation for authentication, permission, not-found, conflict/precondition, validation, rate-limit, transient, and unexpected failures.
-- P2.2 GitHub rate-limit parsing for resource/limit/remaining/used/reset and `Retry-After`.
-- P2.2 validated pagination iterator with canonical-host checks, repeated-link detection, and maximum-page guard.
-- P2.2 bounded exponential backoff with jitter for retry-safe transient requests; write-like methods default to no retry.
-- P2.2 HTTPX MockTransport fixture/contract coverage expanding the suite from 37 to 49 tests.
+- P2.2 stable error translation, rate-limit parsing, canonical-host pagination, and safe retry policy.
+- P2.3 typed repository read gateway for installed repositories and repository detail metadata.
+- P2.3 minimal `repositories_cache` + Alembic migration `0003` for compact Telegram callback/context resolution.
+- P2.3 owner identity service and runtime composition wiring for repository read use cases.
+- P2.3 Arabic Telegram home, repository list, filters, repository detail, refresh, stale/error states, and compact versioned callbacks.
+- P2.3 working GitHub App setup/OAuth HTTP callback wiring using the existing P2.1 state/PKCE/dual-context binding services.
+- P2.3 repository filters for all/private/public/active/archived/source/fork.
+- P2.3 contract/integration/UI coverage expanding the suite from 49 to **65 tests**.
 
 ### Changed
 
-- Canonical GitHub REST request metadata is now centralized: API `2026-03-10`, `application/vnd.github+json`, and `User-Agent: GitDock/0.1`.
-- GitHub HTTP timeout/retry/page-limit constants are centralized rather than handler-local.
-- GitHub pagination/absolute REST targets are restricted to canonical HTTPS `api.github.com`; the gateway is not a generic URL fetcher.
-- Runtime dependencies include exact pins `PyJWT==2.13.0` and `cryptography==50.0.1` from P2.1; P2.2 adds no runtime dependency and does not alter the existing PEP 751 locks.
-- Project state now records P2.1 as merged/post-merge verified and P2.2 as implementation-verified pending documentation/final-head PR closeout.
+- Canonical GitHub REST request metadata remains centralized: API `2026-03-10`, `application/vnd.github+json`, and `User-Agent: GitDock/0.1`.
+- GitHub HTTP timeout/retry/page-limit constants remain centralized rather than handler-local.
+- GitHub pagination/absolute REST targets remain restricted to canonical HTTPS `api.github.com`; the gateway is not a generic URL fetcher.
+- P2.2 is now recorded as squash-merged through PR #7 as `4bffdcc8322857aaa16e94aaafe8b5a9d52e69c2`, with post-merge `main` CI `33409825480` green.
+- Repository UI callbacks now carry compact versioned repository IDs plus navigation context rather than arbitrary repository `owner/name` strings.
+- Repository list/detail data flows through application services and the P2.2 transport instead of Telegram handlers issuing GitHub HTTP.
+- GitHub repository detail is refreshed from GitHub before display; local repository cache is navigation/context state only.
+- Runtime dependencies remain unchanged by P2.3; existing PEP 751 locks are still byte-for-byte verified on Python 3.12 and 3.13.
 
 ### Fixed
 
@@ -36,6 +42,8 @@ The project follows an `Unreleased` section during active development. Versionin
 - OAuth authorization-state atomic consumption on SQLite and expired ORM-object access in lifecycle tests.
 - P2.1 PEP 751 final-newline drift.
 - P2.2 initial Ruff formatting/import ordering and modern Python generic-syntax findings caught by CI before type/test gates.
+- P2.3 Ruff formatting/import/Unicode-lint findings without changing the intended Arabic/emoji UI.
+- P2.3 FastAPI callback route registration failure by explicitly disabling response-model inference for Response-returning setup/OAuth routes.
 
 ### Security
 
@@ -46,7 +54,10 @@ The project follows an `Unreleased` section during active development. Versionin
 - Pagination rejects external hosts, protocol-relative URLs, URL credentials, fragments, and non-canonical targets before network I/O.
 - Outbound gateway redirects are not followed automatically.
 - GET/HEAD may retry bounded transient failures; write-like methods are never blindly retried by default.
-- Structured secret redaction, dependency auditing, secret scanning, and reproducible lock verification remain CI gates.
+- P2.3 repository callbacks resolve server-side inside the current GitDock user and active installation context; a callback/cache row is not authorization proof by itself.
+- `repositories_cache` stores no token/OAuth/PKCE/private-key material and is explicitly non-authoritative.
+- Repository detail requests a repository-scoped installation token and re-fetches GitHub before render.
+- P2.3 remains Tier 0 read-only and introduces no repository write/admin permission.
 
 ### Verification
 
@@ -62,14 +73,29 @@ P2.1:
 - post-merge `main` CI `33348851085` — green.
 - Python 3.12/3.13: 37 tests plus format/lint/mypy/compile/audit/secret/lock gates; PostgreSQL 17 migration round trip passed.
 
-P2.2 implementation verification:
+P2.2:
 
-- implementation head `ca6c0beb4ea96f661e9e891b04e69228bf6c4de3`.
-- PR #6 CI run `33406986504` — green on Python 3.12, Python 3.13, and PostgreSQL 17.
-- Python 3.12 log confirms **49 passed**; the 12 new contract tests all passed.
-- Both Python jobs passed Ruff format/lint, mypy, pytest, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff.
-- PostgreSQL 17 upgrade -> downgrade -> upgrade passed.
+- implementation CI `33406986504` — green.
+- final PR #7 head CI `33409670775` — green.
+- squash merge commit: `4bffdcc8322857aaa16e94aaafe8b5a9d52e69c2`.
+- post-merge `main` CI `33409825480` — green.
+- suite at P2.2: 49 tests; Python 3.12/3.13 and PostgreSQL 17 all green.
+
+P2.3 implementation verification:
+
+- implementation head: `a6d57d5a99b58004fab4dbf84b9b6742a9475523`.
+- CI run `33423169021` — green on Python 3.12, Python 3.13, and PostgreSQL 17.
+- Python 3.12 log confirms **65 passed**; Python 3.13 passed the same configured suite/gates.
+- Ruff format/lint, mypy, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff all passed.
+- PostgreSQL 17 upgrade -> downgrade -> upgrade including migration `0003` passed.
 - `pip-audit` reported no known runtime vulnerabilities.
-- This is pre-documentation verification; final-head CI is still required after all P2.2 documentation is synchronized.
+- P2.3 is implementation-verified but not yet marked complete until documentation-head CI, PR merge, post-merge `main` CI, and final handoff sync succeed.
+
+### Known maintenance warnings
+
+- Green P2.3 CI reports a Starlette/FastAPI `TestClient` deprecation warning for the current `httpx` integration/future `httpx2` direction.
+- Green P2.3 CI reports an Alembic deprecation warning because `alembic.ini` does not yet set explicit `path_separator` for `prepend_sys_path`.
+
+These warnings are recorded rather than hidden; they do not currently fail the build.
 
 Operational note: earlier zero-step GitHub Actions failures were caused by exhausted private-repository hosted-runner quota and stopped after the repository became public; they were not application failures.

@@ -22,15 +22,15 @@ Do not duplicate these literals throughout handlers/services.
 
 | Constant | Initial value | Purpose |
 |---|---:|---|
-| `DEFAULT_PAGE_SIZE` | 8 | General Telegram list pagination |
-| `SEARCH_PAGE_SIZE` | 6 | Richer repository search cards/rows |
+| `DEFAULT_PAGE_SIZE` | 8 | General Telegram list pagination; used by P2.3 repository list |
+| `SEARCH_PAGE_SIZE` | 6 | Richer repository search cards/rows for P3.1 |
 | `MAX_PRIMARY_BUTTONS_PER_ROW` | 2 | Default keyboard density |
 | `TEXT_PAGE_TARGET_CHARS` | 3500 | Safe target for paginated long text/log rendering |
 | `CONFIRMATION_TTL_SECONDS` | 300 | General confirmation expiry |
 | `DANGER_CONFIRMATION_TTL_SECONDS` | 180 | High-risk operation expiry |
 | `CALLBACK_SCHEMA_VERSION` | `v1` | Callback compatibility/versioning |
 
-Telegram callback data must remain compact. Prefer opaque short IDs/session IDs over embedding long repository names/paths.
+Telegram callback data must remain compact. Prefer stable IDs/session IDs over embedding long repository names/paths.
 
 ### Canonical navigation labels
 
@@ -61,23 +61,45 @@ Telegram callback data must remain compact. Prefer opaque short IDs/session IDs 
 
 ## Callback namespace
 
-Canonical shape:
+Canonical prefix:
 
-`gd:v1:<area>:<action>:<short-id-or-page>`
+`gd:v1:<area>:<action>:<compact-context>`
 
-Examples:
+Verified P2.3 examples/shapes:
 
 - `gd:v1:home:open`
-- `gd:v1:repos:list:2`
-- `gd:v1:repo:open:a7f3`
-- `gd:v1:file:view:k91p`
-- `gd:v1:act:runs:p1`
+- `gd:v1:home:refresh`
+- `gd:v1:connect:begin`
+- `gd:v1:connect:info`
+- `gd:v1:repos:list:<filter>:<page>`
+- `gd:v1:repos:filters:<filter>:<page>`
+- `gd:v1:repos:filter:<filter>`
+- `gd:v1:repo:open:<filter>:<page>:<repo-id-base36>`
+
+Future examples may add areas such as files/actions/issues, but must keep the same versioned/compact principle.
 
 Rules:
 
 - Never use user-supplied raw path/repository names when that risks callback-size overflow.
-- Resolve short IDs through persisted/expiring interaction context when needed.
+- P2.3 repository callbacks use GitHub numeric repository ID encoded compactly, plus filter/page navigation context.
+- Resolve repository IDs server-side through the current GitDock user + active installation context; callback possession is not authorization.
 - Reject unknown callback schema versions safely.
+- Keep encoded callback data within Telegram's 64-byte limit; unit tests enforce this for maximum signed 64-bit repository IDs and long repository names.
+- Do not place credentials, OAuth material, or private GitHub data that is unnecessary for routing into callback payloads.
+
+## P2.3 repository filter values
+
+Canonical filter identifiers are machine values, not translated UI labels:
+
+- `all`
+- `private`
+- `public`
+- `active`
+- `archived`
+- `source`
+- `fork`
+
+Do not invent handler-local aliases without updating callback compatibility/versioning deliberately.
 
 ## Repository/file operation limits
 
@@ -140,7 +162,7 @@ Do not map permissions ad hoc in handlers. Centralize capability -> required per
 
 ### Baseline/read capability
 
-- Metadata: read
+- Metadata: read — P2.3 repository list/detail baseline
 - Contents: read when repository content browsing is enabled
 - Issues: read when issue browsing is enabled
 - Pull requests: read when PR browsing is enabled
@@ -155,7 +177,7 @@ Do not map permissions ad hoc in handlers. Centralize capability -> required per
 - Workflows: write — only if GitDock edits `.github/workflows/`
 - Administration: write — repository create/settings/rename/delete operations that require it
 
-Request only the minimum permissions for enabled features.
+Request only the minimum permissions for enabled features. P2.3 must not request write/admin permission.
 
 ## Risk tiers
 
@@ -165,6 +187,8 @@ Request only the minimum permissions for enabled features.
 | 1 | Reversible write | comment, issue, branch, workflow dispatch | context confirmation where appropriate |
 | 2 | High impact | merge, direct default-branch update, ZIP sync, rename/archive/visibility | dedicated confirmation screen |
 | 3 | Destructive | delete repo, transfer, destructive mass delete | exact target verification + final confirm |
+
+P2.3 home/repository list/detail is Tier 0.
 
 ## Audit operation names
 
@@ -191,6 +215,8 @@ Use stable machine identifiers such as:
 - `workflow.rerun`
 - `workflow.cancel`
 
+Read-only cache refresh/navigation is not a GitHub write audit operation.
+
 ## Environment variable naming convention
 
 Secrets and deployment configuration use uppercase `GITDOCK_*` keys where practical.
@@ -205,10 +231,11 @@ Expected groups:
 - `GITDOCK_PUBLIC_BASE_URL`
 - `GITDOCK_TELEGRAM_WEBHOOK_SECRET`
 - `GITDOCK_GITHUB_APP_ID`
+- `GITDOCK_GITHUB_APP_SLUG`
 - `GITDOCK_GITHUB_CLIENT_ID`
 - `GITDOCK_GITHUB_CLIENT_SECRET`
 - `GITDOCK_GITHUB_PRIVATE_KEY_PATH`
 - `GITDOCK_GITHUB_WEBHOOK_SECRET`
-- encryption/key-management setting for stored user credentials/tokens
+- credential-encryption key/version settings for stored protected material
 
 Real values must never be committed.
