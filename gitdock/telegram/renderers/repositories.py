@@ -95,12 +95,12 @@ def render_filter_screen(current: RepositoryFilter) -> str:
 def render_connection_info(can_connect: bool) -> str:
     if not can_connect:
         return (
-            "ℹ️ ربط GitHub\n\n"
+            "\u2139\ufe0f ربط GitHub\n\n"
             "GitHub App أو رابط الخدمة العام غير مهيأ بالكامل على الخادم بعد.\n"
             "لن يطلب GitDock أي رمز وصول منك داخل Telegram."
         )
     return (
-        "ℹ️ ربط GitHub\n\n"
+        "\u2139\ufe0f ربط GitHub\n\n"
         "يتم الربط عبر GitHub App وصفحة GitHub الرسمية.\n"
         "GitDock لا يطلب منك لصق PAT أو Token داخل Telegram، ولا يعرض الرموز السرية في المحادثة."
     )
