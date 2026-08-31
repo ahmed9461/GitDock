@@ -8,8 +8,8 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-from gitdock.db.base import Base
 from gitdock.db import models  # noqa: F401
+from gitdock.db.base import Base
 
 config = context.config
 if config.config_file_name is not None:
