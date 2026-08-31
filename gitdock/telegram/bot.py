@@ -4,7 +4,7 @@ from aiogram import Bot, Dispatcher
 
 from gitdock.core.config import Settings
 from gitdock.telegram.middleware.owner import OwnerOnlyMiddleware
-from gitdock.telegram.routers.system import router as system_router
+from gitdock.telegram.routers.system import create_system_router
 
 
 def create_bot(settings: Settings) -> Bot:
@@ -16,5 +16,5 @@ def create_dispatcher(settings: Settings) -> Dispatcher:
     owner_middleware = OwnerOnlyMiddleware(settings.telegram_owner_id)
     dispatcher.message.outer_middleware(owner_middleware)
     dispatcher.callback_query.outer_middleware(owner_middleware)
-    dispatcher.include_router(system_router)
+    dispatcher.include_router(create_system_router())
     return dispatcher
