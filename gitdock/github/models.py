@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Generic, TypeVar
-
-T = TypeVar("T")
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,7 +33,7 @@ class GitHubPaginationLinks:
 
 
 @dataclass(frozen=True, slots=True)
-class GitHubResponse(Generic[T]):
+class GitHubResponse[T]:
     """Parsed response plus transport metadata useful to higher layers."""
 
     data: T
@@ -47,7 +44,7 @@ class GitHubResponse(Generic[T]):
 
 
 @dataclass(frozen=True, slots=True)
-class GitHubPage(Generic[T]):
+class GitHubPage[T]:
     """One typed page of GitHub API results."""
 
     items: tuple[T, ...]
