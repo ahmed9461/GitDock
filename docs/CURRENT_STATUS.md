@@ -4,93 +4,133 @@ Last updated: 2026-08-31
 
 ## Project state
 
-**Completed phase:** P0 — Planning and governance foundation ✅
+**Completed phases:**
 
-**Current phase:** P1 — Project skeleton & quality gates
+- P0 — Planning and governance foundation ✅
+- P1 — Project skeleton & quality gates ✅
 
-**Active item:** P1.1 — Application skeleton and quality baseline
+**Current phase:** P2 — GitHub App connection & read-only core
 
-**Implementation status:** P1.1 is implemented on `feat/p1-foundation` and exposed through draft PR #1, but it is **not verified complete and must not be merged yet** because the required GitHub Actions checks have not executed successfully.
+**Implementation status:** The P1 foundation is verified complete on `feat/p1-foundation` / PR #1. All required P1 CI gates are green. PR #1 may be marked ready and merged; after merge, verify the `main` push CI before starting P2 feature work.
 
-## P1.1 implementation present on the feature branch
+## P1 verified foundation
 
 - [x] Python package/application boundaries created.
-- [x] Current direct dependency versions selected and exactly pinned in `requirements.txt` / `requirements-dev.txt`.
+- [x] Python 3.12 and 3.13 are CI-supported.
+- [x] Direct runtime/development dependencies exactly pinned.
+- [x] PEP 751 transitive/hash lock files committed for Linux/Python 3.12 and 3.13:
+  - `pylock.py312-linux.toml`
+  - `pylock.py313-linux.toml`
+- [x] CI regenerates each lock with `pip lock` and fails on drift.
 - [x] Typed `GITDOCK_*` configuration with fail-closed owner/token validation.
-- [x] `.env.example` with placeholders only.
-- [x] `.gitignore` for secrets, environments, caches, DB files, logs, workspaces, and artifacts.
+- [x] `.env.example` contains placeholders only.
+- [x] `.gitignore` covers secrets, virtual environments, caches, databases, logs, temporary workspaces, and artifacts.
 - [x] FastAPI application factory and lifespan wiring.
-- [x] `/health` endpoint with non-secret liveness response.
-- [x] `/ready` endpoint with database readiness check.
-- [x] Telegram webhook endpoint with `X-Telegram-Bot-Api-Secret-Token` validation before update processing.
+- [x] `/health` liveness endpoint with non-secret response.
+- [x] `/ready` database readiness endpoint.
+- [x] Telegram webhook ingress validates `X-Telegram-Bot-Api-Secret-Token` before update processing.
 - [x] aiogram bot/dispatcher bootstrap.
-- [x] development polling mode; polling is refused in production mode.
-- [x] owner-only Telegram middleware on messages and callback queries.
+- [x] development polling mode; production polling is refused.
+- [x] owner-only middleware for messages and callback queries.
 - [x] async SQLAlchemy engine/session baseline.
 - [x] initial identity models: users, Telegram accounts, GitHub accounts, GitHub installations.
-- [x] Alembic async environment + initial upgrade/downgrade migration.
-- [x] structured JSON logging baseline with secret redaction.
-- [x] unit/integration test scaffolding.
-- [x] Ruff, mypy, pytest, pip-audit, detect-secrets and compile checks configured in CI.
-- [x] PostgreSQL 17 migration round-trip CI job configured.
-- [x] draft PR #1 opened from `feat/p1-foundation` to `main`.
+- [x] Alembic async environment and baseline migration.
+- [x] structured JSON logging with secret redaction baseline.
+- [x] unit/integration test harness.
+- [x] Ruff format/lint, mypy, pytest, compile, pip-audit, detect-secrets, dependency-lock verification, and PostgreSQL migration CI gates.
+- [x] current GitHub Actions use Node 24-generation `actions/checkout@v6` and `actions/setup-python@v6`.
 
-Items above mean "implementation exists", not "acceptance verified".
+## Verification evidence
 
-## Dependency state
+### Final P1 CI
 
-Direct dependencies are exact-pinned for reproducibility at the project boundary. Current selected runtime pins include:
+GitHub Actions run `33344826152`: **green**.
 
-- aiogram 3.31.0
-- FastAPI 0.141.1
-- HTTPX 0.28.1
-- SQLAlchemy 2.0.52
-- Alembic 1.19.1
-- asyncpg 0.31.0
-- pydantic-settings 2.15.0
-- Uvicorn 0.52.4
+Python 3.12 job:
 
-Development tooling is also exactly pinned in `requirements-dev.txt`.
+- Ruff format: passed
+- Ruff lint: passed
+- mypy: passed
+- pytest: **15 passed**
+- compile check: passed
+- `pip-audit`: passed, no known runtime dependency vulnerabilities reported
+- `detect-secrets`: passed
+- PEP 751 lock regeneration/diff: passed
 
-A fully resolved/hash-locked transitive dependency artifact has **not** been generated yet. Do not describe the current requirements files as a complete transitive lock. Finalize that strategy before declaring P1 quality gates fully complete.
+Python 3.13 job:
 
-## Verification performed in this implementation session
+- Ruff format: passed
+- Ruff lint: passed
+- mypy: passed
+- pytest: **15 passed**
+- compile check: passed
+- `pip-audit`: passed
+- `detect-secrets`: passed
+- PEP 751 lock regeneration/diff: passed
 
-Local execution environment:
+PostgreSQL 17 job:
 
-- `python -m compileall` over the generated project: **passed**.
-- targeted config + redaction tests using packages already available in the execution environment: **8 passed**.
-- the local environment did not contain aiogram, aiosqlite, Ruff, or mypy and could not reach PyPI, so the complete dependency-backed suite could not be executed locally.
+- dependency installation: passed
+- `alembic upgrade head`: passed
+- `alembic downgrade base`: passed
+- `alembic upgrade head`: passed
 
-GitHub Actions:
+An earlier green run `33344511356` also passed the complete code/security/migration suite before committed lock-drift verification was added.
 
-- CI run `33343624229`: **failure before any job step executed**.
-- CI run `33343758121`: **failure before any job step executed**.
-- Both runs created the expected three jobs (`quality` on Python 3.12, `quality` on Python 3.13, and `postgres-migration`).
-- All jobs returned `steps = null` / no step summaries and no downloadable job logs were available through the connected GitHub API; log requests returned `BlobNotFound`.
-- Because no checkout/install/test step started, these runs do **not** establish a code/test failure. They also do **not** establish a green build.
+### Bugs found and fixed by CI during P1
 
-## Current blocker
+- Ruff formatting inconsistencies in migration/database files.
+- Ruff import-order violations.
+- obsolete mypy `type: ignore` marker.
+- an aiogram lifecycle bug where one global `Router` was reused across multiple `Dispatcher` instances; fixed by using a router factory per dispatcher.
+- secret-scan false positives from generated caches/Git metadata and the explicitly test-only PostgreSQL credential; exclusions are limited to generated metadata/lock hashes and the known test credential is explicitly allowlisted.
 
-Determine why GitHub-hosted Actions jobs for this private repository are failing before runner steps begin (repository/account Actions availability, billing/spending policy, runner allocation, or another GitHub-side pre-run condition). Do not weaken or delete quality gates to work around this.
+## Resolved Actions blocker
+
+When the repository was private and the account's included GitHub Actions quota was exhausted, jobs failed before runner steps began. After the repository was made public, hosted runner steps executed normally. The prior zero-step failures were therefore infrastructure/quota-related, not evidence of an application failure.
+
+Repository visibility is an operational choice and must not be treated as an application security boundary. No real credentials may be committed whether the repository is public or private.
+
+## Dependency locking policy
+
+Human-maintained inputs:
+
+- `requirements.txt` — exact direct runtime pins
+- `requirements-dev.txt` — exact development/test pins
+
+Reproducible runtime resolution for the current Linux deployment/CI targets:
+
+- `pylock.py312-linux.toml`
+- `pylock.py313-linux.toml`
+
+The lock files use the standardized PEP 751 `pylock.toml` format produced by current `pip lock`; they include transitive packages, selected wheels, URLs, and hashes. Because pip lock output is Python/platform-specific, each supported Python/Linux target has its own lock.
 
 ## Exact next task
 
-1. Resolve/identify the GitHub Actions pre-run failure.
-2. Re-run CI until actual steps execute.
-3. Fix any real Ruff/mypy/pytest/Alembic/pip-audit/detect-secrets failures revealed by that run.
-4. Generate/finalize the selected transitive dependency lock strategy.
-5. Run/verify PostgreSQL migration upgrade -> downgrade -> upgrade.
-6. Only after all required P1 checks are green: update Roadmap/Memory/Changelog as verified, mark PR #1 ready, and merge through PR.
+**P2.1 — GitHub App authentication foundation.**
+
+Before repository browsing or writes, implement and verify:
+
+1. GitHub App configuration validation.
+2. GitHub App JWT generation.
+3. installation discovery/binding model.
+4. installation access-token provider with expiry-aware refresh.
+5. user authorization state/callback scaffold for future user-context operations.
+6. encrypted credential/token persistence abstraction.
+7. central GitDock capability → GitHub permission/token-context mapper.
+8. contract/unit/integration tests for auth, expiration, permission, and secret-redaction paths.
+
+Then continue to P2.2 GitHub gateway foundation and P2.3 read-only Telegram home/repository screens.
 
 ## Rules that remain in force
 
-- Do not start GitHub repository write features while P1 foundation is unverified.
-- Do not merge draft PR #1 while the required checks have not run green.
-- Do not interpret a zero-step GitHub Actions failure as a passing or failing application test.
-- Do not commit real tokens/secrets.
-- PostgreSQL remains the production target; SQLite is development/test only.
+- Use a GitHub App, not a broad long-lived PAT, as the primary credential model.
+- Do not start repository write/admin features before the corresponding roadmap milestone and permission model.
+- Never commit or log real tokens, webhook secrets, client secrets, or private key material.
+- PostgreSQL remains the production database; SQLite is development/test only.
+- Telegram handlers stay thin; GitHub HTTP details stay behind the gateway/service layers.
+- A future milestone is not complete until its tests and project-control documentation are updated.
 
 ## Handoff instruction
 
-Read root `AGENTS.md`, then this file and the P1 branch/PR. Continue from the CI pre-run blocker; do not rebuild the foundation from scratch and do not skip directly to P2 until P1 acceptance is verified.
+Read root `AGENTS.md`, this file, `docs/PROJECT_MEMORY.md`, `docs/ROADMAP.md`, and the P2-relevant architecture/security sections. Do not rebuild P1. Begin from P2.1 only after PR #1 has been merged and `main` CI is confirmed green.
