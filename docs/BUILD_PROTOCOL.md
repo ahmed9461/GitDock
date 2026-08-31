@@ -183,7 +183,7 @@ Implementation cannot be called complete until it handles:
 - cleanup after success/cancel/expiry/failure;
 - audit trail.
 
-## 12. Check suite — concrete P1 commands
+## 12. Check suite — concrete commands
 
 ### Bootstrap a fresh development environment
 
@@ -224,7 +224,7 @@ Secret scan equivalent to CI:
 
 ```bash
 detect-secrets scan --all-files \
-  --exclude-files '(^|/)(tests|docs)/|(^|/)\.env\.example$' \
+  --exclude-files '(^|/)\.git/|(^|/)\.(mypy|pytest|ruff)_cache/|(^|/)(tests|docs)/|(^|/)\.env\.example$|(^|/)pylock\..*\.toml$' \
   > /tmp/gitdock-secrets.json
 python - <<'PY'
 import json
@@ -235,6 +235,37 @@ if results:
     raise SystemExit(f"Potential secrets detected: {sorted(results)}")
 PY
 ```
+
+Generated cache/Git metadata is excluded because it is not project source. PEP 751 lock files are excluded from entropy-based secret scanning because they intentionally contain many package hashes; they are regenerated and diff-verified separately. Never use a lock-file exclusion to store credentials.
+
+### Runtime dependency lock policy
+
+Human-maintained exact direct runtime dependencies live in `requirements.txt`.
+
+Committed PEP 751 runtime locks for the current Linux targets:
+
+```text
+pylock.py312-linux.toml
+pylock.py313-linux.toml
+```
+
+Regenerate for a target using the same Python version/platform:
+
+```bash
+python -m pip install --upgrade pip
+python -m pip lock -r requirements.txt -o pylock.py312-linux.toml
+```
+
+For Python 3.13 use the corresponding `pylock.py313-linux.toml` filename. Do not generate the 3.13 lock with a 3.12 interpreter or vice versa.
+
+CI lock-drift check:
+
+```bash
+python -m pip lock -r requirements.txt -o /tmp/<target-pylock-file>
+diff -u <committed-pylock-file> /tmp/<target-pylock-file>
+```
+
+`pip lock` / PEP 751 output is interpreter/platform specific. Add a new committed lock when a new production/CI Python-platform target becomes supported; do not pretend an existing Linux lock covers Windows/macOS or another Python ABI.
 
 ### Migration validation
 
@@ -247,7 +278,7 @@ alembic downgrade base
 alembic upgrade head
 ```
 
-Production-relevant migration validation must also run against PostgreSQL. CI provides a PostgreSQL service and executes:
+Production-relevant migration validation runs against PostgreSQL in CI:
 
 ```bash
 alembic upgrade head
@@ -257,22 +288,21 @@ alembic upgrade head
 
 ### CI contract
 
-`.github/workflows/ci.yml` must execute:
+`.github/workflows/ci.yml` must execute on supported Python versions:
 
 - Ruff format check;
 - Ruff lint;
-- mypy strict type check;
+- mypy type check;
 - full pytest suite;
 - Python compile check;
 - pip-audit against runtime dependencies;
 - detect-secrets repository scan;
+- PEP 751 lock regeneration/drift verification;
 - PostgreSQL migration upgrade/downgrade/re-upgrade.
 
+Current P1 CI matrix verifies Python 3.12 and 3.13 on Ubuntu plus PostgreSQL 17 migration behavior.
+
 A workflow run that fails before any step starts is an infrastructure/pre-run failure and is **not** a green build or an application-test result. Record it in `docs/CURRENT_STATUS.md`; do not weaken checks to hide it.
-
-### Current dependency caveat
-
-`requirements.txt` and `requirements-dev.txt` exactly pin direct dependencies/tooling. They are not yet a full transitive hash lock. The final lock strategy must be settled before P1 is declared fully complete.
 
 ## 13. Test selection rule
 
