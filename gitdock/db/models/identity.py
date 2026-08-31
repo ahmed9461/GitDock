@@ -52,6 +52,7 @@ class GitHubAccount(Base):
     encrypted_access_token: Mapped[bytes | None] = mapped_column(LargeBinary)
     encrypted_refresh_token: Mapped[bytes | None] = mapped_column(LargeBinary)
     token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    refresh_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     token_key_version: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
