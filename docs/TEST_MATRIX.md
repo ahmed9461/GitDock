@@ -2,7 +2,7 @@
 
 Status: authoritative quality expectations. Concrete tool commands are finalized in P1.
 
-P2.1 verification reference: GitHub Actions run `33348203305` passed the implemented authentication subset on Python 3.12, Python 3.13, and the PostgreSQL 17 migration job. Checkmarks below remain conservative: a box is marked only where the current suite directly exercises that requirement.
+P2.2 implementation verification reference: GitHub Actions run `33406986504` passed the current suite on Python 3.12, Python 3.13, and the PostgreSQL 17 migration job. The suite now contains **49 tests**, including **12 GitHub gateway contract tests**. Checkmarks below remain conservative: a box is marked only where the current suite directly exercises that requirement.
 
 ## 1. Test layers
 
@@ -138,6 +138,34 @@ Additional P2.1 contract coverage:
 - [x] access and refresh token expiry metadata preserved by the credential store.
 - [x] credential encryption supports old-key decryption/new-key encryption for rotation.
 - [ ] disconnect removes/invalidates local credential state safely through an end-user flow.
+
+## 5.1 GitHub gateway foundation — P2.2
+
+Implemented contract/mock coverage on the verified implementation head:
+
+- [x] canonical `Accept`, GitHub API version, and `User-Agent` headers are sent.
+- [x] optional bearer authorization header is injected without exposing the token through result representations.
+- [x] typed response parsing succeeds for expected JSON shapes.
+- [x] invalid/unexpected JSON response shape is converted to a stable unexpected-gateway error rather than leaking payload content.
+- [x] keyed and plain-list pagination payloads are supported by the gateway page parser.
+- [x] `Link` pagination follows a validated `api.github.com` next URL and does not reuse first-page query parameters on later pages.
+- [x] hostile external-host pagination URLs are rejected before network I/O.
+- [x] credential-bearing and scheme-relative pagination targets are rejected.
+- [x] rate-limit headers are captured into typed metadata.
+- [x] `403` rate-limit exhaustion is distinguished from an ordinary permission denial.
+- [x] common GitHub HTTP failures map to stable authentication/permission/not-found/conflict/validation categories.
+- [x] translated GitHub errors do not echo raw response-body token-like values.
+- [x] transient safe `GET` requests retry with bounded exponential backoff.
+- [x] write requests are not retried by default.
+- [x] explicitly declared safe operations can opt into retry behavior.
+- [x] P2.2 adds no dependency/schema drift: `pip-audit`, `detect-secrets`, PEP 751 lock regeneration/diff, and PostgreSQL migration CI remain green.
+
+Deferred intentionally to later feature milestones:
+
+- live mutable GitHub API smoke tests;
+- ETag/conditional request behavior if introduced;
+- artifact/release redirect/download host policy;
+- operation-specific reconciliation for uncertain write outcomes.
 
 ## 6. Repository list/dashboard/search
 
@@ -386,6 +414,7 @@ Inject fake secrets and verify they do not appear in captured logs:
 - [x] client-secret keyed values.
 - [x] OAuth code.
 - [x] PKCE verifier/state keyed values.
+- [x] general GitHub gateway error translation does not echo token-like response-body text.
 - [ ] private key marker/body fixture.
 
 ## 21. Migrations
