@@ -1,8 +1,8 @@
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 
-from pydantic import SecretStr
 import pytest
+from pydantic import SecretStr
 
 from gitdock.github.auth import InstallationAccessToken
 from gitdock.github.token_provider import InstallationTokenProvider
