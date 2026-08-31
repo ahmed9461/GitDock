@@ -69,6 +69,58 @@ Important P1 defect caught by tests: a module-global aiogram Router could not be
 
 PR #1 was the original verified draft. The connector's ready-for-review mutation failed internally, so PR #1 was closed without merge and the exact same verified head was opened as non-draft PR #2. No code or quality gate was bypassed.
 
+## P2.1 GitHub App authentication foundation
+
+P2.1 was implemented on `feat/p2-github-app-auth` in **PR #4**. The implementation head passed full CI run `33348203305` before documentation closeout.
+
+Durable implementation facts:
+
+- grouped GitHub App settings fail closed when only part of the auth configuration is supplied;
+- GitHub App JWTs are RS256, short-lived, and use the configured GitHub App client ID as issuer;
+- the GitHub REST API version used by the auth layer is pinned to `2026-03-10`;
+- installation access tokens are created on demand, permission/repository scoped when requested, cached only while sufficiently valid, and refreshed near expiry;
+- OAuth user authorization uses PKCE S256;
+- authorization state is high entropy, server-side, user/flow-bound, short-lived, restart-safe, and one-time use;
+- raw authorization state is not stored: only a SHA-256 digest is persisted;
+- the PKCE verifier is encrypted before persistence and tagged with an encryption-key version;
+- encrypted GitHub user access/refresh credential storage supports key versioning and stores access/refresh expiry metadata;
+- capability-to-GitHub-permission/token-context mapping is centralized rather than scattered through handlers;
+- auth error/log redaction covers tokens, OAuth codes, state, PKCE verifiers, client secrets, and authorization headers;
+- the P2.1 schema is exercised by Alembic upgrade -> downgrade -> upgrade on PostgreSQL 17.
+
+### Critical installation-binding invariant
+
+A raw `installation_id` returned through GitHub's setup/install redirect is **untrusted candidate data**. It must never be treated as proof that the current GitDock user owns/controls that installation.
+
+The P2.1 binding flow is intentionally two-stage:
+
+1. receive the setup/install candidate installation ID;
+2. perform GitHub user authorization with one-time state + PKCE;
+3. resolve the installation through GitHub App authentication context;
+4. resolve the same installation through the authenticated user context;
+5. compare installation/account identity;
+6. persist the binding only when both contexts match and the installation is not suspended.
+
+Preserve this rule in future callback/gateway/UI work. Do not simplify the flow to “trust installation_id from query string.”
+
+The user access token used to prove installation access in the binding flow is not persisted merely because it was used for that proof. Persist user credentials only when a feature genuinely requires durable user-context authorization, using the encrypted credential store.
+
+### P2.1 verification evidence
+
+CI run `33348203305` verified the implementation head:
+
+- Python 3.12: Ruff format/lint, mypy, **37 pytest tests**, compile, pip-audit, detect-secrets, and PEP 751 lock regeneration/diff — green.
+- Python 3.13: same gates, including **37 pytest tests** — green.
+- PostgreSQL 17: Alembic upgrade -> downgrade to base -> upgrade to head — green.
+- `pip-audit`: no known vulnerabilities found for the pinned runtime requirements in that run.
+
+P2.1 adds exact runtime pins:
+
+- PyJWT 2.13.0
+- cryptography 50.0.1
+
+Their transitive selections are captured in the Python 3.12/3.13 Linux PEP 751 locks and verified byte-for-byte by CI.
+
 ## Dependency reproducibility decision
 
 - `requirements.txt` is the human-maintained exact direct runtime dependency input.
@@ -93,9 +145,9 @@ Primary authentication is a **GitHub App**, not a broad long-lived PAT.
 Expected contexts:
 
 - installation access tokens for repository-scoped operations on repositories granted to the app;
-- GitHub App user access tokens for operations requiring authenticated-user context, such as creating a personal repository or user-level interactions when required.
+- GitHub App user access tokens only for operations requiring authenticated-user context, such as creating a personal repository or other user-level interactions when required.
 
-Permissions follow least privilege and are introduced incrementally by milestone.
+Permissions follow least privilege and are introduced incrementally by milestone. Do not request Administration/Workflows write permissions merely for convenience.
 
 ## GitHub write strategy
 
@@ -134,6 +186,7 @@ Permissions follow least privilege and are introduced incrementally by milestone
 - High-impact multi-step operations must not depend only on volatile in-memory FSM state.
 - Audit user-triggered GitHub writes without secret material.
 - GitHub remains the source of truth for GitHub resources; local repository metadata is cache/preferences only.
+- Never trust setup/OAuth callback query parameters as authorization proof by themselves; validate server-side state and GitHub identities.
 
 ## Development governance memory
 
@@ -153,8 +206,9 @@ As of 2026-08-31:
 
 - P0 planning/governance is complete.
 - P1 project skeleton & quality gates are merged into `main` and verified green after merge.
-- `main` merge commit `6f0a93694418c278e400a4c23b84e2f08ac56bdb` passed post-merge CI run `33345193470`.
-- The exact next product task is **P2.1 — GitHub App authentication foundation**.
+- P2.1 GitHub App authentication foundation implementation is verified green in PR #4; documentation/merge closeout is the only remaining work before moving on.
+- P2.1 implementation verification run: `33348203305`.
+- The exact next implementation task **after PR #4 is merged and `main` is verified** is **P2.2 — GitHub gateway foundation**.
 
 ## Do not forget later
 
