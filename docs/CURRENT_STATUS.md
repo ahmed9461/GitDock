@@ -12,9 +12,9 @@ Last updated: 2026-08-31
 
 **Current phase:** P2 — GitHub App connection & read-only core
 
-**Current item:** P2.2 — GitHub gateway foundation — active on `feat/p2-github-gateway`.
+**Current item:** P2.2 — GitHub gateway foundation — implementation verified; documentation/PR closeout in progress on `feat/p2-github-gateway`.
 
-**Next item after verified P2.2 merge:** P2.3 — Home + repository read screens.
+**Next item after verified P2.2 merge and `main` CI:** P2.3 — Home + repository read screens.
 
 ## P2.1 final verification
 
@@ -30,48 +30,67 @@ Verification evidence:
 
 The earlier PR #4 draft was closed without merge only because the connector's ready-for-review GraphQL mutation failed internally; no quality gate was bypassed.
 
-## Active P2.2 scope
+## P2.2 verified implementation
 
-Implement the GitHub transport/gateway foundation only:
+Implemented on `feat/p2-github-gateway` in Draft PR #6:
 
-- [~] typed REST client wrapper.
-- [ ] pagination helper with trusted GitHub API next-link validation.
-- [ ] stable GitDock error translation.
-- [ ] rate-limit capture/model.
-- [ ] bounded retry policy for safe transient requests only.
-- [ ] contract test doubles/fixtures.
+- [x] typed `GitHubRestClient` transport wrapper.
+- [x] canonical REST headers: GitHub media type, REST API version `2026-03-10`, and `GitDock/0.1` User-Agent.
+- [x] parser-driven typed `GitHubResponse[T]` / `GitHubPage[T]` boundary.
+- [x] pagination helper with validated `next` / `prev` / `first` / `last` links.
+- [x] async page iterator with repeated-link detection and a configured maximum page limit.
+- [x] canonical GitHub API target validation; external, credentialed, protocol-relative, fragment-bearing, or non-HTTPS pagination targets are rejected before network I/O.
+- [x] stable GitDock error categories for authentication, permission, not-found, conflict, validation, rate-limit, transient, and unexpected failures.
+- [x] transport exceptions contain safe status/request/rate metadata but never raw GitHub response bodies.
+- [x] GitHub rate-limit metadata capture including resource, limit, remaining, used, reset time, and `Retry-After`.
+- [x] bounded exponential backoff with jitter for transient safe requests.
+- [x] GET/HEAD retry safely by default; write-like methods do **not** retry by default.
+- [x] an explicit `RetryMode.SAFE` escape hatch exists only for a higher layer that has positively classified a non-read operation as retry-safe.
+- [x] redirects are not followed by the gateway transport.
+- [x] HTTPX MockTransport contract fixture/tests added.
 
-### P2.2 boundaries
+### P2.2 security/architecture invariants
 
-- No Telegram repository screens in this item; those belong to P2.3.
-- No repository write/admin operations.
-- No raw GitHub HTTP calls from Telegram handlers/services outside the gateway.
-- GitHub API host is fixed/validated; pagination must not create an SSRF-capable arbitrary URL fetcher.
-- Authentication/authorization bodies, tokens, and raw sensitive response content must not enter exception messages or logs.
-- Retry GET/HEAD and explicitly safe operations only; do not create a generic blind write retry.
+- Telegram/application handlers must not call raw GitHub HTTP endpoints; they consume gateway/service interfaces.
+- Absolute transport/pagination targets are restricted to canonical HTTPS `api.github.com`; the gateway is not a generic URL fetcher.
+- Authentication headers are constructed from `SecretStr` only at the outbound transport boundary.
+- Raw GitHub error bodies are intentionally not copied into raised errors or user-facing text.
+- Blind retries of writes are prohibited. A write/non-read operation requires explicit retry-safe classification by the caller before retry can occur.
+- GitHub remains source of truth; transport metadata is contextual information, not locally authoritative resource state.
 
-## Required P2.2 verification
+## P2.2 verification evidence
 
-Before P2.2 can be marked complete:
+Implementation head `ca6c0beb4ea96f661e9e891b04e69228bf6c4de3` passed GitHub Actions run `33406986504`:
 
-- Ruff format/lint green.
-- mypy green.
-- full pytest green on Python 3.12 and 3.13.
-- gateway contract tests cover headers, pagination, error categories, rate limits, safe retries, no unsafe write retry, and hostile pagination URL rejection.
-- compile check, `pip-audit`, `detect-secrets`, and PEP 751 lock drift green.
-- PostgreSQL migration CI remains green even though P2.2 is not expected to change schema.
-- project-control docs synchronized on the exact verified head.
-- PR merged only from an unchanged green head, then `main` CI verified.
+- Python 3.12: Ruff format/lint, mypy, **49 pytest tests**, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff — all passed.
+- Python 3.13: the same configured gates — all passed.
+- PostgreSQL 17: Alembic upgrade -> downgrade -> upgrade — passed.
+- `pip-audit`: no known vulnerabilities found.
+- Test suite grew from 37 to 49 tests; 12 contract tests cover gateway headers, pagination, hostile URL rejection, error translation, rate limits, safe retry behavior, and no default write retry.
+- P2.2 adds no runtime dependency and no schema migration, so the existing PEP 751 locks remain byte-for-byte valid and PostgreSQL migration coverage remains unchanged.
+
+This run verifies the implementation before documentation closeout. A new full CI run is still required on the exact documentation-synchronized head before PR merge.
+
+## Remaining P2.2 closeout
+
+1. Synchronize durable project memory, roadmap, changelog, constants, architecture/security/test/decision documentation.
+2. Require full green CI on the exact synchronized PR head.
+3. Convert/replace Draft PR #6 with a non-draft PR if the known connector ready-for-review mutation fails again; do not merge a Draft.
+4. Merge only with `expected_head_sha` matching the verified final head.
+5. Verify post-merge `main` CI.
+6. Synchronize post-merge handoff state if necessary.
+7. Only then start **P2.3 — Home + repository read screens** from verified `main`.
 
 ## Rules that remain in force
 
 - GitHub App remains the primary credential model; broad long-lived PATs are not introduced.
 - A setup/install `installation_id` remains untrusted until dual-context verification.
 - GitHub remains source of truth for GitHub resources.
-- Telegram handlers remain thin; transport details live in the gateway.
+- Telegram handlers stay thin; transport details live in the GitHub gateway.
 - Secrets/tokens/private keys/OAuth material are never committed, logged, or rendered to Telegram.
 - No repository write/admin feature is pulled forward into P2.2.
+- No arbitrary outbound URL support is introduced through pagination or gateway helpers.
 
 ## Handoff instruction
 
-Read `AGENTS.md`, `docs/PROJECT_MEMORY.md`, this file, `docs/CONSTANTS.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY_MODEL.md`, `docs/BUILD_PROTOCOL.md`, `docs/ROADMAP.md`, `docs/DECISIONS.md`, and `docs/TEST_MATRIX.md`. Continue only P2.2 until its full CI and documentation closeout are green; then start P2.3 from verified `main`.
+Read `AGENTS.md`, `docs/PROJECT_MEMORY.md`, this file, `docs/CONSTANTS.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY_MODEL.md`, `docs/BUILD_PROTOCOL.md`, `docs/ROADMAP.md`, `docs/DECISIONS.md`, and `docs/TEST_MATRIX.md`. Finish only P2.2 documentation/PR/main verification before starting P2.3.
