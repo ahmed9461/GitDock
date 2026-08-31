@@ -8,81 +8,89 @@ Last updated: 2026-08-31
 
 **Current phase:** P1 — Project skeleton & quality gates
 
-**Implementation status:** Production bot code has not started yet. The repository now contains the complete planning/governance baseline required before implementation.
+**Active item:** P1.1 — Application skeleton and quality baseline
 
-## P0 completed
+**Implementation status:** P1.1 is implemented on `feat/p1-foundation` and exposed through draft PR #1, but it is **not verified complete and must not be merged yet** because the required GitHub Actions checks have not executed successfully.
 
-- [x] Product name fixed as GitDock.
-- [x] Repository selected: `ahmed9461/GitDock`.
-- [x] Master product scope documented.
-- [x] Mandatory agent/build governance established in root `AGENTS.md`.
-- [x] Durable project memory established.
-- [x] Canonical constants/specification complete.
-- [x] Architecture specification complete.
-- [x] Telegram UI/UX specification complete.
-- [x] Security model complete.
-- [x] Build protocol complete.
-- [x] Phased roadmap complete.
-- [x] Decision log initialized.
-- [x] Comprehensive test matrix complete.
-- [x] Changelog initialized.
-- [x] Pull Request completion checklist added.
-- [x] Final consistency pass completed for the planning baseline.
+## P1.1 implementation present on the feature branch
 
-## Active / next task
+- [x] Python package/application boundaries created.
+- [x] Current direct dependency versions selected and exactly pinned in `requirements.txt` / `requirements-dev.txt`.
+- [x] Typed `GITDOCK_*` configuration with fail-closed owner/token validation.
+- [x] `.env.example` with placeholders only.
+- [x] `.gitignore` for secrets, environments, caches, DB files, logs, workspaces, and artifacts.
+- [x] FastAPI application factory and lifespan wiring.
+- [x] `/health` endpoint with non-secret liveness response.
+- [x] `/ready` endpoint with database readiness check.
+- [x] Telegram webhook endpoint with `X-Telegram-Bot-Api-Secret-Token` validation before update processing.
+- [x] aiogram bot/dispatcher bootstrap.
+- [x] development polling mode; polling is refused in production mode.
+- [x] owner-only Telegram middleware on messages and callback queries.
+- [x] async SQLAlchemy engine/session baseline.
+- [x] initial identity models: users, Telegram accounts, GitHub accounts, GitHub installations.
+- [x] Alembic async environment + initial upgrade/downgrade migration.
+- [x] structured JSON logging baseline with secret redaction.
+- [x] unit/integration test scaffolding.
+- [x] Ruff, mypy, pytest, pip-audit, detect-secrets and compile checks configured in CI.
+- [x] PostgreSQL 17 migration round-trip CI job configured.
+- [x] draft PR #1 opened from `feat/p1-foundation` to `main`.
 
-**P1.1 — Application skeleton and quality baseline**
+Items above mean "implementation exists", not "acceptance verified".
 
-Do this before GitHub feature work.
+## Dependency state
 
-Expected deliverables:
+Direct dependencies are exact-pinned for reproducibility at the project boundary. Current selected runtime pins include:
 
-1. Python package/application skeleton matching the architecture boundaries.
-2. Select current maintained exact dependency versions and dependency/lock strategy.
-3. Typed configuration/settings module.
-4. `.env.example` with placeholders only.
-5. `.gitignore` for virtualenvs, caches, databases, logs, temporary sync workspaces, local secrets, and artifacts.
-6. FastAPI application bootstrap with `/health` and readiness structure.
-7. aiogram 3 bootstrap with development polling mode and production webhook-ready wiring.
-8. Owner-only Telegram authorization middleware.
-9. async SQLAlchemy bootstrap + PostgreSQL configuration + Alembic.
-10. Initial identity/account tables required for later GitHub binding.
-11. Structured logging + secret redaction baseline.
-12. Unit/integration test harness.
-13. Formatter/linter/type checker/secret scan/dependency security check.
-14. CI workflow.
-15. Write exact local/CI check commands into `docs/BUILD_PROTOCOL.md`.
+- aiogram 3.31.0
+- FastAPI 0.141.1
+- HTTPX 0.28.1
+- SQLAlchemy 2.0.52
+- Alembic 1.19.1
+- asyncpg 0.31.0
+- pydantic-settings 2.15.0
+- Uvicorn 0.52.4
 
-## Rules for P1
+Development tooling is also exactly pinned in `requirements-dev.txt`.
 
-- Do not start repository creation/file writes/Webhooks before the foundation is green.
-- Exact package versions must be verified at implementation time from current maintained releases.
-- Real tokens/secrets must never be committed.
-- PostgreSQL is the production target; SQLite can be used only for portable local tests/development.
-- Any architecture or stack change from the accepted baseline must be recorded in `docs/DECISIONS.md`.
+A fully resolved/hash-locked transitive dependency artifact has **not** been generated yet. Do not describe the current requirements files as a complete transitive lock. Finalize that strategy before declaring P1 quality gates fully complete.
 
-## Verification performed for P0
+## Verification performed in this implementation session
 
-This phase is documentation/planning only.
+Local execution environment:
 
-Verified:
+- `python -m compileall` over the generated project: **passed**.
+- targeted config + redaction tests using packages already available in the execution environment: **8 passed**.
+- the local environment did not contain aiogram, aiosqlite, Ruff, or mypy and could not reach PyPI, so the complete dependency-backed suite could not be executed locally.
 
-- all planned P0 control/spec files were created in the repository;
-- `AGENTS.md` defines mandatory pre-flight and post-success update behavior;
-- `ROADMAP.md` does not claim feature code is implemented;
-- `CURRENT_STATUS.md` points to one exact next implementation target;
-- architecture, security, UX, constants, build protocol, and test matrix agree on the major safety rules: GitHub App auth, owner-only v1, persisted high-risk confirmations, durable webhook processing, reviewed ZIP sync, and no arbitrary remote shell execution.
+GitHub Actions:
 
-No runtime/test command has been executed because there is no application code yet.
+- CI run `33343624229`: **failure before any job step executed**.
+- CI run `33343758121`: **failure before any job step executed**.
+- Both runs created the expected three jobs (`quality` on Python 3.12, `quality` on Python 3.13, and `postgres-migration`).
+- All jobs returned `steps = null` / no step summaries and no downloadable job logs were available through the connected GitHub API; log requests returned `BlobNotFound`.
+- Because no checkout/install/test step started, these runs do **not** establish a code/test failure. They also do **not** establish a green build.
 
-## Known items to validate during P1/P2
+## Current blocker
 
-- Exact current versions of aiogram/FastAPI/httpx/SQLAlchemy/Alembic and selected tooling.
-- Exact Telegram webhook deployment configuration and reverse-proxy contract.
-- GitHub App registration details/URLs and incremental permissions.
-- Encryption library/key-rotation implementation for stored GitHub user token material.
-- PostgreSQL migration behavior in CI/test environment.
+Determine why GitHub-hosted Actions jobs for this private repository are failing before runner steps begin (repository/account Actions availability, billing/spending policy, runner allocation, or another GitHub-side pre-run condition). Do not weaken or delete quality gates to work around this.
+
+## Exact next task
+
+1. Resolve/identify the GitHub Actions pre-run failure.
+2. Re-run CI until actual steps execute.
+3. Fix any real Ruff/mypy/pytest/Alembic/pip-audit/detect-secrets failures revealed by that run.
+4. Generate/finalize the selected transitive dependency lock strategy.
+5. Run/verify PostgreSQL migration upgrade -> downgrade -> upgrade.
+6. Only after all required P1 checks are green: update Roadmap/Memory/Changelog as verified, mark PR #1 ready, and merge through PR.
+
+## Rules that remain in force
+
+- Do not start GitHub repository write features while P1 foundation is unverified.
+- Do not merge draft PR #1 while the required checks have not run green.
+- Do not interpret a zero-step GitHub Actions failure as a passing or failing application test.
+- Do not commit real tokens/secrets.
+- PostgreSQL remains the production target; SQLite is development/test only.
 
 ## Handoff instruction
 
-The next session must read root `AGENTS.md`, then the control files listed there, and begin only with P1.1. Do not infer that any GitHub management feature exists yet merely because its UX and acceptance criteria are fully planned.
+Read root `AGENTS.md`, then this file and the P1 branch/PR. Continue from the CI pre-run blocker; do not rebuild the foundation from scratch and do not skip directly to P2 until P1 acceptance is verified.
