@@ -18,7 +18,12 @@ def home_keyboard(*, connected: bool, can_connect: bool) -> InlineKeyboardMarkup
                 [InlineKeyboardButton(text="🔗 ربط GitHub", callback_data=callbacks.CONNECT_BEGIN)]
             )
         rows.append(
-            [InlineKeyboardButton(text="ℹ️ كيف يعمل الربط؟", callback_data=callbacks.CONNECT_INFO)]
+            [
+                InlineKeyboardButton(
+                    text="\u2139\ufe0f كيف يعمل الربط؟",
+                    callback_data=callbacks.CONNECT_INFO,
+                )
+            ]
         )
         rows.append([InlineKeyboardButton(text=NAV_REFRESH, callback_data=callbacks.HOME_REFRESH)])
         return InlineKeyboardMarkup(inline_keyboard=rows)
@@ -45,7 +50,7 @@ def home_keyboard(*, connected: bool, can_connect: bool) -> InlineKeyboardMarkup
             ],
             [
                 InlineKeyboardButton(
-                    text="➕ مستودع جديد", callback_data=callbacks.placeholder("repo-create")
+                    text="\u2795 مستودع جديد", callback_data=callbacks.placeholder("repo-create")
                 ),
                 InlineKeyboardButton(
                     text="⚙️ الإعدادات", callback_data=callbacks.placeholder("settings")
