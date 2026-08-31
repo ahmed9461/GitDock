@@ -17,6 +17,7 @@ class DecryptedUserCredentials:
     access_token: SecretStr
     refresh_token: SecretStr | None
     expires_at: datetime | None
+    refresh_expires_at: datetime | None
 
 
 class GitHubUserCredentialStore:
@@ -40,6 +41,7 @@ class GitHubUserCredentialStore:
         account.encrypted_access_token = access.ciphertext
         account.encrypted_refresh_token = refresh.ciphertext if refresh is not None else None
         account.token_expires_at = token.expires_at
+        account.refresh_token_expires_at = token.refresh_expires_at
         account.token_key_version = access.key_version
 
     def load(self, account: GitHubAccount) -> DecryptedUserCredentials | None:
@@ -60,6 +62,7 @@ class GitHubUserCredentialStore:
             access_token=access_token,
             refresh_token=refresh_token,
             expires_at=account.token_expires_at,
+            refresh_expires_at=account.refresh_token_expires_at,
         )
 
     @staticmethod
@@ -67,4 +70,5 @@ class GitHubUserCredentialStore:
         account.encrypted_access_token = None
         account.encrypted_refresh_token = None
         account.token_expires_at = None
+        account.refresh_token_expires_at = None
         account.token_key_version = None
