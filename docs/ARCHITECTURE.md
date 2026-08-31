@@ -1,6 +1,6 @@
 # GitDock — Architecture Specification
 
-Status: baseline architecture + verified P2.1/P2.2 foundations + P2.3 repository-read implementation
+Status: baseline architecture + verified P2.1/P2.2 foundations + verified P2.3 repository-read implementation
 
 ## 1. Architectural goals
 
@@ -263,7 +263,7 @@ Never execute repository instructions automatically. Detect project metadata, co
 
 REST Search API is sufficient for core discovery; GraphQL is introduced only where it materially improves a use case. Normalize results to GitDock models and avoid long-lived shadow search state.
 
-P3.1 search may reuse the repository detail/read model where appropriate, but search results must not be inserted into the installed-repository callback cache as if they belonged to an installation unless that relationship is independently established.
+P3.1 search may reuse repository detail/read model concepts where appropriate, but public search results must not be inserted into the installed-repository callback cache as if they belonged to an installation unless that relationship is independently established.
 
 ## 15. Error model
 
@@ -313,25 +313,19 @@ Domain must not import Telegram or concrete HTTP clients. Endpoint-specific GitH
 
 P2.2 CI `33406986504` verified the transport with 49 tests.
 
-P2.3 implementation CI `33423169021` verified the extended architecture with **65 tests** on Python 3.12 and the same configured quality/security gate set on Python 3.13, plus PostgreSQL 17 migration upgrade/downgrade/re-upgrade.
+P2.3 verification chain:
 
-P2.3 coverage includes:
+- implementation-head CI `33423169021` — green;
+- documentation-synchronized branch-head CI `33424505117` — green;
+- PR #8 CI `33424652835` — green;
+- squash merge commit `939d218d76fd87f3ba6cf0a80a89b4a816aac557`;
+- post-merge `main` CI `33424799759` — green.
 
-- repository REST parsing/list/detail;
-- owner identity resolution;
-- repository list/filter/cache synchronization;
-- compact repository selection scoped to the current GitDock user/installation;
-- stale repository pruning;
-- disconnected home state;
-- setup/OAuth FastAPI routes;
-- callback size/round-trip/long-name safety;
-- Arabic home/list/detail renderers.
-
-The implementation-head suite is green but P2.3 is not Definition-of-Done complete until final documentation-head CI, PR merge, post-merge `main` CI, and final handoff sync are complete.
+P2.3 is Definition-of-Done complete with **65 tests** on Python 3.12 and Python 3.13 plus PostgreSQL 17 migration upgrade/downgrade/re-upgrade. Coverage includes repository REST parsing/list/detail, owner identity resolution, repository list/filter/cache synchronization, compact repository selection scoped to current user/installation, stale repository pruning, disconnected home state, setup/OAuth FastAPI routes, callback size/round-trip/long-name safety, and Arabic home/list/detail renderers.
 
 ## 20. Known non-blocking maintenance warnings
 
-Green P2.3 CI currently reports:
+Green P2.3 CI reports:
 
 - Starlette/FastAPI `TestClient` deprecation warning for the current `httpx` integration/future `httpx2` direction;
 - Alembic deprecation warning because `alembic.ini` does not explicitly configure `path_separator` for `prepend_sys_path`.
