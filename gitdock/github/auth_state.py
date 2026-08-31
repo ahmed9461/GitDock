@@ -41,6 +41,7 @@ class ConsumedAuthorizationState:
     user_id: int
     flow: AuthorizationFlow
     code_verifier: str
+    candidate_installation_id: int | None
 
 
 class GitHubAuthorizationStateService:
@@ -65,9 +66,12 @@ class GitHubAuthorizationStateService:
         *,
         user_id: int,
         flow: AuthorizationFlow,
+        candidate_installation_id: int | None = None,
     ) -> AuthorizationRequest:
         if user_id <= 0:
             raise ValueError("user ID must be positive")
+        if candidate_installation_id is not None and candidate_installation_id <= 0:
+            raise ValueError("candidate installation ID must be positive")
 
         state = secrets.token_urlsafe(32)
         code_verifier = secrets.token_urlsafe(64)
@@ -80,6 +84,7 @@ class GitHubAuthorizationStateService:
                 user_id=user_id,
                 state_digest=state_digest,
                 flow=flow.value,
+                candidate_installation_id=candidate_installation_id,
                 encrypted_code_verifier=encrypted.ciphertext,
                 code_verifier_key_version=encrypted.key_version,
                 expires_at=expires_at,
@@ -115,6 +120,7 @@ class GitHubAuthorizationStateService:
                 GitHubAuthorizationState.user_id,
                 GitHubAuthorizationState.encrypted_code_verifier,
                 GitHubAuthorizationState.code_verifier_key_version,
+                GitHubAuthorizationState.candidate_installation_id,
             )
         )
         result = await session.execute(statement)
@@ -122,10 +128,12 @@ class GitHubAuthorizationStateService:
         if row is None:
             raise InvalidAuthorizationState("authorization state is invalid or expired")
 
-        user_id, encrypted_verifier, key_version = row
+        user_id, encrypted_verifier, key_version, candidate_installation_id = row
         if not isinstance(user_id, int) or not isinstance(encrypted_verifier, bytes):
             raise InvalidAuthorizationState("authorization state record is invalid")
         if not isinstance(key_version, int):
+            raise InvalidAuthorizationState("authorization state record is invalid")
+        if candidate_installation_id is not None and not isinstance(candidate_installation_id, int):
             raise InvalidAuthorizationState("authorization state record is invalid")
 
         code_verifier = self._cipher.decrypt(encrypted_verifier, key_version)
@@ -133,6 +141,7 @@ class GitHubAuthorizationStateService:
             user_id=user_id,
             flow=expected_flow,
             code_verifier=code_verifier,
+            candidate_installation_id=candidate_installation_id,
         )
 
     @staticmethod
