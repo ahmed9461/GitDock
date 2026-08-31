@@ -25,6 +25,7 @@ def test_user_credentials_are_encrypted_before_model_persistence_and_can_be_clea
     assert account.token_key_version == 7
     assert account.encrypted_access_token is not None
     assert account.encrypted_refresh_token is not None
+    assert account.refresh_token_expires_at == datetime(2027, 1, 1, tzinfo=UTC)
     assert b"ghu_access_secret" not in account.encrypted_access_token
     assert b"ghr_refresh_secret" not in account.encrypted_refresh_token
 
@@ -33,6 +34,8 @@ def test_user_credentials_are_encrypted_before_model_persistence_and_can_be_clea
     assert loaded.access_token.get_secret_value() == "ghu_access_secret"
     assert loaded.refresh_token is not None
     assert loaded.refresh_token.get_secret_value() == "ghr_refresh_secret"
+    assert loaded.refresh_expires_at == datetime(2027, 1, 1, tzinfo=UTC)
 
     store.clear(account)
+    assert account.refresh_token_expires_at is None
     assert store.load(account) is None
