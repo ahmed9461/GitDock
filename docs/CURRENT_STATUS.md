@@ -12,7 +12,7 @@ Last updated: 2026-08-31
 
 **Current phase:** P2 — GitHub App connection & read-only core
 
-**Current item:** P2.2 — GitHub gateway foundation — implementation verified; documentation/PR closeout in progress on `feat/p2-github-gateway`.
+**Current item:** P2.2 — GitHub gateway foundation — implementation and documentation verified; non-draft PR #7 is the merge target.
 
 **Next item after verified P2.2 merge and `main` CI:** P2.3 — Home + repository read screens.
 
@@ -32,7 +32,9 @@ The earlier PR #4 draft was closed without merge only because the connector's re
 
 ## P2.2 verified implementation
 
-Implemented on `feat/p2-github-gateway` in Draft PR #6:
+Implemented on `feat/p2-github-gateway`. Draft PR #6 was used during implementation and documentation closeout; it was closed without merge after its final synchronized head passed CI. Non-draft PR #7 was then opened from the exact same unchanged feature-branch SHA because the known connector Draft→Ready mutation is unreliable.
+
+Implemented scope:
 
 - [x] typed `GitHubRestClient` transport wrapper.
 - [x] canonical REST headers: GitHub media type, REST API version `2026-03-10`, and `GitDock/0.1` User-Agent.
@@ -60,7 +62,13 @@ Implemented on `feat/p2-github-gateway` in Draft PR #6:
 
 ## P2.2 verification evidence
 
-Implementation head `ca6c0beb4ea96f661e9e891b04e69228bf6c4de3` passed GitHub Actions run `33406986504`:
+Implementation head `ca6c0beb4ea96f661e9e891b04e69228bf6c4de3` passed GitHub Actions run `33406986504`.
+
+The fully documentation-synchronized feature head `d60953bb27951a3ff9019efb101087222a0219af` then passed Draft PR #6 CI run `33409265057` with all configured jobs green.
+
+The same unchanged SHA was opened as non-draft PR #7 and passed its own CI run `33409418512` with all configured jobs green.
+
+Across the verified P2.2 heads:
 
 - Python 3.12: Ruff format/lint, mypy, **49 pytest tests**, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff — all passed.
 - Python 3.13: the same configured gates — all passed.
@@ -69,17 +77,25 @@ Implementation head `ca6c0beb4ea96f661e9e891b04e69228bf6c4de3` passed GitHub Act
 - Test suite grew from 37 to 49 tests; 12 contract tests cover gateway headers, pagination, hostile URL rejection, error translation, rate limits, safe retry behavior, and no default write retry.
 - P2.2 adds no runtime dependency and no schema migration, so the existing PEP 751 locks remain byte-for-byte valid and PostgreSQL migration coverage remains unchanged.
 
-This run verifies the implementation before documentation closeout. A new full CI run is still required on the exact documentation-synchronized head before PR merge.
+## P2.2 PR replacement operational fact
+
+The connector's Draft→Ready GraphQL mutation was already known to fail in earlier project work. To avoid repeating a known tooling failure:
+
+1. Draft PR #6 was kept through implementation/documentation verification.
+2. Its final synchronized SHA `d60953bb27951a3ff9019efb101087222a0219af` passed run `33409265057`.
+3. PR #6 was closed without merge and without changing the feature branch.
+4. Non-draft PR #7 was opened from the exact same SHA.
+5. PR #7 passed its own run `33409418512` on that unchanged SHA.
+
+No temporary file, no branch-content mutation, and no quality-gate bypass occurred during this replacement.
 
 ## Remaining P2.2 closeout
 
-1. Synchronize durable project memory, roadmap, changelog, constants, architecture/security/test/decision documentation.
-2. Require full green CI on the exact synchronized PR head.
-3. Convert/replace Draft PR #6 with a non-draft PR if the known connector ready-for-review mutation fails again; do not merge a Draft.
-4. Merge only with `expected_head_sha` matching the verified final head.
-5. Verify post-merge `main` CI.
-6. Synchronize post-merge handoff state if necessary.
-7. Only then start **P2.3 — Home + repository read screens** from verified `main`.
+1. Run full CI once more on this handoff-only documentation commit so the exact PR head is verified.
+2. Merge PR #7 with `expected_head_sha` matching that final green head.
+3. Verify post-merge `main` CI.
+4. Synchronize post-merge handoff state if necessary.
+5. Only then start **P2.3 — Home + repository read screens** from verified `main`.
 
 ## Rules that remain in force
 
@@ -93,4 +109,4 @@ This run verifies the implementation before documentation closeout. A new full C
 
 ## Handoff instruction
 
-Read `AGENTS.md`, `docs/PROJECT_MEMORY.md`, this file, `docs/CONSTANTS.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY_MODEL.md`, `docs/BUILD_PROTOCOL.md`, `docs/ROADMAP.md`, `docs/DECISIONS.md`, and `docs/TEST_MATRIX.md`. Finish only P2.2 documentation/PR/main verification before starting P2.3.
+Read `AGENTS.md`, `docs/PROJECT_MEMORY.md`, this file, `docs/CONSTANTS.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY_MODEL.md`, `docs/BUILD_PROTOCOL.md`, `docs/ROADMAP.md`, `docs/DECISIONS.md`, and `docs/TEST_MATRIX.md`. Finish only P2.2 PR/main verification before starting P2.3.
