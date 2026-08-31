@@ -2,6 +2,8 @@
 
 Status: authoritative quality expectations. Concrete tool commands are finalized in P1.
 
+P2.1 verification reference: GitHub Actions run `33348203305` passed the implemented authentication subset on Python 3.12, Python 3.13, and the PostgreSQL 17 migration job. Checkmarks below remain conservative: a box is marked only where the current suite directly exercises that requirement.
+
 ## 1. Test layers
 
 ### Unit
@@ -80,20 +82,20 @@ Not every box applies to every read-only helper; document exclusions sensibly.
 
 ## 3. Configuration/startup
 
-- [ ] missing Telegram token fails closed with clear configuration error.
-- [ ] missing owner ID fails closed in owner-only mode.
-- [ ] malformed database URL handled.
-- [ ] GitHub App configuration validation.
+- [x] missing Telegram token fails closed with clear configuration error.
+- [x] missing owner ID fails closed in owner-only mode.
+- [x] malformed database URL handled.
+- [x] GitHub App configuration validation.
 - [ ] private key load failure does not dump key content.
-- [ ] production mode refuses obviously unsafe/missing webhook secrets where required.
-- [ ] `/health` returns no secret data.
-- [ ] readiness reflects DB/config dependency status.
+- [x] production mode refuses obviously unsafe/missing webhook secrets where required.
+- [x] `/health` returns no secret data.
+- [x] readiness reflects DB/config dependency status.
 
 ## 4. Telegram authorization/navigation
 
-- [ ] owner command accepted.
-- [ ] non-owner command ignored/rejected per policy.
-- [ ] non-owner callback blocked.
+- [x] owner command accepted.
+- [x] non-owner command ignored/rejected per policy.
+- [x] non-owner callback blocked.
 - [ ] stale callback version rejected safely.
 - [ ] callback short ID resolves only inside intended user/session context.
 - [ ] callback cannot cross users in future multi-user tests.
@@ -106,24 +108,36 @@ Not every box applies to every read-only helper; document exclusions sensibly.
 
 ### Installation token
 
-- [ ] JWT generation with configured app identity.
-- [ ] installation token request success.
-- [ ] cached token reused only while valid.
-- [ ] near-expiry token refreshed.
+- [x] JWT generation with configured app identity.
+- [x] installation token request success.
+- [x] cached token reused only while valid.
+- [x] near-expiry token refreshed.
 - [ ] expired token path refreshes/retries appropriately.
 - [ ] suspended/deleted installation handled.
 - [ ] repo outside installation rejected cleanly.
 
+Additional P2.1 contract coverage:
+
+- [x] GitHub REST API version header is sent by the auth client.
+- [x] installation token parsing does not assume legacy token length/format.
+- [x] installation token cache is scoped by requested permissions/repository IDs.
+- [x] spoofed setup/install candidate identity is rejected before database binding.
+- [x] installation binding persists only after app-context and authenticated-user-context identity match.
+
 ### User authorization
 
-- [ ] state is high entropy/opaque.
-- [ ] state bound to Telegram user.
-- [ ] state expires.
-- [ ] state one-time use.
-- [ ] wrong state rejected.
-- [ ] callback code not logged.
-- [ ] token encrypted before persistence.
-- [ ] disconnect removes/invalidates local credential state safely.
+- [x] state is high entropy/opaque and raw state is not persisted.
+- [x] state bound to GitDock user/flow context.
+- [x] state expires.
+- [x] state one-time use.
+- [x] wrong flow/state context rejected without consuming a valid state.
+- [x] callback/OAuth code and authentication error bodies are not echoed into application errors/logs.
+- [x] PKCE S256 challenge/verifier lifecycle verified.
+- [x] PKCE verifier encrypted before persistence.
+- [x] token encrypted before persistence.
+- [x] access and refresh token expiry metadata preserved by the credential store.
+- [x] credential encryption supports old-key decryption/new-key encryption for rotation.
+- [ ] disconnect removes/invalidates local credential state safely through an end-user flow.
 
 ## 6. Repository list/dashboard/search
 
@@ -366,25 +380,24 @@ All unsafe cases must fail before repository writes.
 
 Inject fake secrets and verify they do not appear in captured logs:
 
-- [ ] Telegram bot token.
-- [ ] Authorization Bearer header.
-- [ ] GitHub user token.
-- [ ] installation token.
-- [ ] client secret.
-- [ ] webhook secret.
-- [ ] OAuth code.
-- [ ] private key marker/body.
+- [x] Telegram bot token/redaction baseline.
+- [x] Authorization Bearer header.
+- [x] GitHub token-shaped values/credential-key fields.
+- [x] client-secret keyed values.
+- [x] OAuth code.
+- [x] PKCE verifier/state keyed values.
+- [ ] private key marker/body fixture.
 
 ## 21. Migrations
 
 For every schema migration:
 
-- [ ] clean upgrade from base.
-- [ ] upgrade from previous released schema.
-- [ ] expected indexes/unique constraints.
-- [ ] no accidental data loss.
-- [ ] downgrade tested when migration policy supports it.
-- [ ] PostgreSQL behavior validated before production release.
+- [x] clean upgrade from base in automated test/CI coverage.
+- [x] upgrade from previous schema through the current Alembic chain.
+- [ ] explicit schema-assertion coverage for every expected index/unique constraint.
+- [ ] explicit non-destructive data-preservation fixture for upgrade/downgrade.
+- [x] downgrade tested for the current migration chain.
+- [x] PostgreSQL behavior validated in PostgreSQL 17 CI.
 
 ## 22. Live smoke checklist — dedicated test resources
 

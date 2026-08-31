@@ -1,4 +1,4 @@
-"""Canonical application constants used by the P1 foundation."""
+"""Canonical application constants."""
 
 APP_NAME = "GitDock"
 APP_SLUG = "gitdock"
@@ -9,6 +9,19 @@ CALLBACK_SCHEMA_VERSION = "v1"
 HEALTH_PATH = "/health"
 READINESS_PATH = "/ready"
 TELEGRAM_WEBHOOK_PATH = "/telegram/webhook"
+GITHUB_OAUTH_CALLBACK_PATH = "/github/oauth/callback"
+
+GITHUB_API_BASE_URL = "https://api.github.com"
+GITHUB_WEB_BASE_URL = "https://github.com"
+GITHUB_OAUTH_AUTHORIZE_URL = "https://github.com/login/oauth/authorize"
+GITHUB_OAUTH_ACCESS_TOKEN_URL = "https://github.com/login/oauth/access_token"
+GITHUB_REST_API_VERSION = "2026-03-10"
+GITHUB_ACCEPT_HEADER = "application/vnd.github+json"
+
+GITHUB_APP_JWT_IAT_SKEW_SECONDS = 60
+GITHUB_APP_JWT_LIFETIME_SECONDS = 9 * 60
+INSTALLATION_TOKEN_REFRESH_MARGIN_SECONDS = 5 * 60
+GITHUB_AUTH_STATE_TTL_SECONDS = 10 * 60
 
 NAV_HOME = "🏠 الرئيسية"
 NAV_CANCEL = "❌ إلغاء"

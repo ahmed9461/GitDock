@@ -211,6 +211,32 @@ References:
 
 ---
 
+## D-015 — Setup installation IDs are untrusted until dual-context verification
+
+**Date:** 2026-08-31  
+**Status:** Accepted
+
+**Context:** GitHub's App setup/install redirect can return an `installation_id`, but callback/query parameters are user-controlled transport data and must not become an authorization proof by themselves. Binding an installation from that value alone could associate a GitDock user with the wrong installation if the callback data is spoofed or replayed.
+
+**Decision:** Treat the setup/install `installation_id` only as an untrusted candidate. GitDock must complete a separate authenticated GitHub user-authorization step with one-time server-side state and PKCE, then verify the same installation/account identity through both GitHub App authentication context and the authenticated user context before persisting a binding.
+
+The comparison must include installation ID, account ID, account login, and account type. Suspended installations and installations already bound to a different GitDock user are rejected. Raw OAuth state is not persisted; only its SHA-256 digest is stored, and the PKCE verifier is encrypted at rest.
+
+**Consequences:**
+
+- future callback/UI work must not simplify binding to “accept installation_id from query string”;
+- user access tokens used only for installation proof need not be persisted;
+- installation binding remains restart-safe because authorization state is DB-backed;
+- security tests must continue covering spoofed candidate rejection and one-time/expired/wrong-flow state behavior.
+
+References:
+
+- https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-setup-url
+- https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation
+- https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-with-a-github-app-on-behalf-of-a-user
+
+---
+
 ## Adding future decisions
 
 Never rewrite history to make an old decision disappear. Add a new decision with `Supersedes D-xxx`, then mark the older decision Superseded.

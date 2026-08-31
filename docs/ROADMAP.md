@@ -97,15 +97,19 @@ Acceptance:
 
 ## P2 — GitHub App connection & read-only core
 
-### P2.1 GitHub App auth foundation
+### P2.1 GitHub App auth foundation ✅
 
-- [ ] GitHub App configuration model.
-- [ ] JWT generation for app authentication.
-- [ ] installation discovery/binding.
-- [ ] installation access-token provider with expiry-aware refresh.
-- [ ] user authorization state model/callback scaffold.
-- [ ] encrypted token persistence abstraction.
-- [ ] central capability/permission mapper.
+Verified on the implementation head by GitHub Actions run `33348203305` before documentation closeout.
+
+- [x] GitHub App configuration model.
+- [x] JWT generation for app authentication.
+- [x] installation discovery/binding.
+- [x] installation access-token provider with expiry-aware refresh.
+- [x] user authorization state model/callback scaffold.
+- [x] encrypted token persistence abstraction.
+- [x] central capability/permission mapper.
+
+P2.1 additionally verifies restart-safe hashed one-time state, PKCE S256 with encrypted verifier storage, and dual app/user-context installation identity verification before binding.
 
 ### P2.2 GitHub gateway foundation
 
