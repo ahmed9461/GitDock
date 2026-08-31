@@ -4,121 +4,109 @@ Last updated: 2026-08-31
 
 ## Project state
 
-**Completed phases:**
+**Completed phases/items:**
 
 - P0 — Planning and governance foundation ✅
 - P1 — Project skeleton & quality gates ✅
+- P2.1 — GitHub App authentication foundation ✅
 
 **Current phase:** P2 — GitHub App connection & read-only core
 
-**Current item:** P2.1 — GitHub App authentication foundation — implementation verified; replacement PR closeout in progress.
+**Current item:** P2.2 — GitHub gateway foundation — implementation and documentation verified; non-draft PR #7 is the merge target.
 
-**Next implementation item after merge:** P2.2 — GitHub gateway foundation.
+**Next item after verified P2.2 merge and `main` CI:** P2.3 — Home + repository read screens.
 
-P2.1 implementation on `feat/p2-github-app-auth` passed the full configured CI suite in run `33348203305`, and the fully documentation-synchronized head passed run `33348487790`. Draft PR #4 was closed without merge only because the connector's draft-to-ready GraphQL mutation failed internally. **PR #5** is the non-draft replacement merge target. Do not start P2.2/P2.3 or repository write/admin features until PR #5 is merged and the merged `main` state is verified.
+## P2.1 final verification
 
-## P1 verified foundation
+P2.1 was squash-merged through PR #5 into `main` as commit `81dfaf406d046205b39980d6a64c681ea3ab18c6`.
 
-- [x] Python package/application boundaries created.
-- [x] Python 3.12 and 3.13 CI support.
-- [x] exact direct runtime/development pins.
-- [x] PEP 751 transitive/hash runtime locks:
-  - `pylock.py312-linux.toml`
-  - `pylock.py313-linux.toml`
-- [x] CI regenerates each lock with `pip lock` and rejects drift.
-- [x] typed `GITDOCK_*` configuration with fail-closed validation.
-- [x] `.env.example` contains placeholders only; real secrets are ignored/not committed.
-- [x] FastAPI factory, `/health`, `/ready`, and Telegram webhook ingress.
-- [x] Telegram webhook secret-header validation.
-- [x] aiogram polling/webhook-ready bootstrap and owner-only middleware.
-- [x] fresh Router factory per Dispatcher lifecycle.
-- [x] async SQLAlchemy engine/session baseline.
-- [x] initial users/Telegram/GitHub account/installation models.
-- [x] Alembic async baseline migration.
-- [x] structured JSON logging with secret redaction.
-- [x] Ruff format/lint, mypy, pytest, compile, pip-audit, detect-secrets, lock-drift, and PostgreSQL migration gates.
+Verification evidence:
 
-## P1 verification evidence
+- PR #5 final-head CI run `33348768686` — green.
+- Post-merge `main` CI run `33348851085` — green.
+- Python 3.12: Ruff format/lint, mypy, 37 pytest tests, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff — passed.
+- Python 3.13: same gates and 37 tests — passed.
+- PostgreSQL 17: Alembic upgrade -> downgrade -> upgrade — passed.
 
-PR #2 was merged only after Pull Request CI run `33345131414` completed successfully. Post-merge `main` run `33345193470` was also green on Python 3.12, Python 3.13, and PostgreSQL 17. P1 handoff synchronization was subsequently merged through PR #3 after CI run `33345364226` passed.
+The earlier PR #4 draft was closed without merge only because the connector's ready-for-review GraphQL mutation failed internally; no quality gate was bypassed.
 
-## P2.1 verified implementation
+## P2.2 verified implementation
 
-- [x] grouped GitHub App configuration validation with fail-closed partial configuration handling.
-- [x] short-lived RS256 GitHub App JWT generation using the configured client ID as issuer.
-- [x] GitHub App installation discovery and safe installation identity parsing.
-- [x] installation access-token creation with permission/repository scoping and expiry-aware cache refresh.
-- [x] GitHub OAuth user-authorization scaffold with PKCE S256.
-- [x] restart-safe one-time authorization state persisted server-side as SHA-256 digest only.
-- [x] encrypted PKCE verifier persistence with encryption-key version metadata.
-- [x] two-stage installation candidate -> OAuth/user verification -> verified binding flow.
-- [x] encrypted GitHub user access/refresh credential persistence abstraction with access/refresh expiry metadata and key rotation support.
-- [x] central GitDock capability -> GitHub permission/token-context mapper.
-- [x] secret redaction coverage for GitHub auth material.
-- [x] Alembic migration for durable GitHub authorization state and refresh-token expiry metadata.
-- [x] unit/integration coverage expanded to 37 tests.
+Implemented on `feat/p2-github-gateway`. Draft PR #6 was used during implementation and documentation closeout; it was closed without merge after its final synchronized head passed CI. Non-draft PR #7 was then opened from the exact same unchanged feature-branch SHA because the known connector Draft→Ready mutation is unreliable.
 
-### P2.1 security invariants
+Implemented scope:
 
-- A raw `installation_id` returned through GitHub's setup/install flow is **untrusted candidate data**, not proof of ownership. GitDock binds only after the same installation identity is verified from both GitHub App authentication context and authenticated GitHub user context.
-- OAuth state is opaque, high entropy, user-bound, short-lived, server-side, and one-time use.
-- The raw OAuth state is not persisted; only its SHA-256 digest is stored.
-- PKCE uses S256; the verifier is encrypted at rest and never logged.
-- GitHub App private key, client secret, installation/user tokens, OAuth code, PKCE verifier, and credential-encryption keys must never be logged or committed.
-- Installation access-token handling does not assume a fixed token length or legacy token format.
-- GitHub user credential persistence uses authenticated encryption and versioned keys; the binding flow does not persist a user token merely because it was used to prove installation access.
+- [x] typed `GitHubRestClient` transport wrapper.
+- [x] canonical REST headers: GitHub media type, REST API version `2026-03-10`, and `GitDock/0.1` User-Agent.
+- [x] parser-driven typed `GitHubResponse[T]` / `GitHubPage[T]` boundary.
+- [x] pagination helper with validated `next` / `prev` / `first` / `last` links.
+- [x] async page iterator with repeated-link detection and a configured maximum page limit.
+- [x] canonical GitHub API target validation; external, credentialed, protocol-relative, fragment-bearing, or non-HTTPS pagination targets are rejected before network I/O.
+- [x] stable GitDock error categories for authentication, permission, not-found, conflict, validation, rate-limit, transient, and unexpected failures.
+- [x] transport exceptions contain safe status/request/rate metadata but never raw GitHub response bodies.
+- [x] GitHub rate-limit metadata capture including resource, limit, remaining, used, reset time, and `Retry-After`.
+- [x] bounded exponential backoff with jitter for transient safe requests.
+- [x] GET/HEAD retry safely by default; write-like methods do **not** retry by default.
+- [x] an explicit `RetryMode.SAFE` escape hatch exists only for a higher layer that has positively classified a non-read operation as retry-safe.
+- [x] redirects are not followed by the gateway transport.
+- [x] HTTPX MockTransport contract fixture/tests added.
 
-## P2.1 verification evidence
+### P2.2 security/architecture invariants
 
-Implementation CI run `33348203305` passed all configured jobs, and documentation-synchronized run `33348487790` repeated the full suite successfully:
+- Telegram/application handlers must not call raw GitHub HTTP endpoints; they consume gateway/service interfaces.
+- Absolute transport/pagination targets are restricted to canonical HTTPS `api.github.com`; the gateway is not a generic URL fetcher.
+- Authentication headers are constructed from `SecretStr` only at the outbound transport boundary.
+- Raw GitHub error bodies are intentionally not copied into raised errors or user-facing text.
+- Blind retries of writes are prohibited. A write/non-read operation requires explicit retry-safe classification by the caller before retry can occur.
+- GitHub remains source of truth; transport metadata is contextual information, not locally authoritative resource state.
 
-- Python 3.12: Ruff format, Ruff lint, mypy, **37 pytest tests**, compile validation, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff — all passed.
-- Python 3.13: the same gates, including **37 pytest tests** and PEP 751 lock regeneration/diff — all passed.
-- PostgreSQL 17: Alembic upgrade -> downgrade to base -> upgrade to head — passed.
-- `pip-audit` reported no known vulnerabilities for the pinned runtime requirements in these verification runs.
+## P2.2 verification evidence
 
-The P2.1 dependency set adds exact runtime pins for `PyJWT==2.13.0` and `cryptography==50.0.1`; the Python 3.12 and 3.13 Linux PEP 751 locks were regenerated and verified byte-for-byte by CI.
+Implementation head `ca6c0beb4ea96f661e9e891b04e69228bf6c4de3` passed GitHub Actions run `33406986504`.
 
-## PR replacement history
+The fully documentation-synchronized feature head `d60953bb27951a3ff9019efb101087222a0219af` then passed Draft PR #6 CI run `33409265057` with all configured jobs green.
 
-- PR #4 was the original P2.1 draft and reached a fully green, documentation-synchronized head.
-- The connector's `markPullRequestReadyForReview` mutation failed internally because it requested a GitHub GraphQL `Repository.fullDatabaseId` field that does not exist.
-- PR #4 was therefore closed **without merge**; no code or quality gate was bypassed.
-- PR #5 was opened non-draft from the same feature branch as the replacement merge target.
-- The branch commit moved during the replacement workflow, so PR #5 must receive its own green CI on its final head before merge.
+The same unchanged SHA was opened as non-draft PR #7 and passed its own CI run `33409418512` with all configured jobs green.
 
-## Dependency locking policy
+Across the verified P2.2 heads:
 
-Human-maintained inputs:
+- Python 3.12: Ruff format/lint, mypy, **49 pytest tests**, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff — all passed.
+- Python 3.13: the same configured gates — all passed.
+- PostgreSQL 17: Alembic upgrade -> downgrade -> upgrade — passed.
+- `pip-audit`: no known vulnerabilities found.
+- Test suite grew from 37 to 49 tests; 12 contract tests cover gateway headers, pagination, hostile URL rejection, error translation, rate limits, safe retry behavior, and no default write retry.
+- P2.2 adds no runtime dependency and no schema migration, so the existing PEP 751 locks remain byte-for-byte valid and PostgreSQL migration coverage remains unchanged.
 
-- `requirements.txt` — exact direct runtime pins
-- `requirements-dev.txt` — exact development/test pins
+## P2.2 PR replacement operational fact
 
-Runtime reproducibility for current Linux targets:
+The connector's Draft→Ready GraphQL mutation was already known to fail in earlier project work. To avoid repeating a known tooling failure:
 
-- `pylock.py312-linux.toml`
-- `pylock.py313-linux.toml`
+1. Draft PR #6 was kept through implementation/documentation verification.
+2. Its final synchronized SHA `d60953bb27951a3ff9019efb101087222a0219af` passed run `33409265057`.
+3. PR #6 was closed without merge and without changing the feature branch.
+4. Non-draft PR #7 was opened from the exact same SHA.
+5. PR #7 passed its own run `33409418512` on that unchanged SHA.
 
-Locks use standardized PEP 751 output from `pip lock` and are interpreter/platform-specific. Any dependency change requires regenerated committed locks and green drift checks for both supported Python versions before merge.
+No temporary file, no branch-content mutation, and no quality-gate bypass occurred during this replacement.
 
-## Exact next task
+## Remaining P2.2 closeout
 
-1. Finish P2.1 replacement-PR documentation synchronization in PR #5.
-2. Require a green CI run for the exact final PR #5 head.
-3. Merge PR #5 only while that verified head SHA is unchanged.
-4. Verify the merged `main` CI state.
-5. Synchronize post-merge project state if required by the project-control contract.
-6. Then start **P2.2 — GitHub gateway foundation** on a new branch from verified `main`.
+1. Run full CI once more on this handoff-only documentation commit so the exact PR head is verified.
+2. Merge PR #7 with `expected_head_sha` matching that final green head.
+3. Verify post-merge `main` CI.
+4. Synchronize post-merge handoff state if necessary.
+5. Only then start **P2.3 — Home + repository read screens** from verified `main`.
 
 ## Rules that remain in force
 
-- Use a GitHub App, not a broad long-lived PAT, as the primary credential model.
-- Do not start repository write/admin features before their roadmap milestone and permission model.
-- Never commit or log real tokens, webhook secrets, client secrets, private keys, OAuth codes, PKCE verifiers, or credential-encryption keys.
-- PostgreSQL remains the production database; SQLite is development/test only.
-- Telegram handlers stay thin; GitHub HTTP details stay behind gateway/service layers.
-- A milestone is not complete until tests and project-control documentation are updated.
+- GitHub App remains the primary credential model; broad long-lived PATs are not introduced.
+- A setup/install `installation_id` remains untrusted until dual-context verification.
+- GitHub remains source of truth for GitHub resources.
+- Telegram handlers stay thin; transport details live in the GitHub gateway.
+- Secrets/tokens/private keys/OAuth material are never committed, logged, or rendered to Telegram.
+- No repository write/admin feature is pulled forward into P2.2.
+- No arbitrary outbound URL support is introduced through pagination or gateway helpers.
 
 ## Handoff instruction
 
-Read root `AGENTS.md`, this file, `docs/PROJECT_MEMORY.md`, `docs/ROADMAP.md`, `docs/SECURITY_MODEL.md`, `docs/TEST_MATRIX.md`, and the P2-relevant architecture sections. Complete only PR #5 verification/merge and post-merge state verification before starting P2.2; do not rebuild P1 or skip ahead.
+Read `AGENTS.md`, `docs/PROJECT_MEMORY.md`, this file, `docs/CONSTANTS.md`, `docs/ARCHITECTURE.md`, `docs/SECURITY_MODEL.md`, `docs/BUILD_PROTOCOL.md`, `docs/ROADMAP.md`, `docs/DECISIONS.md`, and `docs/TEST_MATRIX.md`. Finish only P2.2 PR/main verification before starting P2.3.

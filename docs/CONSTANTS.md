@@ -1,6 +1,6 @@
 # GitDock — Canonical Constants
 
-Status: authoritative initial constants. Change intentionally and record meaningful changes in `docs/DECISIONS.md`.
+Status: authoritative constants. Change intentionally and record meaningful architecture/security changes in `docs/DECISIONS.md`.
 
 ## Product identity
 
@@ -10,7 +10,11 @@ Status: authoritative initial constants. Change intentionally and record meaning
 | `APP_SLUG` | `gitdock` |
 | `TELEGRAM_CALLBACK_PREFIX` | `gd` |
 | `PRIMARY_UI_LANGUAGE` | `ar` |
-| `DEFAULT_GITHUB_API_VERSION` | implementation must use the current supported pinned GitHub API version selected during P1 |
+| `GITHUB_REST_API_VERSION` | `2026-03-10` |
+| `GITHUB_API_BASE_URL` | `https://api.github.com` |
+| `GITHUB_WEB_BASE_URL` | `https://github.com` |
+| `GITHUB_ACCEPT_HEADER` | `application/vnd.github+json` |
+| `GITHUB_USER_AGENT` | `GitDock/0.1` |
 
 Do not duplicate these literals throughout handlers/services.
 
@@ -26,7 +30,7 @@ Do not duplicate these literals throughout handlers/services.
 | `DANGER_CONFIRMATION_TTL_SECONDS` | 180 | High-risk operation expiry |
 | `CALLBACK_SCHEMA_VERSION` | `v1` | Callback compatibility/versioning |
 
-Telegram callback data must remain compact and within Telegram limits. Prefer opaque short IDs/session IDs over embedding long repository names/paths.
+Telegram callback data must remain compact. Prefer opaque short IDs/session IDs over embedding long repository names/paths.
 
 ### Canonical navigation labels
 
@@ -72,37 +76,46 @@ Examples:
 Rules:
 
 - Never use user-supplied raw path/repository names when that risks callback-size overflow.
-- Resolve short IDs through a persisted/expiring interaction context when needed.
-- Callback handlers must reject unknown schema versions safely.
+- Resolve short IDs through persisted/expiring interaction context when needed.
+- Reject unknown callback schema versions safely.
 
 ## Repository/file operation limits
 
-Initial policy values; implementation must make them configurable.
+Initial policy values; implementation must make them configurable where appropriate.
 
 | Constant | Initial value | Notes |
 |---|---:|---|
 | `TEXT_PREVIEW_MAX_BYTES` | 256 KiB | Larger files use download/limited preview flow |
-| `SINGLE_UPLOAD_MAX_BYTES` | 20 MiB | Conservative bot-side initial application limit; may be adjusted after transport verification |
+| `SINGLE_UPLOAD_MAX_BYTES` | 20 MiB | Conservative application limit |
 | `ZIP_EXTRACT_MAX_FILES` | 5000 | Zip-bomb guard |
 | `ZIP_EXTRACT_MAX_TOTAL_BYTES` | 250 MiB | Extracted-size guard |
-| `ZIP_MAX_PATH_DEPTH` | 25 | Path abuse/accidental giant trees guard |
-| `DIFF_PREVIEW_MAX_FILES` | 200 | Above this, show summary + filtered review instead of rendering everything |
+| `ZIP_MAX_PATH_DEPTH` | 25 | Path abuse guard |
+| `DIFF_PREVIEW_MAX_FILES` | 200 | Above this, show summary/filter review |
 | `DIFF_TEXT_MAX_BYTES_PER_FILE` | 512 KiB | Large diff uses metadata/download path |
 | `TEMP_WORKSPACE_TTL_MINUTES` | 60 | Cleanup stale sync sessions |
 
-These are GitDock application policy limits, not claims about GitHub/Telegram hard limits.
+These are GitDock policy limits, not claims about GitHub/Telegram hard limits.
 
-## HTTP/retry defaults
+## GitHub HTTP/retry/pagination defaults
 
-| Constant | Initial value |
-|---|---:|
-| `HTTP_CONNECT_TIMEOUT_SECONDS` | 10 |
-| `HTTP_READ_TIMEOUT_SECONDS` | 30 |
-| `GITHUB_MAX_RETRIES` | 3 |
-| `RETRY_BASE_DELAY_SECONDS` | 0.5 |
-| `RETRY_MAX_DELAY_SECONDS` | 8 |
+| Constant | Value | Meaning |
+|---|---:|---|
+| `HTTP_CONNECT_TIMEOUT_SECONDS` | 10.0 | outbound connect timeout |
+| `HTTP_READ_TIMEOUT_SECONDS` | 30.0 | outbound read/write timeout baseline |
+| `GITHUB_MAX_RETRIES` | 3 | maximum transient retries after the initial attempt |
+| `RETRY_BASE_DELAY_SECONDS` | 0.5 | exponential-backoff base |
+| `RETRY_MAX_DELAY_SECONDS` | 8.0 | backoff ceiling |
+| `GITHUB_MAX_PAGES` | 100 | pagination safety ceiling for one iterator |
 
-Retry only operations safe to retry or protected by idempotency/preconditions. Do not blindly retry destructive writes.
+P2.2 retry rules:
+
+- GET/HEAD use safe retry mode by default for network/timeouts and HTTP 408/500/502/503/504.
+- Write-like methods default to **no retry**.
+- A non-read method may opt into `RetryMode.SAFE` only when a higher layer has explicitly established idempotency/retry safety.
+- Redirects are not followed automatically.
+- Absolute API/pagination targets are accepted only for canonical HTTPS `api.github.com`; external/protocol-relative/credentialed/fragment URLs are rejected.
+
+Do not duplicate timeout/backoff/page-limit magic numbers in handlers.
 
 ## GitHub event names planned for initial subscriptions
 
@@ -139,7 +152,7 @@ Do not map permissions ad hoc in handlers. Centralize capability -> required per
 - Issues: write — issue/comment/labels/assignees operations
 - Pull requests: write — PR interactions/reviews/merges as supported
 - Actions: write — workflow dispatch/retry/cancel where needed
-- Workflows: write — only if GitDock edits files under `.github/workflows/`
+- Workflows: write — only if GitDock edits `.github/workflows/`
 - Administration: write — repository create/settings/rename/delete operations that require it
 
 Request only the minimum permissions for enabled features.

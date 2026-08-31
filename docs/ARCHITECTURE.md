@@ -1,6 +1,6 @@
 # GitDock — Architecture Specification
 
-Status: baseline architecture for implementation
+Status: baseline architecture + verified P2.2 transport implementation
 
 ## 1. Architectural goals
 
@@ -65,7 +65,7 @@ PostgreSQL + Alembic
 - HTTPS terminates at a trusted reverse proxy or application deployment layer.
 - Background event worker may run in the same deployment initially but remains a separate application component with DB-backed work state.
 
-## 4. Recommended source layout
+## 4. Source layout
 
 ```text
 gitdock/
@@ -73,7 +73,6 @@ gitdock/
 ├── core/
 │   ├── config.py
 │   ├── logging.py
-│   ├── errors.py
 │   └── constants.py
 ├── telegram/
 │   ├── bot.py
@@ -84,41 +83,21 @@ gitdock/
 │   └── middleware/
 ├── github/
 │   ├── auth.py
+│   ├── auth_state.py
+│   ├── binding.py
 │   ├── client.py
-│   ├── rest.py
-│   ├── graphql.py
+│   ├── connection.py
+│   ├── credentials.py
+│   ├── errors.py
+│   ├── models.py
+│   ├── pagination.py
 │   ├── permissions.py
-│   ├── webhooks.py
-│   └── models.py
+│   └── token_provider.py
 ├── domain/
-│   ├── repositories.py
-│   ├── files.py
-│   ├── sync.py
-│   ├── notifications.py
-│   ├── actions.py
-│   └── risk.py
 ├── services/
-│   ├── repo_service.py
-│   ├── file_service.py
-│   ├── sync_service.py
-│   ├── issue_service.py
-│   ├── pr_service.py
-│   ├── action_service.py
-│   ├── search_service.py
-│   └── notification_service.py
 ├── db/
-│   ├── base.py
-│   ├── models/
-│   ├── repositories/
-│   └── migrations/
 ├── workers/
-│   ├── event_worker.py
-│   └── cleanup_worker.py
 └── security/
-    ├── crypto.py
-    ├── redaction.py
-    ├── confirmations.py
-    └── archive_safety.py
 
 tests/
 ├── unit/
@@ -133,59 +112,43 @@ Exact filenames may evolve, but the boundaries are intentional.
 
 ### Telegram layer
 
-Responsible for:
+Responsible for receiving updates, rendering Arabic screens, building keyboards, collecting input, and mapping UI actions to application services.
 
-- receiving updates/callbacks/messages/files;
-- rendering Arabic screens;
-- building keyboards;
-- collecting wizard input;
-- mapping UI actions to application service calls.
-
-Must not:
-
-- call GitHub HTTP endpoints directly from handlers;
-- contain durable business rules;
-- contain raw database queries;
-- construct dangerous operations without domain risk checks.
+Must not call GitHub HTTP endpoints directly, contain raw database queries, or embed durable business/risk rules.
 
 ### Application services
 
-Responsible for use cases such as:
-
-- list repositories;
-- create repository;
-- prepare file update;
-- confirm/apply sync;
-- dispatch workflow;
-- merge PR;
-- manage notification preferences.
-
-Services orchestrate domain rules, persistence, GitHub gateway, audit, and permission checks.
+Orchestrate use cases, domain rules, persistence, GitHub gateway, audit, permission checks, and confirmation flows.
 
 ### Domain layer
 
-Pure or mostly pure rules:
-
-- risk classification;
-- path validation;
-- diff/sync plan representation;
-- operation state transitions;
-- notification event normalization;
-- confirmation requirements.
-
-Domain code should be easy to unit test without network/database.
+Contains mostly pure rules such as risk classification, path validation, sync planning, state transitions, event normalization, and confirmation requirements.
 
 ### GitHub gateway
 
-Only component that understands GitHub REST/GraphQL request details, token refresh, pagination, rate-limit headers, ETags where used, and GitHub-specific error translation.
+The **only normal application boundary that understands GitHub REST request details**.
 
-Expose typed methods/capabilities to services.
+P2.2 verified implementation:
+
+- `GitHubRestClient` owns outbound REST request construction.
+- Callers supply payload parsers; transport does not leak unvalidated dict shapes upward as the intended service contract.
+- `GitHubResponse[T]` and `GitHubPage[T]` attach safe metadata: HTTP status, GitHub request ID, rate-limit state, and validated pagination links.
+- Canonical request headers are centralized: GitHub media type, API version `2026-03-10`, and `GitDock/0.1` User-Agent.
+- Authentication is accepted as `SecretStr` and materialized only into the outbound Authorization header at the transport boundary.
+- Absolute targets are restricted to HTTPS `api.github.com`; relative `/...` API paths are allowed.
+- Pagination refuses protocol-relative URLs, credentials in URLs, fragments, external hosts, non-HTTPS targets, and noncanonical ports.
+- Pagination iteration detects repeated next links and enforces `GITHUB_MAX_PAGES`.
+- Redirects are not automatically followed.
+- Error translation produces stable GitDock categories and does not copy raw GitHub response bodies into exceptions.
+- Rate-limit headers are parsed into a dedicated model.
+- GET/HEAD retry bounded transient failures by default; non-read methods default to no retry.
+- Explicit retry for a non-read operation requires a higher layer to opt into `RetryMode.SAFE` after establishing retry/idempotency safety.
+
+Future endpoint-specific repository/issue/PR/Actions methods build on this transport rather than creating parallel HTTP clients.
 
 ### Persistence
 
-Stores GitDock state/preferences/audit/inbox. GitHub remains source of truth for GitHub data.
-
-Do not build a shadow GitHub database unnecessarily.
+Stores GitDock state/preferences/audit/inbox. GitHub remains source of truth for GitHub resources; do not build a shadow GitHub database unnecessarily.
 
 ## 6. Authentication flows
 
@@ -193,291 +156,106 @@ Do not build a shadow GitHub database unnecessarily.
 
 - `GITDOCK_TELEGRAM_OWNER_ID` is the owner allowlist baseline.
 - Middleware rejects/ignores unauthorized users before sensitive routing.
-- Future multi-user support replaces this with persisted user/access policy without changing core services.
+- Future multi-user support replaces this boundary policy without changing core services.
 
 ### GitHub App installation
 
-1. GitDock creates a short-lived installation/setup session bound to Telegram user.
-2. User follows GitHub App install/authorization URL.
-3. GitHub redirects to GitDock callback/setup URL.
-4. GitDock validates the session/state and binds GitHub account/installation to the Telegram user.
-5. Repository operations use installation access tokens when suitable.
+1. Create a short-lived setup session bound to Telegram user.
+2. User installs/authorizes GitHub App.
+3. Treat returned `installation_id` only as untrusted candidate data.
+4. Perform authenticated user authorization with one-time state + PKCE.
+5. Resolve installation under App context and authenticated-user context.
+6. Bind only after account/installation identities match and installation is not suspended.
 
 ### GitHub user authorization
 
-Some user-context operations require a GitHub App user access token.
-
-1. Create cryptographically random short-lived authorization state bound to Telegram user.
-2. Send authorization URL.
-3. Validate callback state exactly once.
-4. Exchange code server-side.
-5. Encrypt stored token/refresh material at rest when persistence is required.
-6. Never send token values to Telegram.
-
-Personal repository creation for the authenticated user is treated as user-context functionality.
+- cryptographically random short-lived state;
+- server-side one-time validation;
+- PKCE S256;
+- server-side code exchange;
+- encrypted persistence only when durable user context is genuinely required;
+- token values never sent to Telegram.
 
 ## 7. GitHub permission/capability model
 
-Do not scatter permission strings in handlers.
-
-Define capabilities, for example:
-
-```text
-CAP_REPO_READ
-CAP_REPO_ADMIN
-CAP_CONTENT_READ
-CAP_CONTENT_WRITE
-CAP_WORKFLOW_EDIT
-CAP_ISSUE_WRITE
-CAP_PR_WRITE
-CAP_ACTIONS_WRITE
-```
-
-A central mapper describes which GitHub App permission(s) and token context each capability requires.
-
-Before showing/enabling an action, the service can report:
-
-- available;
-- missing app permission;
-- repository/user lacks authority;
-- installation does not include repository;
-- unsupported for current resource state.
+Permission strings are centralized, not scattered in handlers. Capabilities map to required GitHub App permissions and token context, allowing services to distinguish available, missing app permission, user/repository authority failure, installation exclusion, and invalid resource state.
 
 ## 8. Database model baseline
 
-### `users`
+Core models include users/Telegram identities, GitHub accounts/installations, minimal repository cache/preferences, webhook delivery/event work state, pending confirmations, durable high-impact operation sessions, and append-oriented audit records.
 
-- id
-- created_at
-- status
-
-### `telegram_accounts`
-
-- user_id
-- telegram_user_id (unique)
-- username/display metadata as non-authoritative convenience
-
-### `github_accounts`
-
-- user_id
-- github_user_id
-- login
-- encrypted user-token material if needed
-- token metadata/expiry
-
-### `github_installations`
-
-- user_id/account relation
-- installation_id (unique)
-- account type/login
-- permissions snapshot/cache
-- suspended status
-
-### `repositories_cache`
-
-Minimal cache/index fields only, e.g. GitHub repository id, full name, installation, default branch, visibility, timestamps.
-
-### `repository_preferences`
-
-- repository id
-- notification mode
-- selected event toggles
-- mute flags
-- preferred branch behavior
-
-### `webhook_deliveries`
-
-- GitHub delivery id (unique)
-- event name/action
-- installation/repository identifiers
-- received timestamp
-- signature-verified flag
-- processing status
-- attempt count
-- last error category
-
-Raw payload retention should be minimized and governed; store only what is required for retry/audit/debug policy.
-
-### `event_inbox`
-
-May be merged with `webhook_deliveries` if one table cleanly supports durable processing state. Do not duplicate concepts without need.
-
-### `pending_confirmations`
-
-- opaque confirmation id
-- user id
-- operation name
-- canonical target snapshot
-- expected preconditions/SHA where relevant
-- risk tier
-- expires_at
-- consumed_at
-
-### `operation_sessions`
-
-Used for durable high-impact wizards, especially ZIP sync.
-
-### `audit_log`
-
-Append-oriented record of user-triggered GitHub write operations and outcomes.
+GitHub resource state remains authoritative remotely.
 
 ## 9. Webhook ingestion pipeline
 
-1. Read raw request bytes.
-2. Validate GitHub `X-Hub-Signature-256` against configured secret using constant-time comparison.
-3. Read event name + delivery id.
-4. Validate supported event envelope.
-5. Insert delivery id idempotently.
-6. Persist normalized minimum routing metadata/payload required for worker.
-7. Return successful HTTP response quickly.
-8. Worker loads pending delivery.
-9. Normalize GitHub-specific payload into GitDock event model.
-10. Apply repository/user notification preferences.
-11. Enrich with GitHub API only if needed.
-12. Render/send Telegram notification.
-13. Mark processed or retryable/terminal failure.
+1. Read raw bytes.
+2. Verify `X-Hub-Signature-256` using constant-time HMAC-SHA256 comparison.
+3. Read event/delivery identifiers.
+4. Validate supported envelope.
+5. Insert delivery idempotently.
+6. Persist required routing/work data.
+7. Acknowledge HTTP quickly.
+8. Worker normalizes/enriches/applies preferences.
+9. Render Telegram notification.
+10. Mark processed or retryable/terminal failure.
 
-Duplicate delivery IDs must not create duplicate Telegram notifications.
+Duplicate delivery IDs must not create duplicate user-visible notifications.
 
 ## 10. Canonical notification event model
 
-Example fields:
-
-```text
-event_id
-source_delivery_id
-event_type
-action
-repository_id
-repository_full_name
-actor_login
-target_type
-target_number_or_ref
-title
-summary
-url
-occurred_at
-severity
-```
-
-Renderers operate on this canonical model instead of every raw GitHub webhook shape.
+Renderers consume normalized event values such as delivery/event type/action/repository/actor/target/title/summary/url/time/severity rather than every raw GitHub webhook shape.
 
 ## 11. File operations
 
-### Read
-
-- resolve repository + ref + path;
-- detect file/directory;
-- validate returned encoding/size;
-- render text preview or metadata/download flow.
-
-### Single-file update
-
-1. Fetch current content metadata/SHA.
-2. User submits replacement/new content.
-3. Show path, branch, change type, compact diff/summary.
-4. Create confirmation containing expected SHA.
-5. On confirm, update using the expected SHA/precondition.
-6. If stale/conflicted, stop and require refresh/review.
-
-Do not silently overwrite when repository state changed after review.
+For a single-file update: fetch current SHA, collect replacement, show path/branch/diff summary, persist confirmation with expected SHA, and write only if precondition remains valid. Stale remote state stops the write and requires refresh/review.
 
 ## 12. ZIP/project synchronization architecture
 
-### Workspace
+Uploads use isolated temporary workspaces, member pre-scan, traversal/link/file-count/depth/uncompressed-size guards, and secret-like warnings before any repository write.
 
-- create unique isolated temporary directory;
-- stream/save upload with configured size guard;
-- inspect archive members before extraction;
-- reject traversal/absolute paths/suspicious links;
-- enforce file count, depth, and total extracted size limits;
-- optionally detect secret-like files before any upload.
+A persisted immutable `SyncPlan` records base commit, target strategy, added/modified/deleted/unchanged/binary/large/excluded files, warnings, and statistics. If the base changes before apply, re-plan.
 
-### Plan
-
-Build a `SyncPlan` domain object containing:
-
-- base repository/ref/commit;
-- target branch strategy;
-- added files;
-- modified files;
-- deleted files;
-- unchanged files;
-- binary/large files;
-- excluded files;
-- warnings;
-- statistics.
-
-The plan is immutable after confirmation. If base commit changes before apply, require re-plan or explicit conflict handling.
-
-### Apply
-
-Prefer Git data primitives/tree+commit for a coherent multi-file commit. Create/update a review branch by default. Direct default-branch application is a Tier 2 exception requiring explicit confirmation and repository policy allowance.
+Apply prefers Git tree/commit primitives for one coherent change, normally on a review branch followed by optional PR. Direct default-branch application is a Tier 2 exception.
 
 ## 13. Clone/setup/run inference
 
-Never execute repository instructions automatically.
-
-Inference pipeline:
-
-1. inspect canonical project files;
-2. score supported project types;
-3. optionally inspect relevant README sections;
-4. construct commands from trusted templates;
-5. quote repository/path values;
-6. label confidence/source;
-7. present OS-specific commands.
-
-Do not turn arbitrary README shell text into executable server commands.
+Never execute repository instructions automatically. Detect project metadata, construct commands from trusted templates, quote values per OS, label confidence/source, and treat README/script content as untrusted text.
 
 ## 14. Search architecture
 
-- REST Search API is sufficient for core repository discovery.
-- GraphQL may be introduced when it materially reduces round trips or improves a screen.
-- Normalize results into GitDock repository summary model.
-- Cache only short-lived search/result metadata when useful; avoid stale permanent search mirrors.
+REST Search API is sufficient for core discovery; GraphQL is introduced only where it materially improves a use case. Normalize results to GitDock models and avoid long-lived shadow search state.
 
 ## 15. Error model
 
-Translate infrastructure errors into stable application categories:
+P2.2 establishes transport categories:
 
-- authentication required
-- missing GitHub permission
-- repository not installed/accessible
-- not found
-- conflict/stale SHA
-- validation error
-- rate limited
-- transient GitHub failure
-- GitHub validation rejection
-- Telegram delivery failure
-- database unavailable
-- internal unexpected failure
+- authentication required;
+- missing permission;
+- not found/inaccessible;
+- conflict/precondition failure;
+- validation rejection;
+- rate limited;
+- transient failure;
+- unexpected GitHub/shape failure.
 
-Telegram renderers should not display raw stack traces or tokens.
+Higher layers may add domain-specific context, but must not replace these with raw HTTP bodies or stack traces in Telegram.
+
+Transport errors may expose only safe metadata such as status code, GitHub request ID, and parsed rate-limit state.
 
 ## 16. Rate limits and retries
 
-- Observe GitHub rate-limit headers.
-- Show the user a useful retry/reset message where appropriate.
-- Retry bounded transient failures with jitter.
-- Do not blindly retry non-idempotent/destructive operations.
-- Use expected SHA/ref state and operation IDs to prevent duplicate writes.
+- Parse GitHub rate-limit resource/limit/remaining/used/reset and `Retry-After`.
+- GET/HEAD use bounded exponential backoff + jitter for network/timeouts and HTTP 408/500/502/503/504.
+- Maximum retry count/base/max delay are centralized constants.
+- Do not blindly retry write-like or destructive operations.
+- A non-read operation can opt into retry only after the endpoint/use case is explicitly classified safe/idempotent by its higher-level service.
+- Rate-limit responses are translated distinctly from ordinary 403 permission failures.
 
 ## 17. Observability
 
-Every request/operation should carry correlation context such as:
-
-- Telegram update id/user id (non-secret)
-- GitHub delivery id
-- operation id
-- repository id/full name where safe
-
-Structured log events; redact authorization headers, tokens, secrets, OAuth codes, webhook secrets, and private key material.
+Use correlation context such as Telegram update/user ID, GitHub delivery/request ID, operation ID, and repository identifier where safe. Structured logging redacts authorization headers, tokens, secrets, OAuth codes, PKCE material, and private keys. Raw GitHub error bodies are not normal log/error payloads.
 
 ## 18. Dependency direction rule
-
-Allowed conceptual direction:
 
 ```text
 telegram -> services -> domain
@@ -486,12 +264,16 @@ telegram -> services -> domain
 webhook ingress -> domain normalization -> services/notification
 ```
 
-Domain must not import Telegram or concrete HTTP client modules.
+Domain must not import Telegram or concrete HTTP clients. Endpoint-specific GitHub services/gateways depend on the P2.2 REST transport rather than bypass it.
 
-## 19. Source references for security/auth assumptions
+## 19. P2.2 contract verification
 
-- GitHub App permissions and least privilege: https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app
+CI run `33406986504` verified the transport on Python 3.12 and 3.13 with the complete 49-test suite. Twelve gateway contract tests cover canonical headers, fixture parsing, pagination, hostile-target rejection, error categories, rate limits, body/token non-leakage, transient safe retry, default no-write-retry, and explicit safe retry. PostgreSQL migration, audit, secret scan, compile, and PEP 751 lock checks remained green.
+
+## 20. Source references for security/auth assumptions
+
+- GitHub App permissions: https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app
 - Installation authentication: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation
-- Webhook signature validation: https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries
-- Repository contents writes: https://docs.github.com/en/rest/repos/contents
-- Actions workflows/dispatch: https://docs.github.com/en/rest/actions/workflows
+- Webhook validation: https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries
+- Repository contents: https://docs.github.com/en/rest/repos/contents
+- Actions workflows: https://docs.github.com/en/rest/actions/workflows

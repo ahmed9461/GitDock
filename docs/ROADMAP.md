@@ -99,7 +99,7 @@ Acceptance:
 
 ### P2.1 GitHub App auth foundation ✅
 
-Verified on the implementation head by GitHub Actions run `33348203305` before documentation closeout.
+Squash-merged through PR #5 as `81dfaf406d046205b39980d6a64c681ea3ab18c6`; post-merge `main` CI run `33348851085` passed.
 
 - [x] GitHub App configuration model.
 - [x] JWT generation for app authentication.
@@ -111,14 +111,18 @@ Verified on the implementation head by GitHub Actions run `33348203305` before d
 
 P2.1 additionally verifies restart-safe hashed one-time state, PKCE S256 with encrypted verifier storage, and dual app/user-context installation identity verification before binding.
 
-### P2.2 GitHub gateway foundation
+### P2.2 GitHub gateway foundation ✅ (implementation verified; merge closeout pending)
 
-- [ ] typed REST client wrapper.
-- [ ] pagination helper.
-- [ ] standard error translation.
-- [ ] rate-limit capture/model.
-- [ ] retry policy for safe transient requests.
-- [ ] test doubles/fixtures.
+Implementation head `ca6c0beb4ea96f661e9e891b04e69228bf6c4de3` passed CI run `33406986504`; full CI must run again on the final documentation-synchronized head before merge.
+
+- [x] typed REST client wrapper.
+- [x] pagination helper with canonical GitHub API URL validation, loop guard, and page limit.
+- [x] standard safe error translation without raw response-body leakage.
+- [x] rate-limit capture/model.
+- [x] bounded retry policy for safe transient requests; write-like methods do not retry by default.
+- [x] HTTPX MockTransport contract test doubles/fixtures.
+
+P2.2 contract coverage includes canonical headers, parser boundaries, list/keyed pagination, malicious pagination target rejection, authentication/permission/not-found/conflict/validation/rate-limit categories, request/rate metadata, safe GET retry, and default no-write-retry behavior.
 
 ### P2.3 Home + repository read screens
 
