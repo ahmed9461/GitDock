@@ -40,10 +40,7 @@ def repository_open(
 ) -> str:
     if github_repository_id <= 0 or page <= 0:
         raise ValueError("repository ID and page must be positive")
-    return (
-        f"{PREFIX}:repo:open:{repository_filter.value}:{page}:"
-        f"{_base36(github_repository_id)}"
-    )
+    return f"{PREFIX}:repo:open:{repository_filter.value}:{page}:{_base36(github_repository_id)}"
 
 
 def parse_repository_open(data: str) -> tuple[int, RepositoryFilter, int] | None:
