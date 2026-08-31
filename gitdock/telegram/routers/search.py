@@ -16,7 +16,6 @@ from gitdock.services.runtime import RuntimeServices
 from gitdock.services.search import (
     SearchCriteria,
     SearchSelectionError,
-    SearchSort,
     SearchValidationError,
     deserialize_criteria,
     normalize_min_stars_input,
