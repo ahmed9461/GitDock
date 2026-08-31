@@ -55,9 +55,13 @@ async def test_authorization_state_is_hashed_encrypted_user_bound_and_one_time()
 
         assert consumed.user_id == user.id
         assert consumed.candidate_installation_id == 987
-        challenge = base64.urlsafe_b64encode(
-            hashlib.sha256(consumed.code_verifier.encode("ascii")).digest()
-        ).rstrip(b"=").decode("ascii")
+        challenge = (
+            base64.urlsafe_b64encode(
+                hashlib.sha256(consumed.code_verifier.encode("ascii")).digest()
+            )
+            .rstrip(b"=")
+            .decode("ascii")
+        )
         assert challenge == request.code_challenge
 
         with pytest.raises(InvalidAuthorizationState):
