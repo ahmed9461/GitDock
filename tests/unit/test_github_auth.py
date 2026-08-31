@@ -1,11 +1,11 @@
 from datetime import UTC, datetime
 
-from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
 import httpx
 import jwt
 import pytest
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 from gitdock.core.config import Settings
 from gitdock.core.constants import GITHUB_REST_API_VERSION
