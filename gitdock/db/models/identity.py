@@ -6,12 +6,12 @@ from datetime import datetime
 from typing import Any
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Boolean,
     DateTime,
     ForeignKey,
     Integer,
-    JSON,
     LargeBinary,
     String,
     func,
