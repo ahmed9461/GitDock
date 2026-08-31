@@ -180,9 +180,7 @@ def create_system_router(
         await _edit_callback(
             callback,
             render_repository_detail(repository),
-            repository_detail_keyboard(
-                repository, back_filter=back_filter, back_page=back_page
-            ),
+            repository_detail_keyboard(repository, back_filter=back_filter, back_page=back_page),
         )
 
     @router.callback_query(F.data.startswith(callbacks.PLACEHOLDER_PREFIX))
