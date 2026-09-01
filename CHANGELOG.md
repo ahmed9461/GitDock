@@ -14,8 +14,7 @@ The project follows an `Unreleased` section during active development. Versionin
 - P1 async Python application foundation: typed settings, FastAPI health/readiness + Telegram ingress, aiogram polling/webhook bootstrap, owner-only middleware, async SQLAlchemy/Alembic, structured redacting logging, tests, and CI.
 - PEP 751 Linux runtime locks for Python 3.12 and 3.13 with CI byte-for-byte drift verification.
 - P2.1 GitHub App authentication foundation: fail-closed settings, RS256 App JWT, installation token provider/cache, OAuth + PKCE S256, hashed one-time state, encrypted PKCE/user credentials, dual-context installation binding, and central capability/permission mapping.
-- P2.2 typed `GitHubRestClient` as the canonical REST transport boundary.
-- P2.2 typed `GitHubResponse[T]`, `GitHubPage[T]`, `GitHubRateLimit`, validated pagination metadata, safe error translation, canonical-host pagination, and safe retry policy.
+- P2.2 typed `GitHubRestClient`, typed response/page/rate models, safe error translation, canonical-host pagination, and safe retry policy.
 - P2.3 typed installed-repository read gateway/model, minimal `repositories_cache` migration `0003`, owner identity service, runtime composition, Arabic Home/list/filter/detail UI, compact callbacks, and setup/OAuth callback wiring.
 - P2.3 repository filters for all/private/public/active/archived/source/fork and verified suite growth to **65 tests**.
 - P3.1 typed public GitHub repository-search gateway/model over the canonical REST transport.
@@ -41,8 +40,8 @@ The project follows an `Unreleased` section during active development. Versionin
 - GitHub repository detail is refreshed from GitHub before display; local repository cache is navigation/context state only.
 - Public search discovery uses its own Tier 0 ephemeral session/result context instead of treating search results as installed repository cache/authorization context.
 - P3.1 search detail exposes **📥 أوامر التنزيل** only as a safe placeholder; actual clone/update/setup/run command generation remains P4.3.
-- P3.2 OAuth completion may now persist durable GitHub user credentials when the flow is the explicit durable user-authorization use case; the existing installation-binding trust checks remain unchanged.
-- Connected Home now exposes `👤 حساب GitHub` as a real account-management entry point.
+- P3.2 OAuth completion may persist durable GitHub user credentials when the flow is the explicit durable user-authorization use case; existing installation-binding trust checks remain unchanged.
+- Connected Home exposes `👤 حساب GitHub` as a real account-management entry point.
 - Returning Home invalidates outstanding local-disconnect confirmations so old Telegram messages cannot retain active destructive authorization.
 - GitHub installation binding and durable GitHub user authorization remain explicitly separate states in service/UI semantics.
 - Runtime dependencies remain unchanged by P3.1/P3.2; existing PEP 751 locks remain byte-for-byte verified on Python 3.12 and 3.13.
@@ -59,7 +58,7 @@ The project follows an `Unreleased` section during active development. Versionin
 - Search Home/start navigation clears transient FSM state so abandoned query/filter input cannot be interpreted after returning to the main menu.
 - P3.1 navigation tests model aiogram async child methods correctly rather than failing on non-awaitable mock attributes.
 - P3.2 initial Alembic migration failure caused by revision identifier `0004_user_authorization_lifecycle` exceeding Alembic's default `alembic_version.version_num` length. The revision was correctly shortened to `0004_user_auth` instead of widening Alembic's internal version table for an unnecessarily long label.
-- P3.2 Ruff formatting, one E501 lint finding, and one mypy variable-shadowing inference issue were corrected at their source while preserving the intended auth behavior.
+- P3.2 Ruff formatting, one E501 lint finding, and one mypy variable-shadowing inference issue were corrected at their source while preserving intended auth behavior.
 
 ### Security
 
@@ -73,7 +72,7 @@ The project follows an `Unreleased` section during active development. Versionin
 - `repositories_cache` stores no token/OAuth/PKCE/private-key material and is explicitly non-authoritative.
 - P3.1 public search uses opaque active session IDs and does not insert public results into installed authorization/cache context.
 - P3.2 durable access/refresh credentials use the existing versioned encrypted credential store; token material is never placed in Telegram callback data or user-facing copy.
-- P3.2 refresh snapshots `credential_generation` before external refresh and persists the rotated credential pair only if the current durable generation/preconditions still match.
+- P3.2 refresh snapshots `credential_generation` before external refresh and persists the rotated credential pair only if current durable generation/preconditions still match.
 - P3.2 local-disconnect confirmation is DB-backed, one-time, expiring, and bound to GitDock user + operation + account identity + credential generation + current installation IDs.
 - Reauthorization or installation-set change makes an older disconnect confirmation stale; stale, cancelled, reused, or invalid confirmation removes nothing.
 - Local disconnect clears only GitDock-local credentials/bindings/cache/pending state and explicitly **does not uninstall or revoke the GitHub App remotely**.
@@ -121,16 +120,18 @@ P3.1:
 - governance closeout PR #11 merge `ef2c5f618102063df8166f84b4828243f5efb5c6`; post-closeout `main` CI `33454972020` — green.
 - suite at P3.1: **83 tests**, all configured Python 3.12/3.13 and PostgreSQL gates green.
 
-P3.2 pre-merge implementation:
+P3.2:
 
-- foundation validation head `2faed69d8333c019ec1f307583434d598d2c5c4e` — CI `33459209919` fully green before UI wiring;
-- complete implementation head before documentation synchronization `5068b58ec41fb5ac417408d3a535bbb5d66207fc` — CI **`33515291600` fully green**;
-- Python 3.12: Ruff format/lint, mypy, **97 tests**, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock verification passed;
-- Python 3.13: the same configured quality/security/lock gates passed;
-- PostgreSQL 17 Alembic upgrade -> downgrade -> upgrade including migration `0004_user_auth` passed;
+- foundation validation head `2faed69d8333c019ec1f307583434d598d2c5c4e` — CI `33459209919` green before UI wiring;
+- complete implementation head before documentation synchronization `5068b58ec41fb5ac417408d3a535bbb5d66207fc` — CI `33515291600` green;
+- final documentation-synchronized feature head `492183bfba311827a965153eff61747bfabf76ed` — branch CI `33517270731` green;
+- non-draft PR #12 CI `33527318485` — green; PR was `mergeable=true` on unchanged head `492183bfba311827a965153eff61747bfabf76ed`;
+- squash merge commit `8a5d692dd875b8959b27b1b0c53bbc5b5359c7f8`;
+- post-feature `main` CI `33527484948` — green;
+- Python 3.12 and Python 3.13 each passed Ruff format/lint, mypy, **97 tests**, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff;
+- PostgreSQL 17 Alembic upgrade -> downgrade -> upgrade including `0004_user_auth` passed;
 - `pip-audit` reported no known runtime vulnerabilities;
-- no secret-scan findings and no PEP 751 lock drift;
-- P3.2 remains pre-merge until documentation-head CI, non-draft PR, squash merge, post-merge `main` CI, and governance closeout are recorded.
+- no secret-scan findings and no PEP 751 lock drift.
 
 ### Known maintenance warnings
 
