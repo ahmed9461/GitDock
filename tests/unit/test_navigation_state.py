@@ -12,6 +12,7 @@ async def test_start_clears_transient_fsm_state() -> None:
     router = create_system_router()
     handler = router.message.handlers[0].callback
     message = AsyncMock(spec=Message)
+    message.answer = AsyncMock()
     state = AsyncMock(spec=FSMContext)
 
     await handler(message, state)
@@ -25,6 +26,7 @@ async def test_home_callback_clears_transient_fsm_state() -> None:
     router = create_system_router()
     handler = router.callback_query.handlers[0].callback
     callback = AsyncMock(spec=CallbackQuery)
+    callback.answer = AsyncMock()
     state = AsyncMock(spec=FSMContext)
 
     await handler(callback, state)
