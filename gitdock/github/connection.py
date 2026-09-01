@@ -129,7 +129,7 @@ class GitHubConnectionService:
         code: str,
         redirect_uri: str,
     ) -> ConnectionCompletion:
-        """Consume OAuth state, persist durable user context, and bind an installation if present."""
+        """Persist durable user context and bind an installation when present."""
 
         async with self._session_factory() as session:
             async with session.begin():
