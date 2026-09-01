@@ -43,6 +43,7 @@ class GitHubUserCredentialStore:
         account.token_expires_at = token.expires_at
         account.refresh_token_expires_at = token.refresh_expires_at
         account.token_key_version = access.key_version
+        account.credential_generation = (account.credential_generation or 0) + 1
 
     def load(self, account: GitHubAccount) -> DecryptedUserCredentials | None:
         if account.encrypted_access_token is None:
@@ -72,3 +73,4 @@ class GitHubUserCredentialStore:
         account.token_expires_at = None
         account.refresh_token_expires_at = None
         account.token_key_version = None
+        account.credential_generation = (account.credential_generation or 0) + 1

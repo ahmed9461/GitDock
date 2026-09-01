@@ -54,6 +54,7 @@ class GitHubAccount(Base):
     token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     refresh_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     token_key_version: Mapped[int | None] = mapped_column(Integer)
+    credential_generation: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

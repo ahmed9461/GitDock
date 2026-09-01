@@ -6,6 +6,7 @@ import pytest
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
+from pydantic import SecretStr
 
 from gitdock.core.config import Settings
 from gitdock.core.constants import GITHUB_REST_API_VERSION
@@ -135,6 +136,49 @@ async def test_oauth_exchange_uses_pkce_and_never_echoes_error_body() -> None:
     assert token.token.get_secret_value() == "ghu_example_access"
     assert token.refresh_token is not None
     assert token.expires_at == FIXED_NOW.replace(hour=9)
+
+
+@pytest.mark.asyncio
+async def test_user_identity_and_refresh_use_user_context_and_rotation_grant() -> None:
+    settings = github_settings()
+    private_pem, _ = rsa_private_key_pem()
+    issuer = GitHubAppJwtIssuer(
+        settings.github_client_id or "", private_pem, clock=lambda: FIXED_NOW
+    )
+    observed: list[tuple[str, bytes, str | None]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        observed.append(
+            (request.url.path, request.content, request.headers.get("Authorization"))
+        )
+        if request.url.path == "/user":
+            return httpx.Response(200, request=request, json={"id": 55, "login": "octocat"})
+        if request.url.path == "/login/oauth/access_token":
+            return httpx.Response(
+                200,
+                request=request,
+                json={
+                    "access_token": "ghu_rotated_access",
+                    "expires_in": 28800,
+                    "refresh_token": "ghr_rotated_refresh",
+                    "refresh_token_expires_in": 15897600,
+                },
+            )
+        return httpx.Response(404, request=request)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
+        client = GitHubAuthClient(http_client, settings, issuer, clock=lambda: FIXED_NOW)
+        identity = await client.get_authenticated_user(SecretStr("ghu_identity"))
+        refreshed = await client.refresh_user_access_token(SecretStr("ghr_old_refresh"))
+
+    assert identity.github_user_id == 55
+    assert identity.login == "octocat"
+    assert observed[0][2] == "Bearer ghu_identity"
+    assert b"grant_type=refresh_token" in observed[1][1]
+    assert b"refresh_token=ghr_old_refresh" in observed[1][1]
+    assert refreshed.token.get_secret_value() == "ghu_rotated_access"
+    assert refreshed.refresh_token is not None
+    assert refreshed.refresh_token.get_secret_value() == "ghr_rotated_refresh"
 
 
 @pytest.mark.asyncio
