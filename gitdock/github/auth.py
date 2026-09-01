@@ -57,6 +57,12 @@ class UserAccessToken:
     refresh_expires_at: datetime | None
 
 
+@dataclass(frozen=True, slots=True)
+class GitHubUserIdentity:
+    github_user_id: int
+    login: str
+
+
 class GitHubAppJwtIssuer:
     """Issue short-lived RS256 GitHub App JWTs using the app client ID as issuer."""
 
@@ -195,6 +201,17 @@ class GitHubAuthClient:
             raise GitHubAuthError("GitHub user installations response had an unexpected shape")
         return [self._parse_installation(item) for item in installations]
 
+    async def get_authenticated_user(self, user_token: SecretStr) -> GitHubUserIdentity:
+        response = await self._http.get(
+            f"{GITHUB_API_BASE_URL}/user",
+            headers=self._user_headers(user_token),
+        )
+        data = self._require_dict(self._json(response), "GitHub authenticated user response")
+        return GitHubUserIdentity(
+            github_user_id=self._require_int(data, "id"),
+            login=self._require_str(data, "login"),
+        )
+
     async def create_installation_token(
         self,
         installation_id: int,
@@ -247,21 +264,24 @@ class GitHubAuthClient:
                 "code_verifier": code_verifier,
             },
         )
-        data = self._require_dict(self._json(response), "GitHub OAuth token response")
-        access_token = SecretStr(self._require_str(data, "access_token"))
-        now = self._clock().astimezone(UTC)
-        expires_at = self._expiry_from_seconds(now, data.get("expires_in"))
-        refresh_raw = data.get("refresh_token")
-        refresh_token = (
-            SecretStr(refresh_raw) if isinstance(refresh_raw, str) and refresh_raw else None
+        return self._parse_user_access_token(self._json(response))
+
+    async def refresh_user_access_token(self, refresh_token: SecretStr) -> UserAccessToken:
+        if not refresh_token.get_secret_value():
+            raise ValueError("refresh token must not be empty")
+        assert self._settings.github_client_id is not None
+        assert self._settings.github_client_secret is not None
+        response = await self._http.post(
+            GITHUB_OAUTH_ACCESS_TOKEN_URL,
+            headers={"Accept": "application/json"},
+            data={
+                "client_id": self._settings.github_client_id,
+                "client_secret": self._settings.github_client_secret.get_secret_value(),
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token.get_secret_value(),
+            },
         )
-        refresh_expires_at = self._expiry_from_seconds(now, data.get("refresh_token_expires_in"))
-        return UserAccessToken(
-            token=access_token,
-            expires_at=expires_at,
-            refresh_token=refresh_token,
-            refresh_expires_at=refresh_expires_at,
-        )
+        return self._parse_user_access_token(self._json(response))
 
     def _app_headers(self) -> dict[str, str]:
         return {
@@ -308,6 +328,23 @@ class GitHubAuthClient:
             account_type=cls._require_str(account, "type"),
             suspended=suspended,
             permissions=cls._parse_permissions(data.get("permissions")),
+        )
+
+    def _parse_user_access_token(self, payload: Any) -> UserAccessToken:
+        data = self._require_dict(payload, "GitHub OAuth token response")
+        access_token = SecretStr(self._require_str(data, "access_token"))
+        now = self._clock().astimezone(UTC)
+        expires_at = self._expiry_from_seconds(now, data.get("expires_in"))
+        refresh_raw = data.get("refresh_token")
+        refresh_token = (
+            SecretStr(refresh_raw) if isinstance(refresh_raw, str) and refresh_raw else None
+        )
+        refresh_expires_at = self._expiry_from_seconds(now, data.get("refresh_token_expires_in"))
+        return UserAccessToken(
+            token=access_token,
+            expires_at=expires_at,
+            refresh_token=refresh_token,
+            refresh_expires_at=refresh_expires_at,
         )
 
     @staticmethod

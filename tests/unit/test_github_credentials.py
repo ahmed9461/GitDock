@@ -12,7 +12,12 @@ from gitdock.security.crypto import CredentialCipher
 def test_user_credentials_are_encrypted_before_model_persistence_and_can_be_cleared() -> None:
     cipher = CredentialCipher({7: Fernet.generate_key()}, active_version=7)
     store = GitHubUserCredentialStore(cipher)
-    account = GitHubAccount(user_id=1, github_user_id=55, login="octocat")
+    account = GitHubAccount(
+        user_id=1,
+        github_user_id=55,
+        login="octocat",
+        credential_generation=0,
+    )
     token = UserAccessToken(
         token=SecretStr("ghu_access_secret"),
         expires_at=datetime(2026, 9, 1, tzinfo=UTC),
@@ -23,6 +28,7 @@ def test_user_credentials_are_encrypted_before_model_persistence_and_can_be_clea
     store.persist(account, token)
 
     assert account.token_key_version == 7
+    assert account.credential_generation == 1
     assert account.encrypted_access_token is not None
     assert account.encrypted_refresh_token is not None
     assert account.refresh_token_expires_at == datetime(2027, 1, 1, tzinfo=UTC)
@@ -37,5 +43,6 @@ def test_user_credentials_are_encrypted_before_model_persistence_and_can_be_clea
     assert loaded.refresh_expires_at == datetime(2027, 1, 1, tzinfo=UTC)
 
     store.clear(account)
+    assert account.credential_generation == 2
     assert account.refresh_token_expires_at is None
     assert store.load(account) is None

@@ -1,16 +1,16 @@
 # GitDock — Architecture Specification
 
-Status: baseline architecture + verified P2.1/P2.2 foundations + verified P2.3 repository-read implementation
+Status: baseline architecture + verified P2 foundations + P3.1 search + P3.2 user-authorization implementation (pre-merge verified)
 
 ## 1. Architectural goals
 
-- Clear separation between Telegram UI, GitHub transport, domain rules, persistence, and background event processing.
-- Restart-safe handling for important multi-step operations and GitHub webhooks.
-- Testability without real Telegram/GitHub network calls.
+- Clear separation between Telegram UI, GitHub transport/auth, domain rules, persistence, and background processing.
+- Restart-safe handling for important multi-step operations, confirmations, and GitHub webhooks.
+- Testability without real Telegram/GitHub network calls in normal CI.
 - Least-privilege authentication.
-- Easy owner-only v1 deployment with a clean path to multi-user support.
+- Easy owner-only v1 deployment with clean multi-user-ready service/persistence boundaries.
 - No hidden direct coupling between button callbacks and raw GitHub API calls.
-- GitHub remains authoritative for GitHub resources; local caches exist only for navigation/preferences/operation state where justified.
+- GitHub remains authoritative for GitHub resources; local caches exist only for navigation/preferences/operation/auth state where justified.
 
 ## 2. High-level topology
 
@@ -41,7 +41,7 @@ Services            |
              |
              v
        GitHub Gateway
-      REST / GraphQL
+     REST/Auth clients
              |
              v
            GitHub
@@ -100,9 +100,11 @@ gitdock/
 │   └── token_provider.py
 ├── domain/
 ├── services/
+│   ├── confirmations.py
 │   ├── identity.py
 │   ├── repositories.py
-│   └── runtime.py
+│   ├── runtime.py
+│   └── user_authorization.py
 ├── db/
 ├── workers/
 └── security/
@@ -122,49 +124,51 @@ Exact filenames may evolve, but the boundaries are intentional.
 
 Responsible for receiving updates, rendering Arabic screens, building keyboards, collecting input, and mapping UI actions to application services.
 
-Must not call GitHub HTTP endpoints directly, contain raw database queries, or embed durable business/risk rules.
+Must not call GitHub HTTP endpoints directly, contain raw database queries, or embed durable business/risk/token rules.
 
-P2.3 follows this rule: `/start`, home, repository list/filter/detail, refresh, connect, and placeholder callbacks call application services/renderers; they do not construct GitHub REST requests directly.
+P2.3/P3.1/P3.2 follow this rule: Home, repository/search/account screens, connect/authorize/refresh/disconnect callbacks call application services/renderers; they do not construct OAuth requests, refresh grants, SQL, or GitHub REST requests in handlers.
 
 ### Application services
 
-Orchestrate use cases, domain rules, persistence, GitHub gateway, audit, permission checks, and confirmation flows.
+Orchestrate use cases, domain rules, persistence, GitHub gateways/auth clients, audit, permission checks, and confirmation flows.
 
-P2.3 introduces/uses:
+Verified services include:
 
-- owner identity resolution as a service boundary rather than handler-local SQL;
-- `RepositoryReadService` for home/list/filter/detail/cache synchronization;
-- a runtime composition root that wires auth, token provider, repository gateway, repository read service, and connection service once.
+- owner identity resolution;
+- `RepositoryReadService` for installed repository navigation/cache synchronization;
+- public search service;
+- `GitHubUserAuthorizationService` for durable user authorization status, encrypted credential persistence, expiry-aware refresh, and local disconnect;
+- `ConfirmationService` for restart-safe one-time sensitive confirmations;
+- runtime composition that wires auth, connection, token providers, services, gateways, encryption, and DB factories once.
 
 ### Domain layer
 
 Contains mostly pure rules such as risk classification, path validation, sync planning, state transitions, event normalization, and confirmation requirements.
 
-### GitHub gateway
+### GitHub transport/auth boundaries
 
-The **only normal application boundary that understands GitHub REST request details**.
+`GitHubRestClient` is the canonical normal REST transport boundary for ordinary API requests. Authentication-specific OAuth/App endpoints remain behind the GitHub auth client rather than Telegram handlers.
 
-P2.2 verified implementation:
+P2.2 verified REST behavior:
 
-- `GitHubRestClient` owns outbound REST request construction.
-- Callers supply payload parsers; transport does not leak unvalidated dict shapes upward as the intended service contract.
-- `GitHubResponse[T]` and `GitHubPage[T]` attach safe metadata: HTTP status, GitHub request ID, rate-limit state, and validated pagination links.
-- Canonical request headers are centralized: GitHub media type, API version `2026-03-10`, and `GitDock/0.1` User-Agent.
-- Authentication is accepted as `SecretStr` and materialized only into the outbound Authorization header at the transport boundary.
-- Absolute targets are restricted to HTTPS `api.github.com`; relative `/...` API paths are allowed.
-- Pagination refuses protocol-relative URLs, credentials in URLs, fragments, external hosts, non-HTTPS targets, and noncanonical ports.
-- Pagination iteration detects repeated next links and enforces `GITHUB_MAX_PAGES`.
-- Redirects are not automatically followed.
-- Error translation produces stable GitDock categories and does not copy raw GitHub response bodies into exceptions.
-- Rate-limit headers are parsed into a dedicated model.
-- GET/HEAD retry bounded transient failures by default; non-read methods default to no retry.
-- Explicit retry for a non-read operation requires a higher layer to opt into `RetryMode.SAFE` after establishing retry/idempotency safety.
+- outbound request construction owned centrally;
+- typed parser boundaries;
+- `GitHubResponse[T]` / `GitHubPage[T]` safe status/request/rate/pagination metadata;
+- GitHub media type, API version `2026-03-10`, and `GitDock/0.1` User-Agent centralized;
+- `SecretStr` bearer material only materialized at outbound request boundary;
+- absolute REST targets restricted to HTTPS `api.github.com`;
+- hostile pagination targets rejected;
+- repeated-link/page-limit guards;
+- redirects not followed automatically;
+- stable error categories without raw body echo;
+- typed rate-limit metadata;
+- bounded GET/HEAD retry; write-like methods no retry by default unless a higher-level use case explicitly establishes safe replay semantics.
 
-P2.3 adds endpoint-specific typed repository parsing/list/detail on top of this transport. It does **not** introduce a parallel HTTP client.
+P2.3 and P3.1 add endpoint-specific repository/search parsing on top of the transport. P3.2 extends the existing authentication client for authenticated `/user` identity and OAuth refresh-token grants; this is not a parallel general-purpose GitHub HTTP stack.
 
 ### Persistence
 
-Stores GitDock state/preferences/audit/inbox and narrowly justified cache/context. GitHub remains source of truth for GitHub resources; do not build a shadow GitHub database unnecessarily.
+Stores GitDock identity/auth state, preferences, audit/inbox state, operation/confirmation state, and narrowly justified cache/context. GitHub remains source of truth for GitHub resources.
 
 ## 6. Authentication flows
 
@@ -174,60 +178,121 @@ Stores GitDock state/preferences/audit/inbox and narrowly justified cache/contex
 - Middleware rejects/ignores unauthorized users before sensitive routing.
 - Future multi-user support replaces this boundary policy without changing core services.
 
-### GitHub App installation
+### GitHub App installation binding
 
-1. Create a short-lived setup session bound to Telegram/GitDock user.
+1. Create short-lived setup state bound to GitDock user.
 2. User installs/authorizes GitHub App.
 3. Treat returned `installation_id` only as untrusted candidate data.
-4. Perform authenticated user authorization with one-time state + PKCE.
+4. Perform authenticated GitHub user authorization with fresh one-time state + PKCE.
 5. Resolve installation under App context and authenticated-user context.
-6. Bind only after account/installation identities match and installation is not suspended.
+6. Bind only after installation/account identities match and installation is not suspended.
 
-P2.3 wires this existing P2.1 flow into actual Telegram and FastAPI routes. The setup callback continues to OAuth and the OAuth callback completes the same dual-context verification; UI wiring does not weaken the binding invariant.
+P2.3 wires this P2.1 flow into Telegram/FastAPI. P3.2 does not weaken or replace the dual-context binding rule.
 
-### GitHub user authorization
+### Durable GitHub user authorization — P3.2
 
-- cryptographically random short-lived state;
-- server-side one-time validation;
-- PKCE S256;
-- server-side code exchange;
-- encrypted persistence only when durable user context is genuinely required;
-- token values never sent to Telegram.
+P3.2 turns the previously available encrypted credential abstraction into a complete durable lifecycle for later features that genuinely require user context.
+
+Flow:
+
+1. Begin `USER_AUTHORIZATION` through the existing DB-backed state service.
+2. Generate PKCE S256 challenge/verifier using the existing implementation.
+3. User authorizes through GitHub.
+4. OAuth callback atomically consumes the expected one-time state and decrypts its PKCE verifier.
+5. Exchange code server-side.
+6. Resolve authenticated identity through `GET /user` using the returned user access token.
+7. Bind that GitHub user identity to the intended GitDock user, rejecting cross-user identity conflicts.
+8. Persist access/refresh credentials only through the versioned encrypted credential store.
+9. Store expiry metadata separately and increment `credential_generation`.
+
+Standalone reauthorization uses this flow directly and does not reinstall or rebind the GitHub App installation unless the flow actually contains an installation-binding candidate.
+
+### Expiry-aware refresh — P3.2
+
+- Load one active durable user authorization for the GitDock user.
+- Decrypt credentials only inside the credential service boundary.
+- If access token remains valid beyond the refresh margin, reuse it.
+- If refresh is required, snapshot account ID + `credential_generation` before network I/O.
+- Exchange the refresh token using GitHub's refresh-token grant.
+- Treat the returned refresh token as the rotated replacement.
+- Re-open a transaction and persist the rotated pair only if account/user/generation/authorization state still match the snapshot.
+- If reauthorization/disconnect changed generation while the network request was in flight, fail closed instead of overwriting newer state.
 
 ## 7. GitHub permission/capability model
 
-Permission strings are centralized, not scattered in handlers. Capabilities map to required GitHub App permissions and token context, allowing services to distinguish available, missing app permission, user/repository authority failure, installation exclusion, and invalid resource state.
+Permission strings remain centralized, not scattered in handlers. Capabilities map to required GitHub App permissions and token context.
 
-P2.3 is Tier 0 read-only. Repository list/detail uses repository metadata/read capability and does not request repository write/admin permission.
+P2.3/P3.1 are Tier 0 read-only. P3.2 adds durable **user context**, not a broad repository administration permission. Repository-create/settings/delete permissions remain P3.3 work and must be enabled deliberately through the central capability model.
 
 ## 8. Database model baseline
 
-Core models include users/Telegram identities, GitHub accounts/installations, minimal repository cache/preferences, webhook delivery/event work state, pending confirmations, durable high-impact operation sessions, and append-oriented audit records.
+Core persisted concepts include:
+
+- GitDock users/Telegram identities;
+- GitHub accounts/installations;
+- durable GitHub OAuth state;
+- minimal repository cache/preferences;
+- `pending_confirmations`;
+- future durable high-impact operation sessions;
+- webhook delivery/event state;
+- append-oriented audit records.
 
 GitHub resource state remains authoritative remotely.
 
 ### P2.3 `repositories_cache`
 
-Alembic migration `0003` adds the minimal repository cache needed for compact Telegram repository selection/navigation.
+Migration `0003` adds minimal repository cache for compact Telegram navigation. It is user/installation-scoped, contains safe non-secret metadata only, is synchronized from GitHub, prunes removed repositories, and never grants authority by itself. Repository detail re-fetches GitHub before render.
 
-Architecture invariants:
+### P3.2 authorization lifecycle persistence
 
-- cache rows are scoped to a GitDock user and bound GitHub installation;
-- stable GitHub repository ID is the callback-resolution identifier;
-- only safe non-secret repository metadata/context is cached;
-- repository names are not required inside callback payloads;
-- cache is synchronized from GitHub installation repository reads;
-- repositories removed from the installation are pruned on refresh;
-- a detail lookup first validates local user/installation context, then re-fetches GitHub before rendering;
-- a GitHub not-found/inaccessible result invalidates stale callback cache state;
-- cache never stores tokens/OAuth/PKCE/private keys and never grants authority by itself.
+Migration `0004_user_auth` adds the durable P3.2 state needed for concurrency-safe credentials and confirmations.
 
-This is an implementation of D-013 and D-017, not an exception to them.
+Architectural rules:
 
-## 9. Webhook ingestion pipeline
+- GitHub account credential ciphertext remains in the dedicated credential fields/model, not in callback/cache tables;
+- `credential_generation` versions the credential lifecycle and changes on persist/clear;
+- `pending_confirmations` stores opaque token digest, user, operation, target fingerprint, safe payload metadata, risk tier, expiry, consumed state, and timestamps;
+- confirmation payload/fingerprint may contain stable IDs and preconditions but no access/refresh tokens, OAuth code/state, PKCE verifier, private key, or client secret;
+- sensitive execution reloads current DB state and compares preconditions before mutation.
+
+The first attempted migration revision label was longer than Alembic's default 32-character version column. The stable revision ID is intentionally short: `0004_user_auth`.
+
+## 9. Confirmation architecture — P3.2 foundation
+
+A Telegram callback is transport, not durable authorization.
+
+For P3.2 local disconnect:
+
+1. server loads current active user authorization and installation set;
+2. creates a short-lived opaque confirmation and stores only its digest;
+3. target fingerprint binds account ID/GitHub user ID/credential generation/current installation IDs;
+4. Telegram receives only the opaque confirmation token in compact callback data;
+5. confirm atomically consumes server-side confirmation state;
+6. service reloads account + installation preconditions;
+7. stale/reused/cancelled/invalid state exits without deletion;
+8. only a matching confirmation clears local credential/binding/cache/pending state once.
+
+Home explicitly consumes pending disconnect confirmations so abandoned old messages cannot retain active destructive authority.
+
+This same generic confirmation storage is intended for later sensitive use cases, but operation-specific risk/preconditions still belong in their service/domain logic.
+
+## 10. Exact P3.2 disconnect boundary
+
+Local disconnect means **GitDock-local** cleanup:
+
+- encrypted GitHub user credentials cleared;
+- GitDock installation binding rows deleted;
+- local repository navigation cache deleted;
+- relevant unconsumed local OAuth/confirmation state invalidated.
+
+It does not call GitHub to uninstall the App and does not represent itself as remote revocation. Installation state on GitHub remains GitHub's responsibility until a future explicitly designed remote-uninstall feature exists.
+
+Legacy P2.3 installation-only state is valid input to local disconnect even when no durable UAT exists.
+
+## 11. Webhook ingestion pipeline
 
 1. Read raw bytes.
-2. Verify `X-Hub-Signature-256` using constant-time HMAC-SHA256 comparison.
+2. Verify `X-Hub-Signature-256` with constant-time HMAC-SHA256 comparison.
 3. Read event/delivery identifiers.
 4. Validate supported envelope.
 5. Insert delivery idempotently.
@@ -239,100 +304,82 @@ This is an implementation of D-013 and D-017, not an exception to them.
 
 Duplicate delivery IDs must not create duplicate user-visible notifications.
 
-## 10. Canonical notification event model
+## 12. Canonical notification event model
 
-Renderers consume normalized event values such as delivery/event type/action/repository/actor/target/title/summary/url/time/severity rather than every raw GitHub webhook shape.
+Renderers consume normalized delivery/event/action/repository/actor/target/title/summary/url/time/severity values rather than arbitrary raw webhook structures.
 
-## 11. File operations
+## 13. File operations
 
 For a single-file update: fetch current SHA, collect replacement, show path/branch/diff summary, persist confirmation with expected SHA, and write only if precondition remains valid. Stale remote state stops the write and requires refresh/review.
 
-## 12. ZIP/project synchronization architecture
+## 14. ZIP/project synchronization architecture
 
 Uploads use isolated temporary workspaces, member pre-scan, traversal/link/file-count/depth/uncompressed-size guards, and secret-like warnings before any repository write.
 
-A persisted immutable `SyncPlan` records base commit, target strategy, added/modified/deleted/unchanged/binary/large/excluded files, warnings, and statistics. If the base changes before apply, re-plan.
+A persisted immutable `SyncPlan` records base commit, target strategy, added/modified/deleted/unchanged/binary/large/excluded files, warnings, and statistics. If base changes before apply, re-plan.
 
 Apply prefers Git tree/commit primitives for one coherent change, normally on a review branch followed by optional PR. Direct default-branch application is a Tier 2 exception.
 
-## 13. Clone/setup/run inference
+## 15. Clone/setup/run inference
 
 Never execute repository instructions automatically. Detect project metadata, construct commands from trusted templates, quote values per OS, label confidence/source, and treat README/script content as untrusted text.
 
-## 14. Search architecture
+## 16. Search architecture
 
-REST Search API is sufficient for core discovery; GraphQL is introduced only where it materially improves a use case. Normalize results to GitDock models and avoid long-lived shadow search state.
+REST Search API is sufficient for core discovery; GraphQL is introduced only where it materially improves a use case. Public search results remain outside installed-repository authorization/cache context unless installation relationship is independently established.
 
-P3.1 search may reuse repository detail/read model concepts where appropriate, but public search results must not be inserted into the installed-repository callback cache as if they belonged to an installation unless that relationship is independently established.
+## 17. Error model
 
-## 15. Error model
+Transport categories include authentication, missing permission, not found/inaccessible, conflict/precondition, validation, rate limited, transient, and unexpected GitHub/shape failure.
 
-P2.2 establishes transport categories:
+Higher layers may add domain context but must not replace safe categories with raw HTTP bodies or stack traces in Telegram. P3.2 user-authorization UI maps reauthorization/stale/invalid local confirmation states without echoing token/auth bodies.
 
-- authentication required;
-- missing permission;
-- not found/inaccessible;
-- conflict/precondition failure;
-- validation rejection;
-- rate limited;
-- transient failure;
-- unexpected GitHub/shape failure.
+## 18. Rate limits and retries
 
-Higher layers may add domain-specific context, but must not replace these with raw HTTP bodies or stack traces in Telegram.
+- Parse GitHub rate-limit metadata and `Retry-After`.
+- GET/HEAD use bounded exponential backoff + jitter for configured transient classes.
+- Limits are centralized.
+- Do not blindly retry writes/destructive operations.
+- A non-read operation may opt into retry only after higher-level semantics establish safe replay.
+- Rate-limit responses remain distinct from ordinary permission denial.
 
-P2.3 repository renderers map these stable categories to short Arabic user-facing states and include a separate stale-selection state without exposing upstream body content.
+OAuth refresh itself is protected from stale persistence through credential-generation comparison; the service does not use blind application-level replay to hide uncertain credential rotation.
 
-Transport errors may expose only safe metadata such as status code, GitHub request ID, and parsed rate-limit state.
+## 19. Observability
 
-## 16. Rate limits and retries
+Use safe correlation context such as Telegram update/user ID, GitHub delivery/request ID, operation ID, and repository identifier. Structured logging redacts authorization headers, tokens, secrets, OAuth codes/state, PKCE material, and private keys. Raw GitHub auth/error bodies are not normal log/error payloads.
 
-- Parse GitHub rate-limit resource/limit/remaining/used/reset and `Retry-After`.
-- GET/HEAD use bounded exponential backoff + jitter for network/timeouts and HTTP 408/500/502/503/504.
-- Maximum retry count/base/max delay are centralized constants.
-- Do not blindly retry write-like or destructive operations.
-- A non-read operation can opt into retry only after the endpoint/use case is explicitly classified safe/idempotent by its higher-level service.
-- Rate-limit responses are translated distinctly from ordinary 403 permission failures.
-
-## 17. Observability
-
-Use correlation context such as Telegram update/user ID, GitHub delivery/request ID, operation ID, and repository identifier where safe. Structured logging redacts authorization headers, tokens, secrets, OAuth codes, PKCE material, and private keys. Raw GitHub error bodies are not normal log/error payloads.
-
-## 18. Dependency direction rule
+## 20. Dependency direction rule
 
 ```text
 telegram -> services -> domain
-                    -> github gateway
+                    -> github gateway/auth
                     -> persistence
-http setup/oauth -> connection/auth services -> github gateway/auth client
+http setup/oauth -> connection/auth services -> github auth/binding
 webhook ingress -> domain normalization -> services/notification
 ```
 
-Domain must not import Telegram or concrete HTTP clients. Endpoint-specific GitHub services/gateways depend on the P2.2 REST transport rather than bypass it.
+Domain must not import Telegram or concrete HTTP clients. Ordinary endpoint-specific GitHub services depend on canonical transport rather than bypass it.
 
-## 19. Verified contract/integration progression
+## 21. Verified contract/integration progression
 
-P2.2 CI `33406986504` verified the transport with 49 tests.
+- P2.2: 49-test verified transport foundation.
+- P2.3: 65-test verified repository-read implementation and PostgreSQL migration chain.
+- P3.1: 83-test verified public-search implementation and full governance closeout.
+- P3.2 pre-merge complete implementation head `5068b58ec41fb5ac417408d3a535bbb5d66207fc`: CI `33515291600` green with **97 tests** on Python 3.12/3.13 plus PostgreSQL 17 migration upgrade/downgrade/re-upgrade and all configured audit/secret/lock gates.
 
-P2.3 verification chain:
+P3.2 is not recorded as merged until its non-draft PR and post-merge `main` CI actually complete.
 
-- implementation-head CI `33423169021` — green;
-- documentation-synchronized branch-head CI `33424505117` — green;
-- PR #8 CI `33424652835` — green;
-- squash merge commit `939d218d76fd87f3ba6cf0a80a89b4a816aac557`;
-- post-merge `main` CI `33424799759` — green.
+## 22. Known non-blocking maintenance warnings
 
-P2.3 is Definition-of-Done complete with **65 tests** on Python 3.12 and Python 3.13 plus PostgreSQL 17 migration upgrade/downgrade/re-upgrade. Coverage includes repository REST parsing/list/detail, owner identity resolution, repository list/filter/cache synchronization, compact repository selection scoped to current user/installation, stale repository pruning, disconnected home state, setup/OAuth FastAPI routes, callback size/round-trip/long-name safety, and Arabic home/list/detail renderers.
+Green P3.2 CI reports:
 
-## 20. Known non-blocking maintenance warnings
-
-Green P2.3 CI reports:
-
-- Starlette/FastAPI `TestClient` deprecation warning for the current `httpx` integration/future `httpx2` direction;
+- Starlette/FastAPI `TestClient` deprecation warning for current `httpx` integration/future `httpx2` direction;
 - Alembic deprecation warning because `alembic.ini` does not explicitly configure `path_separator` for `prepend_sys_path`.
 
 These are tracked maintenance debt, not hidden test failures.
 
-## 21. Source references for security/auth assumptions
+## 23. Source references for security/auth assumptions
 
 - GitHub App permissions: https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app
 - Installation authentication: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation

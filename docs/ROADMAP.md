@@ -4,10 +4,10 @@ Status legend:
 
 - [ ] not started
 - [~] in progress
-- [x] verified complete
+- [x] verified implementation/acceptance item
 - `[BLOCKED]` blocked with reason in `docs/CURRENT_STATUS.md`
 
-Do not mark a phase complete merely because code exists. Its acceptance criteria must be verified.
+Do not mark a phase complete merely because code exists. Its acceptance criteria and required merge/governance verification must pass.
 
 ---
 
@@ -41,22 +41,22 @@ Acceptance:
 
 ## P1 — Project skeleton & quality gates ✅
 
-Verified by GitHub Actions run `33344826152` after committed PEP 751 lock verification was enabled.
+Verified by the P1 PR/main CI chain and committed PEP 751 lock verification.
 
 ### P1.1 Application skeleton
 
-- [x] Python package layout created according to architecture boundaries.
-- [x] Python version policy selected and documented; CI verifies 3.12 and 3.13.
-- [x] Dependency manager/lock strategy selected: exact direct pins + PEP 751 per-Python Linux runtime locks.
+- [x] Python package layout according to architecture boundaries.
+- [x] Python version policy; CI verifies 3.12 and 3.13.
+- [x] exact direct pins + PEP 751 per-Python Linux runtime locks.
 - [x] typed settings/config module.
-- [x] `.env.example` with placeholders only.
-- [x] `.gitignore` covers venv/cache/log/db/temp/secret artifacts.
+- [x] `.env.example` placeholders only.
+- [x] `.gitignore` for venv/cache/log/db/temp/secret artifacts.
 - [x] structured logging baseline with redaction hooks.
 
 ### P1.2 HTTP/bot bootstrap
 
 - [x] FastAPI application boots under integration tests.
-- [x] `/health` endpoint.
+- [x] `/health`.
 - [x] readiness endpoint/check structure.
 - [x] aiogram bot/router bootstrap.
 - [x] development polling mode.
@@ -69,29 +69,28 @@ Verified by GitHub Actions run `33344826152` after committed PEP 751 lock verifi
 - [x] PostgreSQL production configuration.
 - [x] Alembic initialized.
 - [x] initial identity/account tables.
-- [x] migration test from empty DB and upgrade/downgrade/re-upgrade on PostgreSQL 17.
+- [x] migration bootstrap and PostgreSQL upgrade/downgrade/re-upgrade verification.
 
 ### P1.4 Quality gates
 
-- [x] formatter configured and green.
-- [x] linter configured and green.
-- [x] type checker configured and green.
-- [x] unit test harness.
-- [x] async/integration test harness.
-- [x] secret scan configured and green.
-- [x] dependency/security check selected and green.
-- [x] CI workflow configured with Python 3.12/3.13 + PostgreSQL migration job.
-- [x] exact check commands written into `docs/BUILD_PROTOCOL.md`.
-- [x] PEP 751 runtime lock regeneration/drift checks green for Python 3.12 and 3.13 Linux.
+- [x] formatter.
+- [x] linter.
+- [x] type checker.
+- [x] unit/async/integration harnesses.
+- [x] secret scan.
+- [x] dependency/security audit.
+- [x] Python 3.12/3.13 CI + PostgreSQL migration job.
+- [x] exact check commands documented.
+- [x] PEP 751 lock regeneration/drift checks.
 
 Acceptance:
 
-- [x] fresh clone can be configured without real secrets committed;
-- [x] app starts under the full pinned dependency set used by CI;
-- [x] health endpoint passes under the full suite;
-- [x] unauthorized Telegram user is blocked/ignored under the full suite;
+- [x] fresh clone configurable without committed real secrets;
+- [x] app starts under pinned dependencies;
+- [x] health passes;
+- [x] unauthorized Telegram user blocked/ignored;
 - [x] DB migration/bootstrap works on PostgreSQL CI;
-- [x] all configured quality gates green.
+- [x] configured quality gates green.
 
 ---
 
@@ -99,60 +98,59 @@ Acceptance:
 
 ### P2.1 GitHub App auth foundation ✅
 
-Squash-merged through PR #5 as `81dfaf406d046205b39980d6a64c681ea3ab18c6`; post-merge `main` CI run `33348851085` passed.
+Squash-merged through PR #5 as `81dfaf406d046205b39980d6a64c681ea3ab18c6`; post-merge `main` CI `33348851085` passed.
 
 - [x] GitHub App configuration model.
-- [x] JWT generation for app authentication.
+- [x] JWT generation for App authentication.
 - [x] installation discovery/binding.
 - [x] installation access-token provider with expiry-aware refresh.
 - [x] user authorization state model/callback scaffold.
 - [x] encrypted token persistence abstraction.
 - [x] central capability/permission mapper.
-
-P2.1 additionally verifies restart-safe hashed one-time state, PKCE S256 with encrypted verifier storage, and dual app/user-context installation identity verification before binding.
+- [x] restart-safe hashed one-time OAuth state.
+- [x] PKCE S256 with encrypted verifier storage.
+- [x] dual App/user-context installation identity verification before binding.
 
 ### P2.2 GitHub gateway foundation ✅
 
-Squash-merged through PR #7 into `main` as `4bffdcc8322857aaa16e94aaafe8b5a9d52e69c2`; post-merge `main` CI run `33409825480` passed.
+Squash-merged through PR #7 as `4bffdcc8322857aaa16e94aaafe8b5a9d52e69c2`; post-merge `main` CI `33409825480` passed.
 
 - [x] typed REST client wrapper.
-- [x] pagination helper with canonical GitHub API URL validation, loop guard, and page limit.
-- [x] standard safe error translation without raw response-body leakage.
+- [x] canonical-host pagination helper with loop/page limits.
+- [x] stable safe error translation without raw response-body leakage.
 - [x] rate-limit capture/model.
-- [x] bounded retry policy for safe transient requests; write-like methods do not retry by default.
-- [x] HTTPX MockTransport contract test doubles/fixtures.
-
-P2.2 contract coverage includes canonical headers, parser boundaries, list/keyed pagination, malicious pagination target rejection, authentication/permission/not-found/conflict/validation/rate-limit categories, request/rate metadata, safe GET retry, and default no-write-retry behavior.
+- [x] bounded retry for safe transient reads; write-like methods no retry by default.
+- [x] HTTPX MockTransport contract doubles/fixtures.
 
 ### P2.3 Home + repository read screens ✅
 
-Squash-merged through non-draft PR #8 into `main` as `939d218d76fd87f3ba6cf0a80a89b4a816aac557`; post-merge `main` CI run `33424799759` passed.
+Squash-merged through PR #8 as `939d218d76fd87f3ba6cf0a80a89b4a816aac557`; post-merge `main` CI `33424799759` passed. Governance closeout PR #9 merged as `ac8230eb1f8b7099979c55e767d9f6d14e0118a7`; post-closeout `main` CI `33444410513` passed.
 
 - [x] GitHub connection screen and runtime setup/OAuth callback wiring.
 - [x] Home status screen.
 - [x] installed repository list.
 - [x] stable application pagination.
-- [x] repository filters: all/private/public/active/archived/source/fork.
+- [x] filters: all/private/public/active/archived/source/fork.
 - [x] repository dashboard metadata.
 - [x] refresh, empty, stale-selection, and mapped GitHub error states.
 - [x] compact versioned repository callbacks resolved server-side.
-- [x] minimal non-authoritative `repositories_cache` + Alembic migration `0003`.
+- [x] minimal non-authoritative `repositories_cache` + migration `0003`.
 - [x] repository details revalidated from GitHub before render.
-- [x] read-only Telegram renderers/keyboards/handlers with thin handler boundary.
-- [x] contract/integration/unit coverage expanding the suite from 49 to 65 tests.
-- [x] documentation-head CI + non-draft PR + squash merge + post-merge `main` verification.
+- [x] thin read-only Telegram handlers/renderers/keyboards.
+- [x] 65-test verified suite at P2.3.
+- [x] documentation/PR/merge/main/governance closeout verification.
 
 Acceptance:
 
-- [x] owner can start the safe GitHub App installation/user-authorization flow from Telegram;
-- [x] setup `installation_id` still passes through P2.1 dual-context verification before binding;
-- [x] GitDock lists repositories returned for the bound installation(s);
-- [x] compact repository callbacks are scoped to the GitDock user and active installation context;
-- [x] repository detail is refreshed from GitHub before display rather than trusting cache as authority;
-- [x] tokens/OAuth/PKCE/private keys/raw GitHub error bodies are not exposed through Telegram repository screens/cache;
-- [x] rate/auth/permission/not-found/transient classes have safe renderer paths;
-- [x] no repository write/admin permission is required for the read-only flow;
-- [x] merge/post-merge governance closeout completed and verified.
+- [x] owner can start safe GitHub App installation/user-authorization flow from Telegram;
+- [x] setup `installation_id` still passes dual-context verification;
+- [x] GitDock lists repositories returned for bound installation(s);
+- [x] callbacks are scoped to GitDock user/current installation context;
+- [x] repository detail refreshes from GitHub rather than trusting cache;
+- [x] token/OAuth/PKCE/private-key/raw-error material is absent from Telegram repository screens/cache;
+- [x] stable auth/permission/not-found/rate/transient/stale renderer paths;
+- [x] no repository write/admin permission required;
+- [x] governance closeout completed.
 
 ---
 
@@ -160,35 +158,63 @@ Acceptance:
 
 ### P3.1 GitHub search ✅
 
-Verified delivery chain:
+Verification chain:
 
-- implementation head `4a4f00d50e886ab494e2a83f2c649cd64b7398b2` — CI `33453960817` green;
-- documentation-synchronized feature head `14e149ea307871abd8406ffc6212fe062ead9098` — branch CI `33454438202` green;
-- non-draft PR #10 — PR CI `33454524953` green and mergeable on unchanged head;
+- implementation CI `33453960817` green;
+- documentation-head CI `33454438202` green;
+- PR #10 CI `33454524953` green;
 - squash merge `d822338fcc1546418ed2100cc9534cdc71a6bcbe`;
-- post-merge `main` CI `33454619065` green.
+- post-feature `main` CI `33454619065` green;
+- governance closeout PR #11 merge `ef2c5f618102063df8166f84b4828243f5efb5c6`;
+- post-closeout `main` CI `33454972020` green.
 
 - [x] repository search query flow.
 - [x] stars/forks/language/license/updated metadata.
 - [x] sort by stars/update.
 - [x] language/min-stars/owner/topic/archive filters.
 - [x] result pagination.
-- [x] repository detail from active search result context with GitHub re-fetch.
+- [x] detail from active search context followed by GitHub re-fetch.
 - [x] compact session-scoped callbacks and stale-session rejection.
-- [x] public/anonymous search works without a bound installation.
-- [x] public search state remains separate from installed `repositories_cache`.
+- [x] public/anonymous search without bound installation.
+- [x] public search state separated from installed `repositories_cache`.
 - [x] `/start` and Home clear transient search FSM state.
-- [x] 83-test branch/PR/main verification across Python 3.12/3.13 plus PostgreSQL and all configured quality/security gates.
-- [x] download-command entry point is present as a safe placeholder only; actual clone/setup/run command generation is intentionally deferred to P4.3.
+- [x] 83-test verified suite at P3.1.
+- [x] download-command entry point remains placeholder; actual generation deferred to P4.3.
 
-P3.1 remains Tier 0 read-only and introduces no repository write/admin permission.
+P3.1 is Tier 0 read-only and introduces no repository write/admin permission.
 
-### P3.2 User-context authorization
+### P3.2 User-context authorization — implementation verified, merge pending
 
-- [ ] GitHub App user authorization completed for durable user-context features that genuinely require it.
-- [ ] one-time state validation reused through the established auth foundation.
-- [ ] encrypted token storage/refresh behavior as applicable.
-- [ ] disconnect/revoke local binding flow.
+Pre-merge implementation head before documentation synchronization: `5068b58ec41fb5ac417408d3a535bbb5d66207fc`, branch CI `33515291600` green with **97 tests** on Python 3.12/3.13 plus PostgreSQL 17 migration round trip and all configured quality/security/lock gates.
+
+- [x] authenticated GitHub `/user` identity resolution for durable user context.
+- [x] standalone GitHub App user authorization for durable user-context features that genuinely require it.
+- [x] established P2.1 one-time OAuth state validation reused; no second state system.
+- [x] existing PKCE S256 lifecycle reused.
+- [x] existing versioned encrypted credential store reused.
+- [x] access/refresh expiry metadata preserved.
+- [x] expiry-aware refresh implemented.
+- [x] rotating refresh token replacement implemented.
+- [x] `credential_generation` prevents stale refresh from overwriting reconnect/disconnect state.
+- [x] durable DB-backed `pending_confirmations` introduced for one-time sensitive confirmations.
+- [x] local-disconnect target fingerprint binds account identity, credential generation, and current installation IDs.
+- [x] expired/invalid/reused/cancelled disconnect confirmation fails closed.
+- [x] stale confirmation after reauthorization fails closed.
+- [x] stale confirmation after installation-set change fails closed.
+- [x] Home invalidates outstanding disconnect confirmations.
+- [x] local disconnect clears encrypted GitDock credentials, local installation bindings, local repository cache, and relevant pending local state.
+- [x] local disconnect explicitly does **not** claim or perform remote GitHub App uninstall/revocation.
+- [x] legacy P2.3 installation-only state can be disconnected safely.
+- [x] connected Home exposes `👤 حساب GitHub`.
+- [x] Arabic account UI exposes authorization state, activate/re-authorize, refresh, and isolated local-disconnect confirmation.
+- [x] callbacks stay compact and within Telegram callback-data limits.
+- [x] Telegram handlers remain thin; auth/token/encryption/confirmation rules stay in services.
+- [x] migration `0004_user_auth` passes PostgreSQL upgrade/downgrade/re-upgrade.
+- [x] no runtime dependency or PEP 751 lock drift.
+- [x] no new repository write/admin feature or broad permission introduced by P3.2.
+- [~] documentation-synchronized final-head CI, non-draft PR, squash merge, post-merge `main` CI, and governance closeout.
+
+P3.2 is not marked ✅ until the final merge/main/governance verification chain is complete.
 
 ### P3.3 Repository create/settings
 
@@ -202,7 +228,8 @@ P3.1 remains Tier 0 read-only and introduces no repository write/admin permissio
 
 Acceptance:
 
-- [x] P3.1 search is useful without GitDock owning/installing the repository and preserves installed-vs-public provenance;
+- [x] P3.1 search remains useful without GitDock owning/installing the repository and preserves installed-vs-public provenance;
+- [x] P3.2 provides verified durable user context and stale-safe local disconnect semantics before repository-administration work begins;
 - [ ] repository creation uses correct user context/permission;
 - [ ] dangerous settings never execute from one tap;
 - [ ] deletion tests cover expired/reused/wrong-name/permission-failure cases.
@@ -235,7 +262,7 @@ Acceptance:
 
 - [ ] fresh clone commands.
 - [ ] update-existing-clone commands.
-- [ ] project detector for Python/Node/Docker/Gradle/Maven baseline.
+- [ ] detector for Python/Node/Docker/Gradle/Maven baseline.
 - [ ] Windows PowerShell commands.
 - [ ] Linux commands.
 - [ ] macOS commands.
@@ -320,9 +347,9 @@ Acceptance:
 
 Acceptance:
 
-- common issue/PR tasks are possible from Telegram;
+- common issue/PR tasks possible from Telegram;
 - merge cannot happen without explicit target preview/confirmation;
-- failing/pending CI state is shown, not hidden;
+- failing/pending CI state shown, not hidden;
 - all writes audited.
 
 ---
@@ -452,4 +479,4 @@ Candidates:
 
 ## Roadmap rule
 
-When priorities change, do not erase old intent silently. Update this file and add a decision entry explaining the change if it materially affects architecture/product scope.
+When priorities change, do not erase old intent silently. Update this file and add a decision entry if the change materially affects architecture/product scope.
