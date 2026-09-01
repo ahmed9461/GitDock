@@ -158,9 +158,15 @@ Acceptance:
 
 ## P3 — Search & repository administration
 
-### P3.1 GitHub search — implementation verified; merge closeout pending
+### P3.1 GitHub search ✅
 
-Implementation head `4a4f00d50e886ab494e2a83f2c649cd64b7398b2` passed CI `33453960817` with 83 tests on Python 3.12/3.13 plus PostgreSQL and all configured quality/security gates. Final `[x] verified complete` milestone status still requires the non-draft PR, squash merge, post-merge `main` CI, and governance closeout described in `docs/CURRENT_STATUS.md`.
+Verified delivery chain:
+
+- implementation head `4a4f00d50e886ab494e2a83f2c649cd64b7398b2` — CI `33453960817` green;
+- documentation-synchronized feature head `14e149ea307871abd8406ffc6212fe062ead9098` — branch CI `33454438202` green;
+- non-draft PR #10 — PR CI `33454524953` green and mergeable on unchanged head;
+- squash merge `d822338fcc1546418ed2100cc9534cdc71a6bcbe`;
+- post-merge `main` CI `33454619065` green.
 
 - [x] repository search query flow.
 - [x] stars/forks/language/license/updated metadata.
@@ -171,7 +177,8 @@ Implementation head `4a4f00d50e886ab494e2a83f2c649cd64b7398b2` passed CI `334539
 - [x] compact session-scoped callbacks and stale-session rejection.
 - [x] public/anonymous search works without a bound installation.
 - [x] public search state remains separate from installed `repositories_cache`.
-- [x] Home clears transient search FSM state.
+- [x] `/start` and Home clear transient search FSM state.
+- [x] 83-test branch/PR/main verification across Python 3.12/3.13 plus PostgreSQL and all configured quality/security gates.
 - [x] download-command entry point is present as a safe placeholder only; actual clone/setup/run command generation is intentionally deferred to P4.3.
 
 P3.1 remains Tier 0 read-only and introduces no repository write/admin permission.
@@ -195,10 +202,10 @@ P3.1 remains Tier 0 read-only and introduces no repository write/admin permissio
 
 Acceptance:
 
-- search is useful without GitDock owning a repo;
-- repository creation uses correct user context/permission;
-- dangerous settings never execute from one tap;
-- deletion tests cover expired/reused/wrong-name/permission-failure cases.
+- [x] P3.1 search is useful without GitDock owning/installing the repository and preserves installed-vs-public provenance;
+- [ ] repository creation uses correct user context/permission;
+- [ ] dangerous settings never execute from one tap;
+- [ ] deletion tests cover expired/reused/wrong-name/permission-failure cases.
 
 ---
 
