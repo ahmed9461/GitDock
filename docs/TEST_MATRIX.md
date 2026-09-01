@@ -1,492 +1,407 @@
 # GitDock — Test Matrix
 
-Status: authoritative quality expectations. Concrete tool commands are finalized in P1.
+Status: authoritative quality expectations, updated through P3.2 pre-merge verification.
 
-P3.1 implementation verification reference: GitHub Actions run `33453960817` passed the current suite on Python 3.12, Python 3.13, and the PostgreSQL 17 migration job. The suite now contains **83 tests**. P3.1 adds public repository-search REST contracts, query/filter/service validation, search UI/callback coverage, active-session context isolation, and transient-navigation-state coverage on top of the P2.3 suite. Checkmarks below remain conservative: a box is marked only where the current suite directly exercises that requirement.
+P3.2 implementation reference: branch head before documentation synchronization `5068b58ec41fb5ac417408d3a535bbb5d66207fc`, GitHub Actions run `33515291600` fully green on Python 3.12, Python 3.13, and PostgreSQL 17. The suite contains **97 tests**. Checkmarks remain conservative: they indicate direct current coverage, not merely intended behavior.
 
 ## 1. Test layers
 
 ### Unit
 
-Fast, no real network, normally no real database unless the unit is persistence-specific.
-
-Targets:
-
-- domain rules;
-- risk classification;
-- callback encoding/decoding;
-- renderers;
-- keyboard builders;
-- input/path validation;
-- archive safety primitives;
-- sync plan calculation;
-- permission/capability mapping;
-- error translation;
-- command generation templates.
+Fast tests for domain rules, risk/confirmation rules, callback encoding/decoding, renderers/keyboards, input/path validation, permission mapping, safe error translation, credential encryption helpers, and command-generation templates.
 
 ### Integration
 
-Exercise boundaries together using controlled infrastructure/fixtures:
-
-- SQLAlchemy repositories + test DB;
-- Alembic migrations;
-- FastAPI routes;
-- aiogram handler/service wiring;
-- DB-backed confirmation lifecycle;
-- DB-backed webhook inbox/worker;
-- filesystem temporary workspace behavior.
+Controlled boundary tests for SQLAlchemy + test DB, Alembic, FastAPI routes, aiogram service wiring, DB-backed OAuth/confirmation lifecycle, repository services/cache, and later webhook/workspace persistence.
 
 ### GitHub contract/mock integration
 
-No dependence on a live mutable GitHub account for the normal suite.
-
-Use recorded/constructed GitHub API fixtures or mock HTTP transport to verify:
-
-- request method/path/body/headers;
-- pagination;
-- token-context selection;
-- permission failures;
-- rate-limit responses;
-- validation errors;
-- stale SHA/conflict responses;
-- retry-safe transient errors;
-- uncertain write outcomes where relevant.
+Use constructed responses/MockTransport rather than a live mutable account for normal CI. Verify method/path/headers/body, parsing, pagination, token context, permissions, rate limits, validation failures, retry policy, and safe error handling.
 
 ### Live smoke
 
-Manual/controlled tests against a dedicated GitHub test repository and test bot/account. Required before production release for high-risk API behavior, but not on every unit CI run.
-
-Never use an important production repository as the first destructive test target.
+Manual/controlled tests against dedicated GitHub test resources before production use of high-risk behaviors. Never use an important production repository as the first destructive target.
 
 ## 2. Universal feature checklist
 
-Every feature should consider:
+Every feature considers, where applicable:
 
 - [ ] authorized success
 - [ ] unauthorized Telegram user
 - [ ] invalid user input
-- [ ] empty state
-- [ ] GitHub not connected
-- [ ] installation does not include repo
+- [ ] empty/disconnected state
+- [ ] missing installation/repository access
 - [ ] missing GitHub permission
-- [ ] GitHub not found
-- [ ] GitHub validation error
+- [ ] not found/inaccessible
+- [ ] GitHub validation failure
 - [ ] rate limit
-- [ ] transient network/API error
-- [ ] stale callback/session
+- [ ] transient network/API failure
+- [ ] stale callback/session/precondition
 - [ ] Telegram edit/send failure where relevant
 - [ ] audit behavior for writes
 - [ ] secret redaction in errors/logs
 
-Not every box applies to every read-only helper; document exclusions sensibly.
+Not every box applies to every read-only helper; exclusions should be explicit rather than faked green.
 
 ## 3. Configuration/startup
 
-- [x] missing Telegram token fails closed with clear configuration error.
+- [x] missing Telegram token fails closed.
 - [x] missing owner ID fails closed in owner-only mode.
-- [x] malformed database URL handled.
+- [x] malformed DB URL handled.
 - [x] GitHub App configuration validation.
-- [ ] private key load failure does not dump key content.
-- [x] production mode refuses obviously unsafe/missing webhook secrets where required.
-- [x] `/health` returns no secret data.
-- [x] readiness reflects DB/config dependency status.
+- [ ] private-key load failure does not dump key content through all live startup paths.
+- [x] production webhook secret requirements validated where configured.
+- [x] `/health` contains no secret data.
+- [x] readiness reflects DB/config dependencies.
 
 ## 4. Telegram authorization/navigation
 
 - [x] owner command accepted.
-- [x] non-owner command ignored/rejected per policy.
+- [x] non-owner command ignored/rejected by policy.
 - [x] non-owner callback blocked.
-- [ ] stale callback version rejected safely beyond current parser rejection coverage.
-- [x] repository callback short ID resolves only inside intended GitDock user/installation context.
-- [x] repository callback cannot cross GitDock users in the current service integration test.
-- [x] repository detail callback carries back page/filter context and generated callback stays within Telegram's 64-byte limit.
-- [ ] Cancel invalidates active operation/confirmation.
-- [x] Home/read-only navigation does not apply repository writes.
-- [x] `/start` and Home clear transient FSM search state so later messages cannot be interpreted as abandoned search input.
-- [ ] repeated callback does not duplicate completed write; not applicable to P2.3/P3.1 because they are read-only.
-
-P2.3 UI unit coverage additionally verifies that a 200-character repository name is not embedded in callback payloads and that repository callbacks round-trip with a maximum signed 64-bit repository ID while remaining within Telegram's callback size limit.
-
-P3.1 UI/context coverage verifies compact search callbacks, active-session isolation, result-context lookup, and Home/start cancellation of transient search state.
+- [x] compact repository callback parser rejects malformed context and service scopes repository to current GitDock user/installation.
+- [x] cross-user repository callback rejected.
+- [x] repository detail callback remains within Telegram 64-byte limit including large signed repository ID context.
+- [x] long repository name is not embedded in callback payload.
+- [x] P3.1 search callbacks are active-session scoped and stale session fails closed.
+- [x] `/start` and Home clear transient search FSM state.
+- [x] P3.2 account callbacks are compact and local-disconnect confirmation callback round-trips under Telegram's limit.
+- [x] P3.2 Cancel consumes a pending local-disconnect confirmation.
+- [x] P3.2 Home invalidates outstanding local-disconnect confirmations.
+- [x] repeated/reused P3.2 disconnect confirmation does not repeat deletion.
+- [ ] generic stale callback-version rejection beyond currently implemented parser namespaces.
 
 ## 5. GitHub authentication
 
 ### Installation token
 
-- [x] JWT generation with configured app identity.
+- [x] App JWT generated with configured identity/RS256.
 - [x] installation token request success.
-- [x] cached token reused only while valid.
+- [x] GitHub REST API version header sent by auth client.
+- [x] token parsing does not assume legacy fixed length.
+- [x] cache scoped by requested permissions/repository IDs.
+- [x] cached token reused only while safely valid.
 - [x] near-expiry token refreshed.
-- [ ] expired token path refreshes/retries appropriately.
-- [ ] suspended/deleted installation handled end-to-end through a live GitHub response.
-- [x] repository callback outside the current GitDock user's cached/installation context is rejected cleanly.
+- [x] repository detail requests repository-scoped installation token.
+- [x] spoofed setup/install candidate identity rejected before DB binding.
+- [x] installation binding persists only after App-context/authenticated-user-context identity match.
+- [x] FastAPI setup/OAuth callback routes have safe success/error paths.
+- [ ] deleted/suspended installation end-to-end behavior against real GitHub response.
 
-Additional P2.1/P2.3 contract coverage:
+### OAuth state / PKCE foundation
 
-- [x] GitHub REST API version header is sent by the auth client.
-- [x] installation token parsing does not assume legacy token length/format.
-- [x] installation token cache is scoped by requested permissions/repository IDs.
-- [x] repository detail requests a token narrowed to the selected repository ID.
-- [x] spoofed setup/install candidate identity is rejected before database binding.
-- [x] installation binding persists only after app-context and authenticated-user-context identity match.
-- [x] actual FastAPI setup/OAuth callback routes are registered and exercise safe success/error paths.
-
-### User authorization
-
-- [x] state is high entropy/opaque and raw state is not persisted.
-- [x] state bound to GitDock user/flow context.
+- [x] state opaque/high entropy and raw state not persisted.
+- [x] state bound to GitDock user/flow.
 - [x] state expires.
 - [x] state one-time use.
-- [x] wrong flow/state context rejected without consuming a valid state.
-- [x] callback/OAuth code and authentication error bodies are not echoed into application errors/logs.
-- [x] PKCE S256 challenge/verifier lifecycle verified.
+- [x] wrong-flow/state context rejected safely.
+- [x] state consumption remains restart-safe/DB-backed.
+- [x] OAuth code/auth response secrets are not echoed by local auth exceptions.
+- [x] PKCE S256 lifecycle verified.
 - [x] PKCE verifier encrypted before persistence.
-- [x] token encrypted before persistence.
-- [x] access and refresh token expiry metadata preserved by the credential store.
-- [x] credential encryption supports old-key decryption/new-key encryption for rotation.
-- [ ] disconnect removes/invalidates local credential state safely through an end-user flow.
+- [x] credential encryption supports versioned key rotation.
 
-## 5.1 GitHub gateway foundation — P2.2
+### P3.2 durable user authorization
 
-Implemented contract/mock coverage:
+- [x] authenticated `/user` request uses user bearer context.
+- [x] `/user` payload resolves typed positive GitHub user ID/login.
+- [x] standalone user authorization reuses existing state + PKCE.
+- [x] standalone authorization does not bind/reinstall an installation when no installation candidate exists.
+- [x] OAuth completion persists GitHub account identity.
+- [x] access token encrypted before DB persistence.
+- [x] refresh token encrypted before DB persistence.
+- [x] plaintext token values absent from ciphertext assertions.
+- [x] access expiry preserved.
+- [x] refresh expiry preserved.
+- [x] credential generation increments on persist.
+- [x] durable account status separates authorization from installation count.
 
-- [x] canonical `Accept`, GitHub API version, and `User-Agent` headers are sent.
-- [x] optional bearer authorization header is injected without exposing the token through result representations.
-- [x] typed response parsing succeeds for expected JSON shapes.
-- [x] invalid/unexpected JSON response shape is converted to a stable unexpected-gateway error rather than leaking payload content.
-- [x] keyed and plain-list pagination payloads are supported by the gateway page parser.
-- [x] `Link` pagination follows a validated `api.github.com` next URL and does not reuse first-page query parameters on later pages.
-- [x] hostile external-host pagination URLs are rejected before network I/O.
-- [x] credential-bearing and scheme-relative pagination targets are rejected.
-- [x] rate-limit headers are captured into typed metadata.
-- [x] `403` rate-limit exhaustion is distinguished from an ordinary permission denial.
-- [x] common GitHub HTTP failures map to stable authentication/permission/not-found/conflict/validation categories.
-- [x] translated GitHub errors do not echo raw response-body token-like values.
-- [x] transient safe `GET` requests retry with bounded exponential backoff.
-- [x] write requests are not retried by default.
-- [x] explicitly declared safe operations can opt into retry behavior.
-- [x] P2.2/P2.3/P3.1 keep `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff green.
+### P3.2 refresh rotation/concurrency
 
-Deferred intentionally to later feature milestones:
+- [x] still-valid access token is returned without refresh.
+- [x] near-expiry access token triggers refresh grant.
+- [x] refresh grant uses `grant_type=refresh_token`.
+- [x] rotated access token persisted.
+- [x] rotated refresh token replaces old refresh token.
+- [x] generation increments after rotated persistence.
+- [x] stale concurrent credential generation prevents rotated result from overwriting newer state.
+- [x] missing durable authorization produces reauthorization-required path.
+- [x] expired/missing refresh credential produces reauthorization-required path.
+- [x] raw refresh response/token-like values are absent from user-facing auth errors.
 
-- live mutable GitHub API smoke tests;
-- ETag/conditional request behavior if introduced;
-- artifact/release redirect/download host policy;
-- operation-specific reconciliation for uncertain write outcomes.
+## 6. P3.2 durable local-disconnect confirmation
 
-## 6. Repository list/dashboard/search
+### Confirmation storage
 
-### P2.3 repository list/dashboard — verified implementation coverage
+- [x] confirmation stored DB-backed rather than FSM-only.
+- [x] opaque token is not stored raw; digest used for lookup.
+- [x] confirmation bound to GitDock user + operation.
+- [x] expiry represented and enforced by confirmation service.
+- [x] consumed/cancelled confirmation cannot execute later.
+- [x] reused confirmation rejected.
 
-- [x] installed-repository payload parsed into typed repository snapshots.
-- [x] pagination stable at the application service boundary.
-- [x] private/public metadata rendered correctly.
-- [x] archived/source/fork metadata and filters implemented.
-- [x] default branch/language/stars/forks/update metadata rendered where available.
-- [x] very long repository names do not break callback limits and are not embedded in callback payloads.
-- [x] empty/disconnected home/repository state has a safe renderer/service path.
-- [x] repository detail resolves compact ID only inside the same GitDock user context.
-- [x] repository detail requests a repository-scoped installation token and re-fetches GitHub before render.
-- [x] repositories removed from the installation are pruned from local callback cache on refresh.
-- [x] repository cache is non-authoritative and contains no credential fields.
-- [x] filter coverage includes private and the filter implementation covers public/active/archived/source/fork branches.
-- [x] GitHub gateway rate-limit category has a safe user-facing repository renderer mapping.
-- [x] stale repository selection has a safe user-facing state.
+### Target/precondition safety
 
-### P3.1 search — verified implementation coverage
+- [x] fingerprint includes GitHub account identity when durable account exists.
+- [x] fingerprint includes credential generation.
+- [x] fingerprint includes ordered current installation IDs.
+- [x] old confirmation after reauthorization is stale and removes nothing.
+- [x] confirmation after installation-set change is stale and removes nothing.
+- [x] malformed stored disconnect payload fails stale/closed.
+- [x] Home consumes outstanding local-disconnect confirmation.
 
-- [x] search query validation and normalization.
-- [x] typed search payload parsing covers repository metadata used by UI/service.
-- [x] sort by stars.
-- [x] sort by update.
-- [x] language/min-star/`user:`/`org:` owner/topic filters.
-- [x] archived search visibility filter.
-- [x] search no-results state.
-- [x] public search pagination.
-- [x] public/anonymous search path does not require a bound installation token.
-- [x] search detail resolves only through the current active search result context, then re-fetches GitHub detail.
-- [x] older search-session callbacks fail closed when a newer session is active.
-- [x] search callbacks remain compact/versioned and within Telegram's callback size limit in UI coverage.
-- [x] search session/result context is kept separate from installed `repositories_cache` by design/service boundary.
-- [x] P3.1 remains Tier 0 read-only and adds no repository write path.
-- [x] download-command button is intentionally only a placeholder; clone/setup/run generation remains tested/implemented under P4.3, not P3.1.
+### Cleanup scope
 
-## 7. Repository administration
+- [x] successful local disconnect clears encrypted user credential state.
+- [x] credential clear advances generation.
+- [x] successful local disconnect deletes local installation bindings.
+- [x] successful local disconnect deletes `repositories_cache` rows.
+- [x] relevant unconsumed local OAuth/confirmation state is invalidated.
+- [x] second confirm does not repeat cleanup.
+- [x] legacy installation-only state can disconnect without durable UAT.
+- [x] UI explicitly says local disconnect does not uninstall GitHub App remotely.
+- [x] stale/invalid renderer never claims deletion occurred.
+- [ ] remote GitHub App uninstall/revoke is intentionally **not implemented** in P3.2 and therefore has no success test.
+
+## 7. GitHub gateway foundation — P2.2
+
+- [x] canonical `Accept`, API version, `User-Agent` headers.
+- [x] optional bearer injection without token leak through result representation.
+- [x] typed response parsing.
+- [x] unexpected JSON shape -> stable unexpected error.
+- [x] keyed/plain-list pagination.
+- [x] validated `api.github.com` pagination.
+- [x] external/credential-bearing/scheme-relative pagination rejected.
+- [x] rate-limit metadata parsing.
+- [x] rate-limit exhaustion distinguished from ordinary permission denial.
+- [x] common HTTP failures map to stable categories.
+- [x] raw token-like response body absent from translated error.
+- [x] bounded transient GET retry.
+- [x] writes no retry by default.
+- [x] explicitly safe operation can opt into retry.
+- [x] P2.2/P2.3/P3.1/P3.2 keep audit/secret/lock gates green.
+
+Deferred: live mutable GitHub smoke, ETag behavior if introduced, artifact/release redirect policy, operation-specific uncertain-write reconciliation.
+
+## 8. Repository list/dashboard/search
+
+### P2.3 installed repository read
+
+- [x] typed installed-repository payload parsing.
+- [x] stable application pagination.
+- [x] private/public metadata render.
+- [x] archived/source/fork filters.
+- [x] default branch/language/stars/forks/update metadata.
+- [x] long names do not break callback limits.
+- [x] empty/disconnected state.
+- [x] detail resolves only in same GitDock user context.
+- [x] repository-scoped token + GitHub re-fetch before detail render.
+- [x] removed repos pruned from callback cache.
+- [x] cache contains no credential fields and is non-authoritative.
+- [x] rate-limit/stale-selection user-facing states.
+
+### P3.1 public search
+
+- [x] search validation/normalization.
+- [x] typed result parsing.
+- [x] stars/update sort.
+- [x] language/min-star/user/org/topic filters.
+- [x] archive visibility.
+- [x] no-results state.
+- [x] pagination.
+- [x] public path without bound installation.
+- [x] detail only from current active result context then GitHub re-fetch.
+- [x] older search session fails closed.
+- [x] callbacks compact/versioned.
+- [x] session/result context separate from installed cache.
+- [x] Tier 0 read-only; no write path.
+- [x] download-command button remains placeholder for P4.3.
+
+## 9. Repository administration — P3.3 target
 
 ### Create
 
-- [ ] valid private repository creation.
-- [ ] valid public repository creation.
+- [ ] valid private creation.
+- [ ] valid public creation.
+- [ ] optional organization creation when authorized.
 - [ ] duplicate/invalid name rejection.
-- [ ] missing user authorization.
-- [ ] missing Administration permission.
+- [ ] missing durable user authorization.
+- [ ] missing required GitHub capability/permission.
 - [ ] preview does not create before confirm.
-- [ ] repeated confirm does not create duplicates.
-- [ ] audit result records repository id/name.
+- [ ] repeated confirm does not duplicate creation.
+- [ ] audit result records safe repository ID/name.
 
 ### Rename/settings/visibility/archive
 
-- [ ] exact target shown.
-- [ ] Tier 2 confirmation required where applicable.
-- [ ] expired/reused confirmation rejected.
-- [ ] GitHub-side conflict/validation handled.
+- [ ] exact target/current/desired values shown.
+- [ ] Tier 2 confirmation where applicable.
+- [ ] expired/reused/stale confirmation rejected.
+- [ ] GitHub conflict/validation handled.
 - [ ] local cache refreshed after success.
 
 ### Delete
 
-- [ ] wrong typed repo name rejected.
-- [ ] normalized exact correct name accepted to final stage.
-- [ ] final confirmation required.
-- [ ] confirmation expires.
-- [ ] reused confirmation rejected.
+- [ ] wrong typed full repo name rejected.
+- [ ] normalized exact name reaches final stage.
+- [ ] final persisted confirmation required.
+- [ ] confirmation expiry.
+- [ ] reuse rejected.
 - [ ] repo changed/unavailable before delete handled.
 - [ ] missing admin permission handled.
-- [ ] uncertain network result reconciled before claiming failure/success where possible.
-- [ ] audit record contains no credentials.
+- [ ] uncertain network result reconciled before claiming outcome where possible.
+- [ ] audit contains no credentials.
 
-## 8. File browser/read
+## 10. File browser/read — P4.1 target
 
-- [ ] directory listing.
-- [ ] nested navigation.
+- [ ] directory listing/nested navigation.
 - [ ] branch/ref switch.
 - [ ] UTF-8 preview.
 - [ ] large text pagination/truncation.
-- [ ] binary detection/fallback.
-- [ ] not found.
-- [ ] invalid/traversal path rejected before API call.
+- [ ] binary fallback.
+- [ ] not-found handling.
+- [ ] traversal/invalid path rejected pre-network.
 - [ ] long path uses short callback context.
 
-## 9. Single-file writes
+## 11. Single-file writes — P4.1 target
 
-- [ ] create text file.
-- [ ] update text file using expected SHA.
-- [ ] replace file upload.
-- [ ] delete file.
+- [ ] create/update/replace/delete.
 - [ ] preview/diff before write.
-- [ ] stale source SHA blocks overwrite.
+- [ ] expected SHA precondition.
+- [ ] stale SHA blocks overwrite.
 - [ ] wrong branch/ref blocked.
 - [ ] workflow path requires Workflows capability.
-- [ ] same-path conflicting operations serialized/rejected.
-- [ ] write audit record.
-- [ ] secret/token content not leaked into logs.
+- [ ] same-path conflicts serialized/rejected.
+- [ ] audit write.
+- [ ] secrets absent from logs.
 
-## 10. Branch/commit tools
+## 12. Branch/commit tools — P4.2 target
 
 - [ ] list/search branches.
 - [ ] create branch from known base.
 - [ ] duplicate branch handling.
-- [ ] base ref not found.
-- [ ] recent commit list.
+- [ ] missing base ref.
+- [ ] recent commits.
 - [ ] commit detail.
 - [ ] compare refs.
-- [ ] large diff summary behavior.
+- [ ] large diff summary.
 
-No normal v1 test exists for force-update because the normal UI must not expose it.
+No normal v1 force-update test because normal UI must not expose it.
 
-## 11. Clone/setup/run command generation
+## 13. Clone/setup/run generation — P4.3 target
 
-- [ ] Python requirements project.
-- [ ] Python pyproject project.
-- [ ] Node/npm.
-- [ ] pnpm.
-- [ ] yarn.
+- [ ] Python requirements/pyproject.
+- [ ] Node/npm/pnpm/yarn.
 - [ ] Docker.
-- [ ] Gradle.
-- [ ] Maven.
-- [ ] ambiguous multi-stack repository.
-- [ ] no recognized project metadata -> honest fallback.
-- [ ] Windows PowerShell quoting.
-- [ ] Linux shell quoting.
-- [ ] macOS shell quoting.
+- [ ] Gradle/Maven.
+- [ ] ambiguous multi-stack.
+- [ ] unknown metadata honest fallback.
+- [ ] Windows/Linux/macOS quoting.
 - [ ] no access token embedded.
-- [ ] malicious README command is not promoted to automatic trusted command.
+- [ ] malicious README command not promoted to trusted automatic command.
 
-## 12. Webhook security/ingestion
+## 14. Webhook security/ingestion — P5 target
 
 - [ ] valid `X-Hub-Signature-256` accepted.
-- [ ] missing signature rejected.
-- [ ] invalid signature rejected.
+- [ ] missing/invalid signature rejected.
 - [ ] body modification invalidates signature.
-- [ ] duplicate delivery ID accepted idempotently/no duplicate notification.
-- [ ] unsupported event safely ignored/recorded according to policy.
-- [ ] valid delivery persisted before worker processing.
-- [ ] simulated restart after persist resumes processing.
-- [ ] retry counter/state transitions.
-- [ ] terminal malformed payload does not loop forever.
-- [ ] raw private payload not dumped into normal logs.
+- [ ] duplicate delivery idempotent.
+- [ ] unsupported event safe behavior.
+- [ ] accepted event persisted before processing.
+- [ ] restart resumes durable pending work.
+- [ ] retry/terminal state transitions.
+- [ ] malformed payload does not loop forever.
+- [ ] private raw payload absent from normal logs.
 
-## 13. Event normalization/notifications
+## 15. Event normalization/notifications — P5 target
 
-Each enabled event family needs fixture coverage:
+Fixture coverage required for push, issues, issue_comment, pull_request, pull_request_review, pull_request_review_comment, workflow_run, release, star, fork, installation, installation_repositories.
 
-- [ ] push
-- [ ] issues
-- [ ] issue_comment
-- [ ] pull_request
-- [ ] pull_request_review
-- [ ] pull_request_review_comment
-- [ ] workflow_run
-- [ ] release
-- [ ] star
-- [ ] fork
-- [ ] installation
-- [ ] installation_repositories
+For relevant events verify normalized values, repository/event mute, correct navigation, and no duplicate resend.
 
-For each relevant event:
-
-- [ ] canonical model values correct;
-- [ ] muted event not sent;
-- [ ] muted repository not sent;
-- [ ] notification button points to correct GitDock resource flow;
-- [ ] duplicate delivery not resent.
-
-## 14. Issues
+## 16. Issues — P6 target
 
 - [ ] list/filter/pagination.
-- [ ] detail + comments.
-- [ ] create issue.
-- [ ] comment.
-- [ ] close/reopen.
+- [ ] detail/comments.
+- [ ] create/comment/close/reopen.
 - [ ] labels/assignees.
 - [ ] permission denial.
-- [ ] stale/closed state changes between view and action.
+- [ ] stale state between view/action.
 - [ ] audit writes.
 
-## 15. Pull requests
+## 17. Pull requests — P6 target
 
-- [ ] list/detail.
-- [ ] changed files.
-- [ ] diff pagination/large diff.
+- [ ] list/detail/changed files/diffs.
 - [ ] comments/review threads.
-- [ ] comment/reply.
-- [ ] approve.
-- [ ] request changes.
+- [ ] comment/reply/approve/request changes.
 - [ ] merge confirmation.
-- [ ] merge with failing/pending checks is surfaced.
-- [ ] head SHA changes before merge -> revalidation.
-- [ ] merge denied by branch protection/rules handled.
-- [ ] repeated merge callback idempotent/clear.
+- [ ] failing/pending checks surfaced.
+- [ ] head SHA change revalidation.
+- [ ] branch protection/rule denial.
+- [ ] repeated merge callback safe.
 - [ ] audit writes.
 
-## 16. GitHub Actions
+## 18. GitHub Actions/releases — P7 target
 
-- [ ] workflow list.
-- [ ] run list/detail.
-- [ ] jobs/steps.
+- [ ] workflow/run/job/step reads.
 - [ ] log truncation/document fallback.
-- [ ] artifacts metadata.
-- [ ] dispatch requires Actions write permission.
-- [ ] dispatch shows workflow/ref/inputs.
-- [ ] invalid required input handling.
-- [ ] retry failed jobs/run.
-- [ ] already-running/completed state changes handled.
+- [ ] artifact metadata.
+- [ ] dispatch capability + workflow/ref/inputs confirmation.
+- [ ] invalid required inputs.
+- [ ] retry/cancel state handling where supported.
 - [ ] notification -> logs/retry navigation.
-- [ ] no secret output added by GitDock itself.
+- [ ] no GitHub secret output added by GitDock.
 - [ ] audit write operations.
+- [ ] release list/detail/assets.
 
-## 17. ZIP/project sync archive safety
+## 19. ZIP/project sync archive safety — P8 target
 
-Malicious fixtures must include:
+Malicious fixtures include traversal, absolute/Windows paths, excessive depth/count/uncompressed size, duplicate normalized path, symlink/hardlink/special entries where format permits, invalid path edge, nested secret-like file. All unsafe cases fail before repository writes.
 
-- [ ] `../` traversal.
-- [ ] absolute path.
-- [ ] Windows drive path.
-- [ ] excessive depth.
-- [ ] excessive file count.
-- [ ] excessive uncompressed size.
-- [ ] duplicate normalized path.
-- [ ] symlink.
-- [ ] hardlink/special file where archive format permits.
-- [ ] NUL/invalid path edge where library exposes it.
-- [ ] nested secret-like file.
+## 20. ZIP/project sync planning/apply — P8 target
 
-All unsafe cases must fail before repository writes.
+Planning:
 
-## 18. ZIP/project sync planning
-
-- [ ] all unchanged.
-- [ ] only additions.
-- [ ] only modifications.
-- [ ] deletions.
-- [ ] rename-like change represented correctly as Git tree outcome.
-- [ ] mixed change set.
-- [ ] binary file.
-- [ ] large text file.
-- [ ] ignored/excluded files.
+- [ ] unchanged/additions/modifications/deletions/mixed.
+- [ ] rename-like Git tree outcome.
+- [ ] binary/large text/exclusions.
 - [ ] base commit recorded.
-- [ ] totals match detailed lists.
+- [ ] totals match details.
 - [ ] displayed plan matches immutable persisted plan.
 
-## 19. ZIP/project sync apply
+Apply:
 
-- [ ] review branch created by default.
-- [ ] coherent single commit for batch.
-- [ ] optional PR created.
-- [ ] stale base commit blocks/replans.
-- [ ] existing target review branch collision handled safely.
-- [ ] partial GitHub API failure reconciled.
-- [ ] cancellation before apply writes nothing.
-- [ ] expired session writes nothing.
-- [ ] workspace removed after success.
-- [ ] workspace removed after cancel.
-- [ ] workspace cleanup after failure/TTL.
-- [ ] Tier 2 direct-main exception requires dedicated confirmation.
-- [ ] audit captures resulting commit/PR.
+- [ ] review branch default.
+- [ ] coherent single batch commit.
+- [ ] optional PR.
+- [ ] stale base stops/replans.
+- [ ] direct default branch requires separate Tier 2 path.
+- [ ] cleanup on success/cancel/error/expiry.
 
-## 20. Logging/redaction
+## 21. CI / migration regression contract
 
-Inject fake secrets and verify they do not appear in captured logs:
+For code changes, required CI gates remain:
 
-- [x] Telegram bot token/redaction baseline.
-- [x] Authorization Bearer header.
-- [x] GitHub token-shaped values/credential-key fields.
-- [x] client-secret keyed values.
-- [x] OAuth code.
-- [x] PKCE verifier/state keyed values.
-- [x] general GitHub gateway error translation does not echo token-like response-body text.
-- [x] P2.3 setup/OAuth error pages avoid rendering OAuth code/token/raw upstream error material.
-- [ ] private key marker/body fixture.
+- Ruff format;
+- Ruff lint;
+- mypy;
+- pytest;
+- compileall;
+- `pip-audit`;
+- `detect-secrets`;
+- PEP 751 lock regeneration/diff for Python 3.12 Linux;
+- PEP 751 lock regeneration/diff for Python 3.13 Linux;
+- PostgreSQL 17 Alembic upgrade -> downgrade -> upgrade when schema/migrations exist.
 
-## 21. Migrations
+P3.2 verified result `33515291600`:
 
-For every schema migration:
+- **97 passed** on Python 3.12;
+- equivalent full quality/security gates passed on Python 3.13;
+- PostgreSQL round trip passed including migration `0004_user_auth`;
+- no known runtime vulnerabilities;
+- no secret findings;
+- no PEP 751 lock drift;
+- only the already-recorded Starlette/TestClient and Alembic `path_separator` maintenance warnings remain.
 
-- [x] clean upgrade from base in automated test/CI coverage.
-- [x] upgrade from previous schema through the current Alembic chain including P2.3 `0003`.
-- [ ] explicit schema-assertion coverage for every expected index/unique constraint.
-- [ ] explicit non-destructive data-preservation fixture for upgrade/downgrade.
-- [x] downgrade tested for the current migration chain.
-- [x] PostgreSQL behavior validated in PostgreSQL 17 CI.
+## 22. Test honesty rule
 
-## 22. Live smoke checklist — dedicated test resources
-
-Before production-grade release:
-
-- [ ] connect GitHub App against the dedicated live test account/repository.
-- [ ] list private test repository.
-- [ ] verify P2.3 Telegram pagination/filter/detail against live GitHub test data.
-- [ ] verify P3.1 public search/query/filter/detail against live public GitHub data.
-- [ ] create test repository.
-- [ ] rename/description update.
-- [ ] create branch.
-- [ ] create/update/delete test file.
-- [ ] issue create/comment/close.
-- [ ] PR read/comment/review on dedicated test PR.
-- [ ] workflow dispatch on harmless test workflow.
-- [ ] receive push/comment/workflow webhook notifications.
-- [ ] upload safe sample ZIP and create review PR.
-- [ ] verify delete flow only on disposable test repository.
-- [ ] restart service with a queued webhook and confirm recovery.
-
-## 23. Known non-blocking test-tool warnings
-
-CI run `33453960817` is green but reports:
-
-- Starlette/FastAPI `TestClient` deprecation warning for the current `httpx` integration/future `httpx2` direction.
-- Alembic deprecation warning because `alembic.ini` does not yet set explicit `path_separator` for `prepend_sys_path`.
-
-These warnings are recorded maintenance debt. They are not test failures and must not be silently forgotten.
-
-## 24. Release gate
-
-A release cannot be called production-ready while known applicable mandatory tests in this matrix are absent or failing. `docs/CURRENT_STATUS.md` must state any intentionally deferred test category.
+Do not weaken assertions, skip security checks, broaden secret-scan exclusions, disable migration round trips, or mark planned behavior implemented merely to obtain green CI. A failing gate must be fixed at its cause or recorded as a real blocker.

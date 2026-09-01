@@ -25,7 +25,7 @@ Format:
 **Date:** 2026-08-31  
 **Status:** Accepted
 
-**Decision:** Telegram is the primary UI. v1 user-facing copy is Arabic. GitHub names, refs, paths, commands, and code remain in their native technical form.
+**Decision:** Telegram is the primary UI. v1 user-facing copy is Arabic. GitHub names, refs, paths, commands, and code remain in native technical form.
 
 ---
 
@@ -37,11 +37,6 @@ Format:
 **Context:** Broad long-lived PATs create unnecessary blast radius and poor permission transparency.
 
 **Decision:** Use a GitHub App with least-privilege permissions. Use installation tokens for installation/repository operations and user access tokens only where user-context operations require them.
-
-References:
-
-- https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app
-- https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation
 
 ---
 
@@ -59,7 +54,7 @@ References:
 **Date:** 2026-08-31  
 **Status:** Accepted
 
-**Decision:** PostgreSQL is the production database. SQLite may be used for local tests/development only where behavior remains portable. Alembic migrations are mandatory.
+**Decision:** PostgreSQL is production DB. SQLite may be used for local tests/development where behavior remains portable. Alembic migrations are mandatory.
 
 ---
 
@@ -77,7 +72,7 @@ References:
 **Date:** 2026-08-31  
 **Status:** Accepted
 
-**Decision:** ZIP/project synchronization creates a diff plan, reviews it, then applies a coherent batch commit on a review branch by default; optional PR follows. Direct default-branch mass update is an explicit Tier 2 exception.
+**Decision:** ZIP/project synchronization creates a diff plan, reviews it, then applies a coherent batch commit on a review branch by default; optional PR follows. Direct default-branch mass update is explicit Tier 2 exception.
 
 ---
 
@@ -95,7 +90,7 @@ References:
 **Date:** 2026-08-31  
 **Status:** Accepted
 
-**Decision:** Operations are classified from Tier 0 read to Tier 3 destructive. Tier 2/3 use persisted one-time confirmations; repository deletion additionally requires exact repository-name entry.
+**Decision:** Operations are classified from Tier 0 read to Tier 3 destructive. Tier 2/3 use persisted one-time confirmations; repository deletion additionally requires exact repository-name entry. Other sensitive local-state operations may also require persisted confirmation when replay/stale-click consequences justify it.
 
 ---
 
@@ -104,9 +99,9 @@ References:
 **Date:** 2026-08-31  
 **Status:** Accepted
 
-**Decision:** Telegram handlers collect/render input only. Application services perform use cases. All normal GitHub HTTP details live behind the GitHub gateway/client layer.
+**Decision:** Telegram handlers collect/render input only. Application services perform use cases. Normal GitHub HTTP details live behind GitHub gateway/auth client boundaries.
 
-**Consequences:** Tests mock GitHub at the gateway boundary; permission/error/retry behavior remains consistent.
+**Consequences:** Tests mock GitHub at service/client boundaries; permission/error/retry behavior remains consistent.
 
 ---
 
@@ -117,7 +112,7 @@ References:
 
 **Decision:** `CURRENT_STATUS`, `PROJECT_MEMORY`, `ROADMAP`, `CHANGELOG`, and affected specs are updated after successful implementation as required by `AGENTS.md` and `BUILD_PROTOCOL.md`.
 
-**Consequences:** A feature with green tests but stale project control files is not Done.
+**Consequences:** Green tests with stale control files are not Done.
 
 ---
 
@@ -126,7 +121,7 @@ References:
 **Date:** 2026-08-31  
 **Status:** Accepted
 
-**Decision:** v1 enforces one configured Telegram owner at the ingress/middleware boundary while persistence/service interfaces retain explicit ownership so multi-user support can replace the boundary policy later.
+**Decision:** v1 enforces one configured Telegram owner at ingress/middleware while persistence/service interfaces retain explicit ownership so multi-user support can replace boundary policy later.
 
 ---
 
@@ -135,7 +130,7 @@ References:
 **Date:** 2026-08-31  
 **Status:** Accepted
 
-**Decision:** GitHub is authoritative for GitHub resources. GitDock stores identity bindings, preferences, audit, operation state, webhook processing state, and minimal cache metadata only.
+**Decision:** GitHub is authoritative for GitHub resources. GitDock stores identity bindings, encrypted credentials where necessary, preferences, audit, operation/confirmation state, webhook work state, and minimal cache metadata only.
 
 ---
 
@@ -144,17 +139,11 @@ References:
 **Date:** 2026-08-31  
 **Status:** Accepted
 
-**Context:** Exact direct pins alone do not lock transitive dependency versions or selected distributions.
+**Context:** Exact direct pins alone do not lock transitive versions/distributions.
 
-**Decision:** Keep `requirements.txt` as the exact direct runtime input and commit PEP 751 runtime locks generated by `pip lock` for every supported Python/Linux target. Current files are `pylock.py312-linux.toml` and `pylock.py313-linux.toml`. CI regenerates and diffs the matching target.
+**Decision:** Keep `requirements.txt` as exact direct runtime input and commit PEP 751 locks generated by `pip lock` for each supported Python/Linux target. Current files: `pylock.py312-linux.toml`, `pylock.py313-linux.toml`. CI regenerates/diffs matching target.
 
-**Consequences:** Transitive selections/hashes are reviewable and Python/platform-specific. Generated lock entropy may be excluded from entropy scanning, but lock files remain forbidden places for credentials.
-
-References:
-
-- https://peps.python.org/pep-0751/
-- https://pip.pypa.io/en/stable/cli/pip_lock/
-- https://packaging.python.org/en/latest/specifications/pylock-toml/
+**Consequences:** Transitive selections/hashes are reviewable/platform-specific. Generated lock entropy may be excluded from entropy scanning, but lock files remain forbidden places for credentials.
 
 ---
 
@@ -163,17 +152,11 @@ References:
 **Date:** 2026-08-31  
 **Status:** Accepted
 
-**Context:** GitHub App setup/install redirect parameters are transport data and must not become authorization proof by themselves.
+**Context:** GitHub setup/install redirect parameters are transport data, not authorization proof.
 
-**Decision:** Treat setup/install `installation_id` only as an untrusted candidate. Complete authenticated GitHub user authorization with one-time server-side state and PKCE, then verify the same installation/account identity through both GitHub App context and authenticated user context before persisting a binding. Suspended or conflicting bindings are rejected. Raw OAuth state is not persisted; PKCE verifier is encrypted.
+**Decision:** Treat setup/install `installation_id` only as untrusted candidate. Complete authenticated user authorization with one-time server-side state and PKCE, then verify same installation/account identity through App and authenticated-user contexts before binding. Reject suspended/conflicting binding. Raw OAuth state is not persisted; PKCE verifier encrypted.
 
-**Consequences:** Future callback/UI work must not simplify binding to trusting query parameters, and user tokens used only for proof need not be persisted.
-
-References:
-
-- https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/about-the-setup-url
-- https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation
-- https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-with-a-github-app-on-behalf-of-a-user
+**Consequences:** Future UI/callback work must not trust query params or account login alone. User tokens used only for proof need not be persisted.
 
 ---
 
@@ -182,27 +165,19 @@ References:
 **Date:** 2026-08-31  
 **Status:** Accepted
 
-**Context:** P2.2 introduces reusable REST transport behavior that every later repository/issue/PR/Actions feature will depend on. If feature handlers create their own HTTP clients, follow arbitrary `Link` URLs, copy raw GitHub error bodies, or retry writes generically, behavior becomes inconsistent and creates SSRF, credential-leak, and duplicate-write risks.
+**Context:** Parallel feature-specific HTTP clients, arbitrary pagination URLs, raw error copying, or generic write retry create inconsistency, SSRF, credential leak, and duplicate-write risks.
 
 **Decision:**
 
-- `GitHubRestClient` is the canonical normal REST transport boundary for GitDock.
-- Telegram handlers and ordinary services must not bypass it with raw GitHub HTTP calls.
-- Absolute REST/pagination targets are accepted only for canonical HTTPS `api.github.com`; relative `/...` GitHub API paths are allowed.
-- Protocol-relative, credential-bearing, fragment-bearing, external-host, non-HTTPS, and noncanonical-port targets are rejected before network I/O.
-- Pagination includes repeated-link detection and a maximum-page safety bound.
-- Transport errors expose stable GitDock categories plus safe status/request/rate metadata, not raw GitHub response bodies.
-- GET/HEAD may use bounded transient retry by default. Write-like/non-read methods default to no retry.
-- A non-read operation may opt into `RetryMode.SAFE` only when its higher-level use case has explicitly established retry/idempotency safety.
-- Redirects are not followed automatically by the generic REST transport.
-
-**Consequences:**
-
-- endpoint-specific GitHub features build on one tested transport rather than parallel clients;
-- pagination cannot become a generic outbound URL/SSRF primitive;
-- user-facing errors can map consistently across features;
-- uncertain writes are reconciled rather than accidentally duplicated;
-- retry/timeouts/page limits stay centralized and contract-tested.
+- `GitHubRestClient` is canonical normal REST transport.
+- Telegram handlers/ordinary services do not bypass it with raw GitHub HTTP.
+- Absolute REST/pagination targets only canonical HTTPS `api.github.com`; relative `/...` paths allowed.
+- Reject protocol-relative, credential-bearing, fragment-bearing, external-host, non-HTTPS, noncanonical-port targets pre-network.
+- Pagination detects repeated links and enforces page bound.
+- Errors expose stable categories + safe status/request/rate metadata, not raw body.
+- GET/HEAD may bounded-retry transient failures by default; writes default no retry.
+- Non-read may opt into `RetryMode.SAFE` only after higher-level semantics establish replay safety.
+- Generic REST transport does not automatically follow redirects.
 
 ---
 
@@ -211,25 +186,45 @@ References:
 **Date:** 2026-08-31  
 **Status:** Accepted
 
-**Context:** Telegram callback payloads are limited in size. Embedding arbitrary repository `owner/name` values creates callback-length and stale-context problems, while storing a broad shadow copy of GitHub repository state would contradict D-013 and risk treating stale local data as authority.
+**Context:** Telegram callbacks are size-limited; broad shadow GitHub state would contradict D-013 and risk stale authority.
 
 **Decision:**
 
-- P2.3 uses a minimal `repositories_cache` only for safe non-secret repository metadata and server-side callback/navigation resolution.
-- Telegram repository callbacks are compact and versioned. They carry stable GitHub repository ID plus navigation context; they do not carry arbitrary long repository names or credentials.
-- A callback/cache hit is not authorization proof. The selected row must belong to the current GitDock user and resolve through a currently bound, unsuspended installation.
-- Repository detail is re-fetched from GitHub before rendering. If GitHub reports not found/inaccessible, stale local callback state is removed or rejected.
-- Installation tokens are obtained through the existing token provider and may be narrowed to the selected repository ID where supported.
-- No GitHub token, OAuth code/state, PKCE material, private key, or raw upstream error body is stored in repository cache rows.
-- P2.3 remains Tier 0 read-only; cache existence must never enable a write or imply write/admin permission.
+- P2.3 `repositories_cache` contains minimal safe non-secret metadata only for callback/navigation resolution.
+- Callbacks carry stable repository ID + navigation context, not arbitrary long names/credentials.
+- Callback/cache hit is not authorization proof; row must belong to current GitDock user and active unsuspended installation.
+- Detail re-fetches GitHub; inaccessible/not-found stale cache removed/rejected.
+- Installation tokens obtained through normal provider and may be repository-scoped.
+- Cache never stores token/OAuth/PKCE/private-key/raw-error material.
+- Cache existence never enables write/admin permission.
+
+---
+
+## D-018 — Durable user credentials are generation-guarded; disconnect is local-only and confirmation-bound
+
+**Date:** 2026-09-01  
+**Status:** Accepted
+
+**Context:** P3.2 introduces durable GitHub user-context credentials for later user-scoped features. GitHub refresh credentials rotate, while Telegram confirmations can remain visible after account/install state changes. Without an explicit concurrency/precondition model, an in-flight refresh could overwrite a newer reconnect/disconnect and an old confirmation button could clear newer authorization. A “disconnect” label could also be dangerously ambiguous about whether GitDock uninstalls the GitHub App remotely.
+
+**Decision:**
+
+1. **Reuse the P2.1 auth/crypto foundation.** Durable user authorization uses the existing one-time OAuth state, PKCE S256, authenticated `/user` identity check, and versioned encrypted credential store. No parallel auth stack or custom cryptography.
+2. **Version credential lifecycle with `credential_generation`.** Persisting or clearing GitHub user credentials increments a durable generation value.
+3. **Refresh is generation-guarded.** Snapshot account ID + generation before the refresh network request. Persist GitHub's rotated access/refresh pair only if the current account/user/authorization state and generation still match after the request. A concurrent reauthorization/disconnect makes the old refresh fail closed.
+4. **Use DB-backed one-time confirmation state for local disconnect.** `pending_confirmations` stores only a token digest plus user/operation/target/payload/risk/expiry/consumed metadata.
+5. **Bind disconnect confirmation to current authorization preconditions.** Target fingerprint includes GitHub account identity, credential generation, and current installation IDs. Reauthorization or installation-set change makes an older confirmation stale.
+6. **Home invalidates pending disconnect authority.** Returning Home consumes outstanding local-disconnect confirmations so older Telegram messages cannot retain active destructive authorization.
+7. **Define disconnect scope precisely.** P3.2 `🔌 قطع الربط المحلي` clears GitDock-local encrypted user credentials, installation bindings, repository navigation cache, and relevant unconsumed local auth/confirmation state. It does **not** uninstall/revoke the GitHub App remotely and UI must say so.
+8. **Keep installation binding and durable user authorization distinct.** Existence of one is not proof of the other. Legacy installation-only P2.3 state may still be cleaned locally.
 
 **Consequences:**
 
-- callbacks remain below Telegram's size limit even for very long repository names;
-- stale or cross-user callbacks fail closed;
-- GitHub remains authoritative while navigation remains fast and compact;
-- future repository search/file/issue/PR/Actions features can reuse the stable repository ID/context pattern without turning local cache into a shadow GitHub database;
-- cache schema may evolve for safe metadata/navigation, but credentials and authoritative write preconditions do not belong there.
+- rotating refresh credentials cannot silently overwrite newer authorization after concurrent state change;
+- stale/reused/cancelled Telegram confirmation cannot clear a newly authorized account;
+- confirmation storage becomes reusable infrastructure for later sensitive operations while operation-specific preconditions remain in their services;
+- P3.3 can rely on a durable user-context provider without treating user authorization as blanket repository write/admin permission;
+- remote GitHub App uninstall/revoke, if ever added, must be a separate explicitly designed operation with its own permissions/copy/confirmation rather than silently expanding local disconnect semantics.
 
 ---
 

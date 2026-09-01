@@ -4,7 +4,7 @@ Last updated: 2026-09-01
 
 ## Project state
 
-**Completed phases/items:**
+**Verified complete:**
 
 - P0 — Planning and governance foundation ✅
 - P1 — Project skeleton & quality gates ✅
@@ -15,78 +15,112 @@ Last updated: 2026-09-01
 
 **Current phase:** P3 — Search & repository administration
 
-**Current implementation item:** **P3.2 — user-context authorization/disconnect support — Active** on `feat/p3-2-user-authorization`.
+**Current implementation item:** **P3.2 — user-context authorization/disconnect support**.
 
-## P3.1 final closeout
+P3.2 implementation is complete and **pre-merge verified** on branch `feat/p3-2-user-authorization`. It is not yet marked fully phase-complete because PR merge, post-merge `main` CI, and governance closeout are still required.
 
-P3.1 feature delivery and governance are fully closed.
+## P3.2 pre-merge verification
 
-Verification chain:
+Current implementation head before this documentation synchronization:
 
-- implementation head `4a4f00d50e886ab494e2a83f2c649cd64b7398b2` — CI `33453960817` green;
-- final documentation-synchronized feature head `14e149ea307871abd8406ffc6212fe062ead9098` — branch CI `33454438202` green;
-- non-draft PR #10 — PR CI `33454524953` green and `mergeable=true` on the unchanged head;
-- PR #10 squash merge commit `d822338fcc1546418ed2100cc9534cdc71a6bcbe`;
-- post-feature-merge `main` CI `33454619065` — green;
-- governance closeout PR #11 — PR CI `33454883148` green and mergeable on unchanged head;
-- closeout squash merge commit `ef2c5f618102063df8166f84b4828243f5efb5c6`;
-- post-closeout `main` CI `33454972020` — green on Python 3.12, Python 3.13, and PostgreSQL 17.
+- commit: `5068b58ec41fb5ac417408d3a535bbb5d66207fc`;
+- branch CI: `33515291600` — fully green;
+- Python 3.12: Ruff format/lint, mypy, **97 pytest tests**, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock verification all passed;
+- Python 3.13: the same configured quality/security/lock gates passed;
+- PostgreSQL 17: Alembic upgrade -> downgrade -> upgrade passed including migration `0004_user_auth`;
+- `pip-audit`: no known runtime vulnerabilities;
+- no secret-scan finding;
+- no PEP 751 runtime-lock drift.
 
-The verified P3.1 suite contains **83 tests** and passes Ruff format/lint, mypy, compile, `pip-audit`, `detect-secrets`, PEP 751 lock verification, and the PostgreSQL migration round trip.
+The suite still reports the known non-blocking maintenance warnings:
 
-## P3.2 scope
+- Starlette/FastAPI `TestClient` deprecation warning for the current `httpx` integration/future `httpx2` direction;
+- Alembic warning because `alembic.ini` does not explicitly set `path_separator` for `prepend_sys_path`.
 
-P3.2 must complete the end-user GitHub user-context lifecycle needed by later user-scoped features without duplicating or weakening the P2.1 authentication foundation.
+## P3.2 implemented behavior
 
-Target capabilities:
+### Durable GitHub user authorization
 
-- surface the current user-authorization state through the application/service boundary;
-- reuse existing one-time OAuth state, PKCE S256, encrypted credential storage, and token metadata;
-- complete durable refresh behavior where the current foundation already preserves refresh metadata;
-- provide a deliberate disconnect flow that removes local GitDock user credentials/binding state safely;
-- keep installation binding semantics separate from user credential semantics;
-- make disconnect/reconnect idempotent and safe under stale Telegram callbacks;
-- never expose access/refresh tokens, OAuth code/state, PKCE verifier, private keys, or raw upstream auth bodies;
-- preserve owner-only Telegram ingress and least-privilege GitHub App behavior.
+- GitHub user identity is established through authenticated `GET /user` rather than inferred from Telegram or installation metadata.
+- Standalone user authorization reuses the P2.1 restart-safe one-time OAuth state and PKCE S256 flow; it does not require reinstalling the GitHub App.
+- Successful OAuth completion persists the GitHub user account plus encrypted access/refresh credentials only for the durable user-context capability.
+- Access-token and refresh-token expiry metadata remain separate from ciphertext.
+- Existing versioned credential encryption/key-rotation support is reused; no second auth or crypto stack was introduced.
 
-P3.2 does **not** include repository create/settings/delete; those remain P3.3.
+### Expiry-aware rotating refresh
 
-## Pre-implementation requirements for P3.2
+- When the durable user access token is still safely valid, it is reused.
+- Near-expiry access credentials refresh with the stored refresh token.
+- GitHub's rotated access/refresh pair is persisted atomically only if the account `credential_generation` still matches the generation observed before the network request.
+- Reauthorization/disconnect concurrent with refresh therefore fails closed instead of letting an older refresh overwrite newer credential state.
+- `credential_generation` advances when credentials are persisted or cleared.
 
-Before adding code, inspect the existing P2.1 implementation and tests for:
+### Durable local disconnect confirmation
 
-- OAuth state lifecycle and PKCE storage;
-- credential encryption/store abstractions;
-- access/refresh expiry metadata;
-- installation binding and disconnect-related persistence boundaries;
-- runtime service composition;
-- current Telegram connection UI and callback paths;
-- capability mapping for user-context operations.
+- P3.2 introduces general DB-backed `pending_confirmations` for restart-safe one-time sensitive confirmations.
+- Confirmation tokens are opaque, short-lived, user/operation-bound, and single-use.
+- GitHub local-disconnect confirmation fingerprints the active GitHub account identity, credential generation, and current installation IDs.
+- A stale confirmation after reauthorization or installation-set change does not delete anything.
+- Reused or cancelled confirmations do not execute.
+- Returning Home invalidates pending GitHub disconnect confirmations so an old message button cannot remain an active destructive authorization.
+- Legacy P2.3 state with a local installation binding but no durable user access token can still be disconnected safely.
 
-Prefer extending these boundaries rather than creating a second auth stack.
+### Exact disconnect scope
+
+`🔌 قطع الربط المحلي` removes GitDock-local authorization/binding state only:
+
+- encrypted GitHub user credentials are cleared;
+- local installation bindings are removed;
+- local `repositories_cache` rows are removed;
+- unconsumed local OAuth/confirmation state is invalidated.
+
+It **does not uninstall the GitHub App from GitHub and does not claim to revoke the installation remotely**. The confirmation screen states this explicitly.
+
+### Telegram UI
+
+- Connected Home exposes `👤 حساب GitHub`.
+- Account screen shows durable user-authorization state separately from installation count.
+- User can activate/re-authorize durable user context without reinstalling the App.
+- Refresh is available for an authorized account.
+- Local disconnect is isolated from harmless navigation and requires explicit persisted confirmation.
+- Callback payloads remain compact and validated within Telegram's 64-byte callback-data limit.
+- Telegram handlers remain thin; OAuth, refresh, encryption, persistence, and confirmation rules stay in services/auth boundaries.
+
+## P3.2 non-goals
+
+P3.2 does **not** implement:
+
+- repository creation;
+- repository rename/settings changes;
+- archive/unarchive;
+- visibility change;
+- repository deletion;
+- new broad GitHub App permissions;
+- remote GitHub App uninstall/revoke behavior.
+
+Those repository administration flows remain P3.3 and must reuse the P3.2 user-context service plus the existing capability/permission model.
 
 ## Durable invariants
 
 - GitHub remains source of truth.
-- GitHub App is the primary credential model; do not introduce a broad long-lived PAT.
-- Raw setup/install `installation_id` remains untrusted until dual app/user-context identity verification.
-- OAuth state remains high-entropy, short-lived, user/flow-bound, restart-safe, one-time use, and stored only as a digest.
-- PKCE verifier and persisted GitHub user credentials remain encrypted with versioned keys.
-- Installation tokens remain short-lived and repository/permission scoped where possible.
-- Installation binding and user OAuth credential state are distinct concepts; disconnect behavior must say exactly which state it removes.
-- Telegram handlers stay thin and never implement OAuth/token mechanics directly.
-- No auth material may enter normal logs, callbacks, repository caches, or user-facing error bodies.
-- P3.1 public search remains usable independently of a linked installation/user authorization and must not regress.
+- GitHub App remains the primary credential model; no broad permanent PAT is introduced.
+- Installation binding and durable user OAuth credentials remain distinct concepts.
+- Raw setup/install `installation_id` remains untrusted until dual App/user-context verification.
+- OAuth state remains high-entropy, short-lived, user/flow-bound, restart-safe, one-time use, and persisted only as a digest.
+- PKCE verifier and durable GitHub user credentials remain encrypted with versioned keys.
+- No access/refresh token, OAuth code/state, PKCE verifier, private key, or raw upstream auth body may enter Telegram copy, callback payloads, repository cache, or normal logs.
+- P3.1 public search remains independent of a GitHub installation/user authorization and must not regress.
+- A Telegram button is transport only; sensitive execution depends on persisted server-side confirmation state and current preconditions.
 
-## Known non-blocking maintenance warnings
+## Exact next steps
 
-The verified suite still reports the two recorded deprecation warnings:
+1. Commit this synchronized P3.2 documentation on `feat/p3-2-user-authorization`.
+2. Require final-head branch CI to pass on the documentation-synchronized head.
+3. Open a non-draft P3.2 PR.
+4. Require PR CI green and `mergeable=true` on the unchanged head.
+5. Squash-merge using the exact expected head SHA.
+6. Require post-merge `main` CI green.
+7. Record PR/merge/main verification in the normal small governance closeout and verify that closeout on `main`.
+8. Only then mark P3.2 fully verified complete and move the active implementation item to **P3.3 — repository create/settings**.
 
-- Starlette/FastAPI `TestClient` warning about the current `httpx` integration/future `httpx2` direction;
-- Alembic warning because `alembic.ini` does not yet set explicit `path_separator` for `prepend_sys_path`.
-
-They are maintenance debt, not hidden test failures.
-
-## Handoff instruction
-
-Continue only P3.2 on `feat/p3-2-user-authorization`. First reuse and extend the P2.1 secure auth foundation; do not duplicate OAuth/PKCE/encryption code. Keep P3.3 repository administration out of this branch. Before calling P3.2 complete, require synchronized governance docs, final-head CI, non-draft PR, unchanged-head merge, post-merge `main` CI, and governance closeout.
+Do not start P3.3 on this branch or falsely record merge/main results before they occur.

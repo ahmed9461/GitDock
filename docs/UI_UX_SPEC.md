@@ -1,34 +1,34 @@
 # GitDock — Telegram UI/UX Specification
 
-Status: authoritative v1 interaction contract
+Status: authoritative v1 interaction contract, updated through P3.2 user-authorization UI
 
 ## 1. Experience goal
 
 GitDock should feel like a compact professional GitHub control panel inside Telegram. The user should always know:
 
 - where they are;
-- which repository/ref/resource is selected;
-- whether an action is read-only or will change GitHub;
+- which repository/ref/resource/account context is selected;
+- whether an action is read-only, local-state changing, or will change GitHub;
 - what will happen before a risky action is confirmed;
 - how to return Home/Back without starting over.
 
-Arabic is the primary UI language. Technical values such as repository names, branch names, paths, workflow names, SHAs, and commands remain as-is.
+Arabic is the primary UI language. Technical values such as repository names, branches, paths, workflow names, SHAs, GitHub logins, and commands remain as-is.
 
 ## 2. Rendering rules
 
-- Prefer editing the current screen message for navigation.
-- Send a new message when it is a durable event/notification, a file/document, a large log, or a user action result worth preserving.
-- Use Telegram rich text/entities through a centralized renderer; do not hand-build raw formatting strings throughout handlers.
-- Keep primary screens concise.
-- Put secondary detail behind buttons.
-- Default to 2 primary buttons per row maximum.
-- Do not mix a destructive action into a row with harmless navigation.
-- Always show target context for write actions.
+- Prefer editing the current navigation message.
+- Send a new message for durable notifications, documents/files, large logs, or important results worth preserving.
+- Use centralized renderers rather than scattered raw formatting strings.
+- Keep primary screens concise; secondary detail behind buttons.
+- Default to at most two primary buttons per row.
+- Destructive/sensitive actions are isolated from harmless navigation.
+- Always show target/consequence before write or sensitive local cleanup.
 - Use consistent icons from `docs/CONSTANTS.md`.
+- Never render access/refresh tokens, OAuth code/state, PKCE verifier, private key, client secret, or raw upstream auth body.
 
 ## 3. Navigation contract
 
-Contextual bottom row should use these labels consistently:
+Contextual navigation:
 
 ```text
 [🏠 الرئيسية] [⬅️ رجوع]
@@ -40,11 +40,11 @@ During active wizards:
 [❌ إلغاء] [⬅️ رجوع]
 ```
 
-Where Home + Cancel + Back are all needed, keep them clear and avoid rearranging order randomly between screens.
+Home/Cancel/Back must remain predictable. Home cancels transient search/input state and, since P3.2, invalidates outstanding GitHub local-disconnect confirmations.
 
 ## 4. Home screen
 
-Message:
+Connected example:
 
 ```text
 🐙 GitDock
@@ -57,15 +57,19 @@ Message:
 ✅ الاتصال: سليم
 ```
 
-Keyboard:
+Current connected keyboard contract:
 
 ```text
-[📦 مستودعاتي]    [🔎 البحث في GitHub]
-[🔔 التنبيهات]    [📊 النشاط]
-[➕ مستودع جديد]  [⚙️ الإعدادات]
+[📦 مستودعاتي]      [🔎 البحث في GitHub]
+[👤 حساب GitHub]     [🔔 التنبيهات]
+[📊 النشاط]          [➕ مستودع جديد]
+[⚙️ الإعدادات]
+[🔄 تحديث]
 ```
 
-If GitHub is not connected:
+Some entries remain placeholders until their roadmap milestone; `👤 حساب GitHub` is real in P3.2.
+
+Disconnected example:
 
 ```text
 🐙 GitDock
@@ -75,13 +79,115 @@ If GitHub is not connected:
 ```
 
 ```text
+[🔎 البحث في GitHub]
 [🔗 ربط GitHub]
 [ℹ️ كيف يعمل الربط؟]
+[🔄 تحديث]
 ```
 
-## 5. Repository list
+Public search remains available independently of connection state.
 
-Message example:
+## 5. GitHub account screen — P3.2
+
+The account screen separates two concepts that must not be conflated:
+
+- durable GitHub **user authorization**;
+- local GitHub App **installation bindings**.
+
+Authorized example:
+
+```text
+👤 حساب GitHub
+
+GitHub: octocat
+✅ صلاحية المستخدم: مفعلة
+🏢 التثبيتات المرتبطة: 2
+🔄 التجديد: متاح
+
+تُحفظ رموز التفويض مشفرة داخل GitDock ولا يتم عرضها هنا.
+```
+
+Keyboard:
+
+```text
+[🔐 إعادة التفويض]
+[🔄 تحديث]
+[🔌 قطع الربط المحلي]
+[🏠 الرئيسية]
+```
+
+Legacy installation-only example:
+
+```text
+👤 حساب GitHub
+
+⚠️ صلاحية المستخدم الدائمة غير مفعلة
+🏢 التثبيتات المرتبطة: 1
+
+يمكن تفعيل صلاحية المستخدم دون إعادة تثبيت GitHub App.
+```
+
+```text
+[🔐 تفعيل صلاحية المستخدم]
+[🔌 قطع الربط المحلي]
+[🏠 الرئيسية]
+```
+
+Rules:
+
+- activate/re-authorize starts standalone OAuth + PKCE through the established secure flow;
+- it does not reinstall the GitHub App;
+- refresh may perform expiry-aware token rotation server-side, but UI never displays token material;
+- local disconnect is isolated in its own row.
+
+### P3.2 authorization handoff
+
+After starting user authorization:
+
+```text
+🔐 تفويض GitHub
+
+افتح GitHub لإكمال صلاحية المستخدم.
+بعد العودة سيحفظ GitDock التفويض بشكل مشفر.
+```
+
+```text
+[🔐 فتح GitHub]
+[🏠 الرئيسية]
+```
+
+No OAuth state, verifier, code, client secret, or token is rendered.
+
+### P3.2 local-disconnect confirmation
+
+```text
+⚠️ تأكيد قطع الربط المحلي
+
+GitHub: octocat
+التثبيتات المحلية: 2
+
+سيحذف GitDock بيانات التفويض والربط المحلية الخاصة بهذا الحساب.
+لن يقوم هذا بإلغاء تثبيت GitHub App من GitHub.
+
+إذا تغير التفويض أو التثبيتات بعد فتح هذه الشاشة، يصبح زر التأكيد القديم غير صالح ولن يُحذف شيء.
+```
+
+```text
+[✅ تأكيد قطع الربط]
+[❌ إلغاء]
+[🏠 الرئيسية]
+```
+
+Rules:
+
+- confirmation is persisted server-side, expires, and is one-time use;
+- Confirm/Cancel/Home all invalidate the particular pending authority as appropriate;
+- stale/reused/invalid callbacks never claim that deletion happened;
+- successful result says that **local** GitDock data was cleared and does not imply remote GitHub App uninstall/revocation.
+
+## 6. Repository list
+
+Example:
 
 ```text
 📦 مستودعاتي
@@ -104,11 +210,11 @@ Keyboard:
 [1 • GitDock] [2 • WebHub]
 [3 • Wasl]    [4 • ...]
 [◀️ السابق]   [التالي ▶️]
-[🔎 تصفية]    [🔄 تحديث]
+[🎛 تصفية]    [🔄 تحديث]
 [🏠 الرئيسية]
 ```
 
-Do not put full long repository names inside callback payloads; use short interaction IDs.
+Do not place full long repository names in callback payloads; use compact stable IDs.
 
 Filters:
 
@@ -116,12 +222,12 @@ Filters:
 [🔒 خاص] [🌐 عام]
 [🟢 نشط] [📦 مؤرشف]
 [🌿 المصدر] [🍴 Fork]
-[مسح التصفية]
+[🧹 مسح التصفية]
 ```
 
-## 6. Repository dashboard
+## 7. Repository dashboard
 
-Message example:
+Example:
 
 ```text
 📦 GitDock
@@ -136,7 +242,7 @@ Message example:
 آخر تحديث: قبل 3 دقائق
 ```
 
-Keyboard:
+Keyboard target contract:
 
 ```text
 [📁 الملفات]       [📝 Commits]
@@ -147,7 +253,9 @@ Keyboard:
 [🏠 الرئيسية]      [⬅️ رجوع]
 ```
 
-## 7. Create repository wizard
+Unimplemented entries remain placeholders until their milestone.
+
+## 8. Create repository wizard — P3.3 target
 
 Step 1:
 
@@ -200,9 +308,9 @@ Step 4 preview:
 [❌ إلغاء]
 ```
 
-Creation is not performed before preview/confirm.
+Creation is never performed before preview/confirmation. P3.2 user authorization alone does not mean repository creation is implemented.
 
-## 8. Repository settings
+## 9. Repository settings — P3.3 target
 
 ```text
 ⚙️ إعدادات GitDock
@@ -221,11 +329,11 @@ Creation is not performed before preview/confirm.
 [🏠 الرئيسية] [⬅️ رجوع]
 ```
 
-The delete button is always isolated.
+Delete button is always isolated.
 
-## 9. File browser
+## 10. File browser — target
 
-Directory screen:
+Directory:
 
 ```text
 📁 GitDock / docs
@@ -237,8 +345,6 @@ Directory screen:
 📄 ROADMAP.md
 📄 SECURITY_MODEL.md
 ```
-
-Keyboard uses numbered/short labels if paths are long:
 
 ```text
 [📁 api] [📁 assets]
@@ -270,11 +376,9 @@ File view:
 [🏠 الرئيسية] [⬅️ رجوع]
 ```
 
-Do not attempt inline text preview for unsupported/binary content.
+Unsupported/binary content uses metadata/download fallback rather than fake text preview.
 
-## 10. Single-file update confirmation
-
-Before write:
+## 11. Single-file update confirmation — target
 
 ```text
 ✏️ مراجعة التغيير
@@ -296,7 +400,7 @@ Update docs/README.md via GitDock
 [❌ إلغاء]
 ```
 
-If source SHA changed after preview:
+If source SHA changed:
 
 ```text
 ⚠️ تغير الملف في GitHub بعد فتحه.
@@ -309,7 +413,7 @@ If source SHA changed after preview:
 [❌ إلغاء]
 ```
 
-## 11. ZIP/project synchronization
+## 12. ZIP/project synchronization — target
 
 Start:
 
@@ -323,7 +427,7 @@ Start:
 سيتم فحصه ومقارنته قبل رفع أي تغيير.
 ```
 
-After analysis:
+Comparison:
 
 ```text
 🔍 نتيجة المقارنة
@@ -346,7 +450,7 @@ After analysis:
 [❌ إلغاء]
 ```
 
-Final apply screen:
+Final apply:
 
 ```text
 ⚠️ تأكيد تحديث المشروع
@@ -364,11 +468,9 @@ gitdock/sync-20260831-0230
 [❌ إلغاء]
 ```
 
-Direct default-branch mode, when enabled, uses a separate Tier 2 confirmation and is not shown as the default button.
+Direct default-branch mode, if ever enabled, uses separate Tier 2 confirmation and is not the default action.
 
-## 12. Clone / update / run commands
-
-Screen:
+## 13. Clone / update / run commands — P4.3 target
 
 ```text
 📥 تشغيل وتنزيل GitDock
@@ -385,30 +487,20 @@ Screen:
 [🍎 macOS]
 ```
 
-Then:
+Then show separate copyable blocks for:
 
-```text
-📥 تنزيل جديد
-
-<copyable command block>
-
-🔄 تحديث نسخة موجودة
-
-<copyable command block>
-
-▶️ الإعداد والتشغيل
-
-<copyable command block>
-```
+- 📥 تنزيل جديد;
+- 🔄 تحديث نسخة موجودة;
+- ▶️ الإعداد والتشغيل.
 
 ```text
 [📋 أوامر مختصرة] [ℹ️ كيف تم اكتشافها؟]
 [🏠 الرئيسية] [⬅️ رجوع]
 ```
 
-Never present uncertain guessed run commands as verified facts.
+Never present uncertain guessed run commands as verified facts and never insert tokens.
 
-## 13. GitHub search
+## 14. GitHub search — P3.1
 
 Start:
 
@@ -429,10 +521,6 @@ Results:
 ⭐ 12.8K • 🍴 1.4K • Python
 MIT • تم التحديث قبل 3 أيام
 وصف مختصر...
-
-2) owner/another
-⭐ 7.1K • 🍴 620 • TypeScript
-Apache-2.0 • تم التحديث أمس
 ```
 
 ```text
@@ -443,17 +531,9 @@ Apache-2.0 • تم التحديث أمس
 [🏠 الرئيسية]
 ```
 
-Filter screen:
+Filters may include language, min-stars, owner/org, topic, and archive visibility. Search callbacks are active-session scoped; an older session fails closed after a newer search starts. Public search does not imply repository installation/authorization.
 
-```text
-[🐍 Python] [🟨 JavaScript]
-[🔷 TypeScript] [🤖 Kotlin]
-[⭐ حد أدنى] [👤 مالك/منظمة]
-[#️⃣ Topic] [📦 إخفاء المؤرشف]
-[✅ تطبيق] [🧹 مسح]
-```
-
-## 14. Actions screen
+## 15. Actions screen — target
 
 ```text
 ⚙️ Actions — GitDock
@@ -476,29 +556,9 @@ Filter screen:
 [🏠 الرئيسية] [⬅️ رجوع]
 ```
 
-Run detail:
+Run detail shows run number/ref/SHA/duration/jobs plus Logs/steps/retry/artifacts/GitHub navigation. Workflow dispatch must show workflow, ref, and all inputs before final confirmation.
 
-```text
-❌ deploy #128
-🌿 main
-📝 a81c2f1
-⏱ 48s
-
-Jobs:
-✅ tests
-❌ deploy-server
-```
-
-```text
-[📜 Logs] [🧩 الخطوات]
-[🔁 إعادة الفاشل] [📦 Artifacts]
-[🔗 فتح في GitHub]
-[⬅️ رجوع]
-```
-
-Workflow dispatch wizard must show selected workflow, ref, and all inputs before final confirmation.
-
-## 15. Issue detail
+## 16. Issue detail — target
 
 ```text
 ❗ Issue #42
@@ -508,9 +568,6 @@ Login fails after token refresh
 👤 author
 🏷 bug, auth
 💬 6 تعليقات
-
-آخر تعليق:
-...
 ```
 
 ```text
@@ -521,7 +578,7 @@ Login fails after token refresh
 [🏠 الرئيسية] [⬅️ رجوع]
 ```
 
-## 16. Pull request detail
+## 17. Pull request detail — target
 
 ```text
 🔀 PR #18
@@ -542,11 +599,11 @@ feature/retry → main
 [🏠 الرئيسية] [⬅️ رجوع]
 ```
 
-Merge is always confirmation-gated and should surface failing/pending CI/check state before confirmation.
+Merge is confirmation-gated and surfaces failing/pending checks before confirmation.
 
-## 17. Notifications
+## 18. Notifications — target
 
-Example durable notification:
+Durable notification example:
 
 ```text
 🔔 GitDock
@@ -563,27 +620,9 @@ Example durable notification:
 [🔕 كتم هذا النوع]
 ```
 
-Workflow failure:
+Workflow failure example provides Logs/retry/mute Actions. Notifications are new messages, not navigation-screen edits.
 
-```text
-❌ GitHub Actions فشل
-
-📦 WebHub
-⚙️ Build APK
-🌿 main
-📝 f314c9a
-
-المهمة الفاشلة: build-release
-```
-
-```text
-[📜 Logs] [🔁 إعادة الفاشل]
-[🔕 كتم Actions]
-```
-
-Notification messages are new messages; they are not navigation-screen edits.
-
-## 18. Notification preferences
+## 19. Notification preferences — target
 
 ```text
 🔔 تنبيهات GitDock
@@ -598,55 +637,44 @@ Notification messages are new messages; they are not navigation-screen edits.
 ❌ Forks
 ```
 
-```text
-[Push ✅] [Issues ✅]
-[Comments ✅] [PR ✅]
-[Actions ✅] [Releases ✅]
-[Stars ❌] [Forks ❌]
-[🔕 كتم المستودع]
-[⬅️ رجوع]
-```
+Controls are per event/repository and include repository mute.
 
-## 19. Generic loading state
+## 20. Loading state
 
-For actions expected to take noticeable time:
+For noticeable operations:
 
 ```text
 ⏳ جاري تحميل بيانات المستودع...
 ```
 
-Then edit in place to result/error when practical.
+Then edit in place to result/error where practical. Do not spam loading messages for tiny requests.
 
-Do not send a new “loading” message for every tiny API request.
+For authorization refresh, use concise status/error copy; do not expose transport/token details.
 
-## 20. Empty states
+## 21. Empty states
 
-No repositories:
+Examples:
 
 ```text
 📦 لا توجد مستودعات متاحة لهذا الربط.
-
-يمكنك إنشاء مستودع جديد أو تعديل المستودعات المسموح لـ GitDock بالوصول إليها.
 ```
-
-No Actions:
 
 ```text
 ⚙️ لا توجد Workflows في هذا المستودع.
 ```
 
-No notifications:
-
 ```text
 🔔 لا توجد أحداث جديدة حاليًا.
 ```
 
-## 21. Error copy contract
+Account state with installations but no durable UAT is not labelled “fully disconnected”; it explains that user authorization is not active and offers activation/local disconnect.
 
-Authentication:
+## 22. Error copy contract
+
+Authentication/reauthorization:
 
 ```text
-🔐 يحتاج GitDock إلى إعادة ربط GitHub لإكمال هذه العملية.
+🔐 يحتاج GitDock إلى إعادة تفويض GitHub لإكمال هذه العملية.
 ```
 
 Missing permission:
@@ -663,7 +691,7 @@ Rate limit:
 لم يتم فقدان أي تغيير. جرّب بعد وقت إعادة الضبط المعروض.
 ```
 
-Unexpected error:
+Unexpected:
 
 ```text
 ❌ لم تكتمل العملية.
@@ -672,11 +700,26 @@ Unexpected error:
 معرّف العملية: GD-...
 ```
 
-Never show stack traces, raw authorization errors containing secrets, or internal private-key/token data.
+P3.2 stale local confirmation:
 
-## 22. Danger confirmation patterns
+```text
+⚠️ تغيرت حالة الربط منذ فتح شاشة التأكيد.
+لم يتم حذف أي ربط أو رمز.
+افتح حساب GitHub وحدّث الحالة قبل المحاولة من جديد.
+```
 
-### Tier 2
+Invalid/reused local confirmation:
+
+```text
+ℹ️ انتهى أو استُخدم هذا التأكيد.
+لم يتم حذف أي شيء.
+```
+
+Never show stack traces, secret-bearing raw auth errors, or token/private-key data.
+
+## 23. Danger confirmation patterns
+
+### Tier 2 GitHub write
 
 ```text
 ⚠️ عملية مؤثرة
@@ -696,52 +739,29 @@ Never show stack traces, raw authorization errors containing secrets, or interna
 
 ### Tier 3 repository deletion
 
-Step 1:
+First require exact full repository name, then final isolated delete button. Confirmation expires and cannot be reused.
 
-```text
-🗑 حذف المستودع
+### Sensitive local account cleanup
 
-سيتم حذف:
-owner/repo
+P3.2 local disconnect uses the dedicated account confirmation from section 5. It is not described as GitHub repository deletion or remote App uninstall, but still uses persisted explicit confirmation because it destroys local credential/binding state.
 
-هذه عملية غير قابلة للتراجع من GitDock.
-أرسل اسم المستودع كاملًا للتأكيد:
-owner/repo
-```
-
-Only an exact normalized match proceeds.
-
-Step 2:
-
-```text
-🚨 التأكيد النهائي
-
-owner/repo
-
-سيتم إرسال طلب الحذف إلى GitHub الآن.
-```
-
-```text
-[🗑 نعم، احذف المستودع]
-[❌ إلغاء]
-```
-
-Confirmation expires and cannot be reused.
-
-## 23. Interaction state rules
+## 24. Interaction state rules
 
 - Simple browsing may use lightweight callback context.
-- Wizards may use aiogram FSM for conversational flow.
-- High-impact operation state must also be persisted server-side with expiry/preconditions.
-- Back restores the previous meaningful screen/state, not an arbitrary handler default.
-- Cancel invalidates any pending confirmation/session and returns to a safe parent/home screen.
-- Repeated callback presses on completed operations must be idempotent or return a clear “already completed/expired” result.
+- Wizards may use aiogram FSM.
+- High-impact/sensitive operation state must also be persisted server-side with expiry/preconditions.
+- Back restores previous meaningful state.
+- Cancel invalidates pending confirmation/session and returns safely.
+- Home invalidates transient search/input state and pending GitHub local-disconnect confirmations.
+- Repeated callbacks on completed/consumed operations are idempotent or return clear expired/already-used copy.
+- Callback payload never serves as sole proof of current authorization.
 
-## 24. Copy style
+## 25. Copy style
 
 - Direct and calm.
-- No unnecessary technical jargon in user-facing errors.
-- Do not overuse “رسمي/غير رسمي” or security warnings on harmless screens.
+- Avoid unnecessary jargon.
+- Do not overuse “رسمي/غير رسمي” or warnings on harmless screens.
 - Use warnings exactly where consequences matter.
-- Repository/branch/path names are visually isolated from prose.
-- Avoid excessive emojis; icons convey category/status rather than decoration.
+- Visually isolate repository/branch/path/login values from prose.
+- Avoid excessive emojis; icons communicate category/status rather than decoration.
+- When an operation is local-only, say “محلي” and never imply a remote GitHub effect that did not happen.

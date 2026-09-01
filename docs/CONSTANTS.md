@@ -1,6 +1,6 @@
 # GitDock — Canonical Constants
 
-Status: authoritative constants. Change intentionally and record meaningful architecture/security changes in `docs/DECISIONS.md`.
+Status: authoritative constants through P3.2. Change intentionally and record meaningful architecture/security changes in `docs/DECISIONS.md`.
 
 ## Product identity
 
@@ -18,19 +18,39 @@ Status: authoritative constants. Change intentionally and record meaningful arch
 
 Do not duplicate these literals throughout handlers/services.
 
+## HTTP/callback paths
+
+| Constant | Value |
+|---|---|
+| `HEALTH_PATH` | `/health` |
+| `READINESS_PATH` | `/ready` |
+| `TELEGRAM_WEBHOOK_PATH` | `/telegram/webhook` |
+| `GITHUB_SETUP_CALLBACK_PATH` | `/github/setup/callback` |
+| `GITHUB_OAUTH_CALLBACK_PATH` | `/github/oauth/callback` |
+
+## GitHub authentication timing/security constants
+
+| Constant | Value | Purpose |
+|---|---:|---|
+| `GITHUB_APP_JWT_IAT_SKEW_SECONDS` | 60 | tolerate clock skew when issuing App JWT |
+| `GITHUB_APP_JWT_LIFETIME_SECONDS` | 540 | bounded App JWT lifetime |
+| `INSTALLATION_TOKEN_REFRESH_MARGIN_SECONDS` | 300 | refresh installation token before near expiry |
+| `USER_ACCESS_TOKEN_REFRESH_MARGIN_SECONDS` | 300 | P3.2 durable user-token refresh margin |
+| `GITHUB_AUTH_STATE_TTL_SECONDS` | 600 | restart-safe OAuth/setup state expiry |
+| `CONFIRMATION_TTL_SECONDS` | 300 | DB-backed sensitive confirmation expiry |
+| `CONFIRMATION_TOKEN_BYTES` | 12 | random opaque confirmation-token entropy source bytes |
+
+Do not reuse a UI timeout as a credential/security lifetime unless it is the canonical constant for that lifecycle.
+
 ## Telegram UI constants
 
-| Constant | Initial value | Purpose |
+| Constant | Current value | Purpose |
 |---|---:|---|
-| `DEFAULT_PAGE_SIZE` | 8 | General Telegram list pagination; used by P2.3 repository list |
-| `SEARCH_PAGE_SIZE` | 6 | Richer repository search cards/rows for P3.1 |
-| `MAX_PRIMARY_BUTTONS_PER_ROW` | 2 | Default keyboard density |
-| `TEXT_PAGE_TARGET_CHARS` | 3500 | Safe target for paginated long text/log rendering |
-| `CONFIRMATION_TTL_SECONDS` | 300 | General confirmation expiry |
-| `DANGER_CONFIRMATION_TTL_SECONDS` | 180 | High-risk operation expiry |
-| `CALLBACK_SCHEMA_VERSION` | `v1` | Callback compatibility/versioning |
+| `DEFAULT_PAGE_SIZE` | 8 | installed repository list pagination |
+| `SEARCH_PAGE_SIZE` | 6 | P3.1 richer public search rows |
+| `CALLBACK_SCHEMA_VERSION` | `v1` | callback compatibility/versioning |
 
-Telegram callback data must remain compact. Prefer stable IDs/session IDs over embedding long repository names/paths.
+Policy/spec values still planned for later milestones include maximum two primary actions per row, long-text pagination targets, archive/file limits, and higher-risk confirmation patterns. Where a value becomes executable code, `gitdock/core/constants.py` is the source that must match this document.
 
 ### Canonical navigation labels
 
@@ -58,38 +78,57 @@ Telegram callback data must remain compact. Prefer stable IDs/session IDs over e
 - search: `🔎`
 - file: `📄`
 - folder: `📁`
+- account/user context: `👤`
 
 ## Callback namespace
 
-Canonical prefix:
+Canonical form:
 
 `gd:v1:<area>:<action>:<compact-context>`
 
-Verified P2.3 examples/shapes:
+Verified shapes include:
+
+### Home / connection
 
 - `gd:v1:home:open`
 - `gd:v1:home:refresh`
 - `gd:v1:connect:begin`
 - `gd:v1:connect:info`
+
+### Installed repositories
+
 - `gd:v1:repos:list:<filter>:<page>`
 - `gd:v1:repos:filters:<filter>:<page>`
 - `gd:v1:repos:filter:<filter>`
 - `gd:v1:repo:open:<filter>:<page>:<repo-id-base36>`
 
-Future examples may add areas such as files/actions/issues, but must keep the same versioned/compact principle.
+### P3.1 search
+
+Search uses compact opaque active-session/result context rather than embedding arbitrary repository names. Exact parser helpers remain centralized in `gitdock/telegram/callbacks.py`.
+
+### P3.2 GitHub account
+
+- `gd:v1:account:open`
+- `gd:v1:account:authorize`
+- `gd:v1:account:refresh`
+- `gd:v1:account:disconnect:begin`
+- `gd:v1:account:disconnect:yes:<opaque-token>`
+- `gd:v1:account:disconnect:no:<opaque-token>`
 
 Rules:
 
-- Never use user-supplied raw path/repository names when that risks callback-size overflow.
-- P2.3 repository callbacks use GitHub numeric repository ID encoded compactly, plus filter/page navigation context.
-- Resolve repository IDs server-side through the current GitDock user + active installation context; callback possession is not authorization.
-- Reject unknown callback schema versions safely.
-- Keep encoded callback data within Telegram's 64-byte limit; unit tests enforce this for maximum signed 64-bit repository IDs and long repository names.
-- Do not place credentials, OAuth material, or private GitHub data that is unnecessary for routing into callback payloads.
+- Never use arbitrary raw repository/path/login values when a compact stable ID/session is available.
+- Repository callbacks use stable GitHub numeric repository ID plus navigation context.
+- Search callbacks use active session/result context and fail closed when session is stale.
+- P3.2 confirmation callbacks may carry only the opaque confirmation token; the DB stores a digest plus target preconditions.
+- Callback possession is never authorization proof.
+- Reject unknown/malformed callback schema versions safely.
+- Keep callback data within Telegram's 64-byte limit; tests enforce current repository/search/account shapes.
+- Never place GitHub credentials, OAuth code/state, PKCE verifier, private keys, client secret, or raw auth bodies into callbacks.
 
 ## P2.3 repository filter values
 
-Canonical filter identifiers are machine values, not translated UI labels:
+Machine identifiers:
 
 - `all`
 - `private`
@@ -99,24 +138,35 @@ Canonical filter identifiers are machine values, not translated UI labels:
 - `source`
 - `fork`
 
-Do not invent handler-local aliases without updating callback compatibility/versioning deliberately.
+Do not invent handler-local aliases without deliberate callback compatibility/versioning change.
 
-## Repository/file operation limits
+## P3.1 search limits
 
-Initial policy values; implementation must make them configurable where appropriate.
+| Constant | Value |
+|---|---:|
+| `SEARCH_QUERY_MAX_CHARS` | 180 |
+| `SEARCH_COMPILED_QUERY_MAX_CHARS` | 240 |
+| `SEARCH_SESSION_ID_BYTES` | 6 |
+| `SEARCH_OWNER_LOGIN_MAX_CHARS` | 39 |
+| `SEARCH_TOPIC_MAX_CHARS` | 50 |
+| `SEARCH_MIN_STARS_MAX` | 1,000,000,000 |
 
-| Constant | Initial value | Notes |
+## Repository/file operation policy limits
+
+Initial planned policy values; executable implementation must centralize/configure them when the milestone lands.
+
+| Policy | Initial value | Notes |
 |---|---:|---|
-| `TEXT_PREVIEW_MAX_BYTES` | 256 KiB | Larger files use download/limited preview flow |
-| `SINGLE_UPLOAD_MAX_BYTES` | 20 MiB | Conservative application limit |
-| `ZIP_EXTRACT_MAX_FILES` | 5000 | Zip-bomb guard |
-| `ZIP_EXTRACT_MAX_TOTAL_BYTES` | 250 MiB | Extracted-size guard |
-| `ZIP_MAX_PATH_DEPTH` | 25 | Path abuse guard |
-| `DIFF_PREVIEW_MAX_FILES` | 200 | Above this, show summary/filter review |
-| `DIFF_TEXT_MAX_BYTES_PER_FILE` | 512 KiB | Large diff uses metadata/download path |
-| `TEMP_WORKSPACE_TTL_MINUTES` | 60 | Cleanup stale sync sessions |
+| text preview max | 256 KiB | larger files use download/limited preview |
+| single upload max | 20 MiB | conservative application limit |
+| ZIP max files | 5000 | zip-bomb guard |
+| ZIP max extracted bytes | 250 MiB | extracted-size guard |
+| ZIP max path depth | 25 | path abuse guard |
+| diff preview max files | 200 | above this use summary/filter review |
+| diff text max/file | 512 KiB | large diff uses metadata/download |
+| temp workspace TTL | 60 minutes | stale sync cleanup |
 
-These are GitDock policy limits, not claims about GitHub/Telegram hard limits.
+These are GitDock policy targets, not claims about GitHub/Telegram hard limits.
 
 ## GitHub HTTP/retry/pagination defaults
 
@@ -124,20 +174,19 @@ These are GitDock policy limits, not claims about GitHub/Telegram hard limits.
 |---|---:|---|
 | `HTTP_CONNECT_TIMEOUT_SECONDS` | 10.0 | outbound connect timeout |
 | `HTTP_READ_TIMEOUT_SECONDS` | 30.0 | outbound read/write timeout baseline |
-| `GITHUB_MAX_RETRIES` | 3 | maximum transient retries after the initial attempt |
+| `GITHUB_MAX_RETRIES` | 3 | transient retries after initial attempt |
 | `RETRY_BASE_DELAY_SECONDS` | 0.5 | exponential-backoff base |
 | `RETRY_MAX_DELAY_SECONDS` | 8.0 | backoff ceiling |
-| `GITHUB_MAX_PAGES` | 100 | pagination safety ceiling for one iterator |
+| `GITHUB_MAX_PAGES` | 100 | pagination iterator safety ceiling |
+| `GITHUB_REPOSITORY_FETCH_PAGE_SIZE` | 100 | GitHub repository fetch page size |
 
-P2.2 retry rules:
+Rules:
 
-- GET/HEAD use safe retry mode by default for network/timeouts and HTTP 408/500/502/503/504.
-- Write-like methods default to **no retry**.
-- A non-read method may opt into `RetryMode.SAFE` only when a higher layer has explicitly established idempotency/retry safety.
+- GET/HEAD safe retry by default for configured transient classes.
+- Write-like methods default to no retry.
+- Non-read method may opt into safe retry only after higher layer establishes idempotency/replay safety.
 - Redirects are not followed automatically.
-- Absolute API/pagination targets are accepted only for canonical HTTPS `api.github.com`; external/protocol-relative/credentialed/fragment URLs are rejected.
-
-Do not duplicate timeout/backoff/page-limit magic numbers in handlers.
+- Absolute API/pagination targets accepted only for canonical HTTPS `api.github.com`.
 
 ## GitHub event names planned for initial subscriptions
 
@@ -158,41 +207,41 @@ Do not duplicate timeout/backoff/page-limit magic numbers in handlers.
 
 ## GitHub permission groups
 
-Do not map permissions ad hoc in handlers. Centralize capability -> required permission mapping.
+Do not map permissions ad hoc in handlers. Centralize capability -> permission/token-context mapping.
 
 ### Baseline/read capability
 
-- Metadata: read — P2.3 repository list/detail baseline
-- Contents: read when repository content browsing is enabled
-- Issues: read when issue browsing is enabled
-- Pull requests: read when PR browsing is enabled
-- Actions: read when workflow/run inspection is enabled
+- Metadata: read — repository list/detail baseline
+- Contents: read when file browsing enabled
+- Issues: read when issue browsing enabled
+- Pull requests: read when PR browsing enabled
+- Actions: read when workflow/run inspection enabled
 
 ### Write capability milestones
 
 - Contents: write — file/branch/content updates
-- Issues: write — issue/comment/labels/assignees operations
-- Pull requests: write — PR interactions/reviews/merges as supported
-- Actions: write — workflow dispatch/retry/cancel where needed
-- Workflows: write — only if GitDock edits `.github/workflows/`
-- Administration: write — repository create/settings/rename/delete operations that require it
+- Issues: write — issue/comment/labels/assignees
+- Pull requests: write — PR interactions/reviews/merges
+- Actions: write — dispatch/retry/cancel where needed
+- Workflows: write — only when editing `.github/workflows/`
+- Administration: write — repository settings/rename/delete where GitHub requires it
 
-Request only the minimum permissions for enabled features. P2.3 must not request write/admin permission.
+P3.2 durable user authorization does not by itself enable any of these write permissions.
 
 ## Risk tiers
 
 | Tier | Name | Examples | Confirmation |
 |---|---|---|---|
 | 0 | Read | browse/search/view | none |
-| 1 | Reversible write | comment, issue, branch, workflow dispatch | context confirmation where appropriate |
-| 2 | High impact | merge, direct default-branch update, ZIP sync, rename/archive/visibility | dedicated confirmation screen |
-| 3 | Destructive | delete repo, transfer, destructive mass delete | exact target verification + final confirm |
+| 1 | Reversible/sensitive local or write | comment, branch, workflow dispatch, local account disconnect | context/persisted confirmation where appropriate |
+| 2 | High impact | merge, direct default-branch update, ZIP sync, rename/archive/visibility | dedicated persisted confirmation |
+| 3 | Destructive | delete repo, transfer, destructive mass delete | exact target verification + final persisted confirm |
 
-P2.3 home/repository list/detail is Tier 0.
+P3.2 local disconnect is local-state destructive enough to require persisted confirmation even though it does not delete a GitHub resource.
 
 ## Audit operation names
 
-Use stable machine identifiers such as:
+Stable examples:
 
 - `repo.create`
 - `repo.update_settings`
@@ -219,9 +268,7 @@ Read-only cache refresh/navigation is not a GitHub write audit operation.
 
 ## Environment variable naming convention
 
-Secrets and deployment configuration use uppercase `GITDOCK_*` keys where practical.
-
-Expected groups:
+Secrets/deployment settings use uppercase `GITDOCK_*` keys where practical, including:
 
 - `GITDOCK_ENV`
 - `GITDOCK_LOG_LEVEL`
@@ -236,6 +283,6 @@ Expected groups:
 - `GITDOCK_GITHUB_CLIENT_SECRET`
 - `GITDOCK_GITHUB_PRIVATE_KEY_PATH`
 - `GITDOCK_GITHUB_WEBHOOK_SECRET`
-- credential-encryption key/version settings for stored protected material
+- credential-encryption key/version settings for protected stored material.
 
 Real values must never be committed.
