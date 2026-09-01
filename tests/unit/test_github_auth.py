@@ -148,9 +148,7 @@ async def test_user_identity_and_refresh_use_user_context_and_rotation_grant() -
     observed: list[tuple[str, bytes, str | None]] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        observed.append(
-            (request.url.path, request.content, request.headers.get("Authorization"))
-        )
+        observed.append((request.url.path, request.content, request.headers.get("Authorization")))
         if request.url.path == "/user":
             return httpx.Response(200, request=request, json={"id": 55, "login": "octocat"})
         if request.url.path == "/login/oauth/access_token":

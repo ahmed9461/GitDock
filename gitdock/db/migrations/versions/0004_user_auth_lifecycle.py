@@ -1,6 +1,6 @@
 """Add durable user-authorization lifecycle state.
 
-Revision ID: 0004_user_authorization_lifecycle
+Revision ID: 0004_user_auth_lifecycle
 Revises: 0003_repository_cache
 Create Date: 2026-09-01
 """
@@ -8,7 +8,7 @@ Create Date: 2026-09-01
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0004_user_authorization_lifecycle"
+revision = "0004_user_auth_lifecycle"
 down_revision = "0003_repository_cache"
 branch_labels = None
 depends_on = None

@@ -81,7 +81,9 @@ async def make_service():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_user_authorization_persists_encrypted_identity_and_refreshes_rotating_token() -> None:
+async def test_user_authorization_persists_encrypted_identity_and_refreshes_rotating_token() -> (
+    None
+):
     engine, sessions, client, service, user_id = await make_service()
 
     async with sessions() as session:
@@ -161,7 +163,9 @@ async def test_disconnect_clears_credentials_installations_and_repository_cache_
     result = await service.confirm_disconnect(user_id=user_id, token=request.token)
     assert result.state is DisconnectState.DISCONNECTED
     assert result.installations_removed == 1
-    assert (await service.confirm_disconnect(user_id=user_id, token=request.token)).state is DisconnectState.INVALID
+    assert (
+        await service.confirm_disconnect(user_id=user_id, token=request.token)
+    ).state is DisconnectState.INVALID
 
     async with sessions() as session:
         stored = await session.get(GitHubAccount, account_id)

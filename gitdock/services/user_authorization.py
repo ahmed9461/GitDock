@@ -118,7 +118,9 @@ class GitHubUserAuthorizationService:
 
         user_accounts = (
             await session.scalars(
-                select(GitHubAccount).where(GitHubAccount.user_id == user_id).order_by(GitHubAccount.id)
+                select(GitHubAccount)
+                .where(GitHubAccount.user_id == user_id)
+                .order_by(GitHubAccount.id)
             )
         ).all()
         for account in user_accounts:
@@ -188,7 +190,10 @@ class GitHubUserAuthorizationService:
             generation = account.credential_generation
 
         now = self._now()
-        if credentials.expires_at is None or self._as_utc(credentials.expires_at) > now + self._refresh_margin:
+        if (
+            credentials.expires_at is None
+            or self._as_utc(credentials.expires_at) > now + self._refresh_margin
+        ):
             return UserAccessToken(
                 credentials.access_token,
                 credentials.expires_at,
@@ -325,7 +330,9 @@ class GitHubUserAuthorizationService:
                     if stored_account.encrypted_access_token is not None:
                         self._credential_store.clear(stored_account)
 
-                await session.execute(delete(RepositoryCache).where(RepositoryCache.user_id == user_id))
+                await session.execute(
+                    delete(RepositoryCache).where(RepositoryCache.user_id == user_id)
+                )
                 await session.execute(
                     delete(GitHubInstallation).where(GitHubInstallation.user_id == user_id)
                 )
