@@ -158,15 +158,23 @@ Acceptance:
 
 ## P3 — Search & repository administration
 
-### P3.1 GitHub search
+### P3.1 GitHub search — implementation verified; merge closeout pending
 
-- [ ] repository search query flow.
-- [ ] stars/forks/language/license/updated metadata.
-- [ ] sort by stars/update.
-- [ ] language/min-stars/owner/topic/archive filters.
-- [ ] result pagination.
-- [ ] repository detail from search result.
-- [ ] clone-command entry from search result.
+Implementation head `4a4f00d50e886ab494e2a83f2c649cd64b7398b2` passed CI `33453960817` with 83 tests on Python 3.12/3.13 plus PostgreSQL and all configured quality/security gates. Final `[x] verified complete` milestone status still requires the non-draft PR, squash merge, post-merge `main` CI, and governance closeout described in `docs/CURRENT_STATUS.md`.
+
+- [x] repository search query flow.
+- [x] stars/forks/language/license/updated metadata.
+- [x] sort by stars/update.
+- [x] language/min-stars/owner/topic/archive filters.
+- [x] result pagination.
+- [x] repository detail from active search result context with GitHub re-fetch.
+- [x] compact session-scoped callbacks and stale-session rejection.
+- [x] public/anonymous search works without a bound installation.
+- [x] public search state remains separate from installed `repositories_cache`.
+- [x] Home clears transient search FSM state.
+- [x] download-command entry point is present as a safe placeholder only; actual clone/setup/run command generation is intentionally deferred to P4.3.
+
+P3.1 remains Tier 0 read-only and introduces no repository write/admin permission.
 
 ### P3.2 User-context authorization
 
