@@ -244,7 +244,9 @@ class GitHubUserAuthorizationService:
                 if account is None and not installations:
                     return None
                 installation_ids = [row.installation_id for row in installations]
-                account_login = account.login if account is not None else installations[0].account_login
+                account_login = (
+                    account.login if account is not None else installations[0].account_login
+                )
                 target = self._disconnect_fingerprint(account, installation_ids)
                 issued = await self._confirmations.create(
                     session,

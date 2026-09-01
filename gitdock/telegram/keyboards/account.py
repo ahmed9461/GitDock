@@ -17,9 +17,7 @@ def account_keyboard(
     rows: list[list[InlineKeyboardButton]] = []
 
     if can_authorize:
-        authorize_label = (
-            "🔐 إعادة التفويض" if status.authorized else "🔐 تفعيل صلاحية المستخدم"
-        )
+        authorize_label = "🔐 إعادة التفويض" if status.authorized else "🔐 تفعيل صلاحية المستخدم"
         rows.append(
             [InlineKeyboardButton(text=authorize_label, callback_data=callbacks.ACCOUNT_AUTHORIZE)]
         )

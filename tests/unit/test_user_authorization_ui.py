@@ -43,9 +43,7 @@ def test_account_callbacks_are_compact_and_confirmation_round_trips() -> None:
     assert len(cancel.encode("utf-8")) <= 64
     assert callbacks.parse_account_disconnect_confirm(confirm) == token
     assert callbacks.parse_account_disconnect_cancel(cancel) == token
-    assert callbacks.parse_account_disconnect_confirm(
-        "gd:v1:account:disconnect:yes:bad!"
-    ) is None
+    assert callbacks.parse_account_disconnect_confirm("gd:v1:account:disconnect:yes:bad!") is None
 
 
 def test_connected_home_exposes_real_github_account_entry() -> None:
@@ -77,7 +75,10 @@ def test_legacy_installation_account_screen_offers_user_authorization_and_discon
     text = render_account(legacy)
     keyboard = account_keyboard(legacy, can_authorize=True)
     callback_values = {
-        button.callback_data for row in keyboard.inline_keyboard for button in row if button.callback_data
+        button.callback_data
+        for row in keyboard.inline_keyboard
+        for button in row
+        if button.callback_data
     }
 
     assert "صلاحية المستخدم الدائمة غير مفعلة" in text
@@ -98,15 +99,16 @@ def test_disconnect_confirmation_states_local_only_scope_and_stale_safety() -> N
     assert "لن يقوم هذا بإلغاء تثبيت GitHub App" in text
     assert "أي زر تأكيد قديم يصبح غير صالح" in text
     assert len(keyboard.inline_keyboard[0]) == 1
-    assert callbacks.parse_account_disconnect_confirm(
-        keyboard.inline_keyboard[0][0].callback_data or ""
-    ) == request.token
+    assert (
+        callbacks.parse_account_disconnect_confirm(
+            keyboard.inline_keyboard[0][0].callback_data or ""
+        )
+        == request.token
+    )
 
 
 def test_disconnect_result_renderer_never_claims_stale_or_invalid_deleted_data() -> None:
-    success = render_disconnect_result(
-        DisconnectResult(DisconnectState.DISCONNECTED, "octocat", 1)
-    )
+    success = render_disconnect_result(DisconnectResult(DisconnectState.DISCONNECTED, "octocat", 1))
     stale = render_disconnect_result(DisconnectResult(DisconnectState.STALE))
     invalid = render_disconnect_result(DisconnectResult(DisconnectState.INVALID))
 

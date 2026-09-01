@@ -126,7 +126,9 @@ async def test_standalone_user_authorization_reuses_state_pkce_and_persists_cred
     assert completion.account_login == "octocat"
     assert completion.installation_account_login is None
     async with sessions() as session:
-        account = await session.scalar(select(GitHubAccount).where(GitHubAccount.user_id == user_id))
+        account = await session.scalar(
+            select(GitHubAccount).where(GitHubAccount.user_id == user_id)
+        )
         assert account is not None
         assert account.github_user_id == 55
         assert account.login == "octocat"
