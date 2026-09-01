@@ -10,6 +10,7 @@ from gitdock.github.auth import GitHubAuthError
 from gitdock.github.auth_state import InvalidAuthorizationState
 from gitdock.github.binding import InstallationBindingError
 from gitdock.github.connection import GitHubConnectionError
+from gitdock.services.user_authorization import UserAuthorizationError
 
 router = APIRouter()
 
@@ -52,12 +53,12 @@ async def github_oauth_callback(
     if service is None or settings.public_base_url is None:
         return _error_page("ربط GitHub غير مهيأ على الخادم.", status_code=503)
     if error:
-        return _error_page("تم إلغاء ربط GitHub. لم يتم حفظ أي ربط جديد.", status_code=400)
+        return _error_page("تم إلغاء تفويض GitHub. لم يتم حفظ أي ربط جديد.", status_code=400)
     if not state or not code:
         return _error_page("بيانات التحقق من GitHub غير مكتملة.", status_code=400)
 
     try:
-        installation = await service.complete_user_authorization(
+        completion = await service.complete_user_authorization(
             state=state,
             code=code,
             redirect_uri=_absolute_callback_url(
@@ -69,23 +70,35 @@ async def github_oauth_callback(
         InvalidAuthorizationState,
         GitHubAuthError,
         InstallationBindingError,
+        UserAuthorizationError,
         ValueError,
     ):
-        return _error_page("تعذر إكمال ربط GitHub بأمان. ابدأ جلسة ربط جديدة من البوت.", 400)
+        return _error_page("تعذر إكمال تفويض GitHub بأمان. ابدأ جلسة جديدة من البوت.", 400)
 
-    safe_login = installation.account_login.replace("<", "&lt;").replace(">", "&gt;")
+    safe_login = _html_escape(completion.account_login)
+    installation_login = completion.installation_account_login
+    installation_line = ""
+    if installation_login is not None:
+        installation_line = (
+            f"<p>تثبيت GitHub App: <strong>{_html_escape(installation_login)}</strong></p>"
+        )
     return HTMLResponse(
         "<!doctype html><html lang='ar' dir='rtl'><meta charset='utf-8'>"
         "<title>GitDock</title><body>"
-        "<h2>✅ تم ربط GitHub بنجاح</h2>"
-        f"<p>الحساب/التثبيت: <strong>{safe_login}</strong></p>"
-        "<p>يمكنك الآن العودة إلى Telegram والضغط على تحديث.</p>"
+        "<h2>✅ تم تفويض GitHub بنجاح</h2>"
+        f"<p>حساب GitHub: <strong>{safe_login}</strong></p>"
+        f"{installation_line}"
+        "<p>يمكنك الآن العودة إلى Telegram وفتح حساب GitHub أو الضغط على تحديث.</p>"
         "</body></html>"
     )
 
 
 def _absolute_callback_url(base_url: object, path: str) -> str:
     return f"{str(base_url).rstrip('/')}{path}"
+
+
+def _html_escape(value: str) -> str:
+    return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def _error_page(message: str, status_code: int) -> HTMLResponse:

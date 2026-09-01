@@ -1,4 +1,4 @@
-"""Telegram home/repository router for the owner-first P2.3 experience."""
+"""Telegram home/repository/account router for the owner-first GitDock experience."""
 
 from __future__ import annotations
 
@@ -9,10 +9,26 @@ from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 from aiogram.types import User as TelegramUser
 
 from gitdock.core.config import Settings
+from gitdock.core.constants import GITHUB_OAUTH_CALLBACK_PATH
+from gitdock.github.auth import GitHubAuthError
 from gitdock.github.errors import GitHubGatewayError
 from gitdock.services.repositories import HomeStatus, RepositorySelectionError
 from gitdock.services.runtime import RuntimeServices
+from gitdock.services.user_authorization import (
+    DisconnectResult,
+    DisconnectState,
+    ReauthorizationRequired,
+    UserAuthorizationChanged,
+    UserAuthorizationError,
+    UserAuthorizationStatus,
+)
 from gitdock.telegram import callbacks
+from gitdock.telegram.keyboards.account import (
+    account_keyboard,
+    account_result_keyboard,
+    authorization_ready_keyboard,
+    disconnect_confirmation_keyboard,
+)
 from gitdock.telegram.keyboards.repositories import (
     connection_ready_keyboard,
     home_keyboard,
@@ -20,6 +36,15 @@ from gitdock.telegram.keyboards.repositories import (
     repository_filters_keyboard,
     repository_list_keyboard,
     simple_back_home_keyboard,
+)
+from gitdock.telegram.renderers.account import (
+    render_account,
+    render_authorization_changed,
+    render_authorization_error,
+    render_authorization_ready,
+    render_disconnect_confirmation,
+    render_disconnect_result,
+    render_reauthorization_required,
 )
 from gitdock.telegram.renderers.repositories import (
     render_connection_info,
@@ -85,12 +110,161 @@ def create_system_router(
             )
             return
         user_id = await _resolve_user(callback.from_user, services)
+        await _cancel_disconnect_on_navigation(services, user_id)
         redirect = await services.github_connection.begin_installation(user_id=user_id)
         await _edit_callback(
             callback,
             render_connection_ready(),
             connection_ready_keyboard(redirect.url),
         )
+
+    @router.callback_query(F.data == callbacks.ACCOUNT_OPEN)
+    async def account_open(callback: CallbackQuery) -> None:
+        if settings is None or services is None:
+            await callback.answer()
+            return
+        await _show_account_callback(callback, settings, services)
+
+    @router.callback_query(F.data == callbacks.ACCOUNT_REFRESH)
+    async def account_refresh(callback: CallbackQuery) -> None:
+        if settings is None or services is None or services.user_authorization is None:
+            await callback.answer()
+            return
+        user_id = await _resolve_user(callback.from_user, services)
+        try:
+            status = await services.user_authorization.refresh_if_needed(user_id=user_id)
+        except ReauthorizationRequired:
+            status = await services.user_authorization.status(user_id=user_id)
+            await _edit_callback(
+                callback,
+                render_reauthorization_required(),
+                account_keyboard(status, can_authorize=_can_authorize(settings, services)),
+            )
+            return
+        except UserAuthorizationChanged:
+            await _edit_callback(
+                callback,
+                render_authorization_changed(),
+                account_result_keyboard(),
+            )
+            return
+        except (GitHubAuthError, UserAuthorizationError):
+            await _edit_callback(
+                callback,
+                render_authorization_error(),
+                account_result_keyboard(),
+            )
+            return
+        await _edit_callback(
+            callback,
+            render_account(status),
+            account_keyboard(status, can_authorize=_can_authorize(settings, services)),
+        )
+
+    @router.callback_query(F.data == callbacks.ACCOUNT_AUTHORIZE)
+    async def account_authorize(callback: CallbackQuery) -> None:
+        if not _can_authorize(settings, services):
+            await _edit_callback(
+                callback,
+                render_authorization_error(),
+                account_result_keyboard(),
+            )
+            return
+        assert settings is not None
+        assert settings.public_base_url is not None
+        assert services is not None
+        assert services.github_connection is not None
+        user_id = await _resolve_user(callback.from_user, services)
+        await _cancel_disconnect_on_navigation(services, user_id)
+        try:
+            redirect = await services.github_connection.begin_user_authorization(
+                user_id=user_id,
+                redirect_uri=_oauth_callback_url(settings),
+            )
+        except (GitHubAuthError, ValueError):
+            await _edit_callback(
+                callback,
+                render_authorization_error(),
+                account_result_keyboard(),
+            )
+            return
+        await _edit_callback(
+            callback,
+            render_authorization_ready(),
+            authorization_ready_keyboard(redirect.url),
+        )
+
+    @router.callback_query(F.data == callbacks.ACCOUNT_DISCONNECT_BEGIN)
+    async def account_disconnect_begin(callback: CallbackQuery) -> None:
+        if services is None or services.user_authorization is None:
+            await callback.answer()
+            return
+        user_id = await _resolve_user(callback.from_user, services)
+        try:
+            request = await services.user_authorization.begin_disconnect(user_id=user_id)
+        except UserAuthorizationError:
+            await _edit_callback(
+                callback,
+                render_authorization_error(),
+                account_result_keyboard(),
+            )
+            return
+        if request is None:
+            await _edit_callback(
+                callback,
+                render_disconnect_result(DisconnectResult(DisconnectState.INVALID)),
+                account_result_keyboard(),
+            )
+            return
+        await _edit_callback(
+            callback,
+            render_disconnect_confirmation(request),
+            disconnect_confirmation_keyboard(request.token),
+        )
+
+    @router.callback_query(F.data.startswith(f"{callbacks.PREFIX}:account:disconnect:yes:"))
+    async def account_disconnect_confirm(callback: CallbackQuery) -> None:
+        if services is None or services.user_authorization is None or callback.data is None:
+            await callback.answer()
+            return
+        token = callbacks.parse_account_disconnect_confirm(callback.data)
+        if token is None:
+            await callback.answer("التأكيد غير صالح", show_alert=True)
+            return
+        user_id = await _resolve_user(callback.from_user, services)
+        try:
+            result = await services.user_authorization.confirm_disconnect(
+                user_id=user_id,
+                token=token,
+            )
+        except UserAuthorizationError:
+            await _edit_callback(
+                callback,
+                render_authorization_error(),
+                account_result_keyboard(),
+            )
+            return
+        await _edit_callback(
+            callback,
+            render_disconnect_result(result),
+            account_result_keyboard(),
+        )
+
+    @router.callback_query(F.data.startswith(f"{callbacks.PREFIX}:account:disconnect:no:"))
+    async def account_disconnect_cancel(callback: CallbackQuery) -> None:
+        if settings is None or services is None or services.user_authorization is None:
+            await callback.answer()
+            return
+        if callback.data is None:
+            await callback.answer()
+            return
+        token = callbacks.parse_account_disconnect_cancel(callback.data)
+        if token is None:
+            await callback.answer("الإلغاء غير صالح", show_alert=True)
+            return
+        user_id = await _resolve_user(callback.from_user, services)
+        await services.user_authorization.cancel_disconnect(user_id=user_id, token=token)
+        await _show_account_callback(callback, settings, services, user_id=user_id)
 
     @router.callback_query(F.data.startswith(f"{callbacks.PREFIX}:repos:list:"))
     async def repositories(callback: CallbackQuery) -> None:
@@ -205,6 +379,7 @@ async def _show_home_message(
     if message.from_user is None:
         return
     user_id = await _resolve_user(message.from_user, services)
+    await _cancel_disconnect_on_navigation(services, user_id)
     if services.repository_read is None:
         status = HomeStatus(False, None, 0, 0)
     else:
@@ -228,6 +403,7 @@ async def _show_home_callback(
     services: RuntimeServices,
 ) -> None:
     user_id = await _resolve_user(callback.from_user, services)
+    await _cancel_disconnect_on_navigation(services, user_id)
     if services.repository_read is None:
         status = HomeStatus(False, None, 0, 0)
     else:
@@ -244,6 +420,38 @@ async def _show_home_callback(
             can_connect=_can_connect(settings, services),
         ),
     )
+
+
+async def _show_account_callback(
+    callback: CallbackQuery,
+    settings: Settings,
+    services: RuntimeServices,
+    *,
+    user_id: int | None = None,
+) -> None:
+    if services.user_authorization is None:
+        status = UserAuthorizationStatus(False, None, None, None, None, False, 0)
+    else:
+        resolved_user_id = user_id or await _resolve_user(callback.from_user, services)
+        try:
+            status = await services.user_authorization.status(user_id=resolved_user_id)
+        except UserAuthorizationError:
+            await _edit_callback(
+                callback,
+                render_authorization_error(),
+                account_result_keyboard(),
+            )
+            return
+    await _edit_callback(
+        callback,
+        render_account(status),
+        account_keyboard(status, can_authorize=_can_authorize(settings, services)),
+    )
+
+
+async def _cancel_disconnect_on_navigation(services: RuntimeServices, user_id: int) -> None:
+    if services.user_authorization is not None:
+        await services.user_authorization.cancel_pending_disconnects(user_id=user_id)
 
 
 async def _resolve_user(user: TelegramUser, services: RuntimeServices) -> int:
@@ -272,3 +480,20 @@ def _can_connect(settings: Settings, services: RuntimeServices | None) -> bool:
         and services is not None
         and services.github_connection is not None
     )
+
+
+def _can_authorize(settings: Settings | None, services: RuntimeServices | None) -> bool:
+    return (
+        settings is not None
+        and settings.github_auth_configured
+        and settings.public_base_url is not None
+        and services is not None
+        and services.github_connection is not None
+        and services.user_authorization is not None
+    )
+
+
+def _oauth_callback_url(settings: Settings) -> str:
+    if settings.public_base_url is None:
+        raise ValueError("public base URL is required")
+    return f"{str(settings.public_base_url).rstrip('/')}{GITHUB_OAUTH_CALLBACK_PATH}"

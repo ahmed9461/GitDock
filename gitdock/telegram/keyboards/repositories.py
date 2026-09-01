@@ -44,19 +44,25 @@ def home_keyboard(*, connected: bool, can_connect: bool) -> InlineKeyboardMarkup
             ],
             [
                 InlineKeyboardButton(
-                    text="🔔 التنبيهات", callback_data=callbacks.placeholder("notifications")
+                    text="👤 حساب GitHub",
+                    callback_data=callbacks.ACCOUNT_OPEN,
                 ),
                 InlineKeyboardButton(
-                    text="📊 النشاط", callback_data=callbacks.placeholder("activity")
+                    text="🔔 التنبيهات", callback_data=callbacks.placeholder("notifications")
                 ),
             ],
             [
                 InlineKeyboardButton(
-                    text="\u2795 مستودع جديد", callback_data=callbacks.placeholder("repo-create")
+                    text="📊 النشاط", callback_data=callbacks.placeholder("activity")
                 ),
                 InlineKeyboardButton(
-                    text="⚙️ الإعدادات", callback_data=callbacks.placeholder("settings")
+                    text="\u2795 مستودع جديد", callback_data=callbacks.placeholder("repo-create")
                 ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="⚙️ الإعدادات", callback_data=callbacks.placeholder("settings")
+                )
             ],
             [InlineKeyboardButton(text=NAV_REFRESH, callback_data=callbacks.HOME_REFRESH)],
         ]

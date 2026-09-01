@@ -79,6 +79,22 @@ async def make_service():
     return engine, sessions, client, service, user_id
 
 
+async def add_installation(sessions, user_id: int, installation_id: int = 99) -> int:
+    async with sessions() as session:
+        async with session.begin():
+            installation = GitHubInstallation(
+                user_id=user_id,
+                installation_id=installation_id,
+                account_login="octocat",
+                account_type="User",
+                suspended=False,
+                permissions_json={"metadata": "read"},
+            )
+            session.add(installation)
+            await session.flush()
+            return installation.id
+
+
 @pytest.mark.integration
 @pytest.mark.asyncio
 async def test_user_authorization_persists_encrypted_identity_and_refreshes_rotating_token() -> (
@@ -124,20 +140,13 @@ async def test_disconnect_clears_credentials_installations_and_repository_cache_
         async with session.begin():
             account = await service.persist_authorization(session, user_id=user_id, token=token())
             account_id = account.id
-            installation = GitHubInstallation(
-                user_id=user_id,
-                installation_id=99,
-                account_login="octocat",
-                account_type="User",
-                suspended=False,
-                permissions_json={"metadata": "read"},
-            )
-            session.add(installation)
-            await session.flush()
+    installation_db_id = await add_installation(sessions, user_id)
+    async with sessions() as session:
+        async with session.begin():
             session.add(
                 RepositoryCache(
                     user_id=user_id,
-                    installation_db_id=installation.id,
+                    installation_db_id=installation_db_id,
                     github_repository_id=123,
                     owner_login="octocat",
                     name="demo",
@@ -180,6 +189,29 @@ async def test_disconnect_clears_credentials_installations_and_repository_cache_
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_legacy_installation_without_persisted_user_token_can_disconnect_locally() -> None:
+    engine, sessions, _, service, user_id = await make_service()
+    await add_installation(sessions, user_id)
+
+    status = await service.status(user_id=user_id)
+    assert status.authorized is False
+    assert status.installation_count == 1
+
+    request = await service.begin_disconnect(user_id=user_id)
+    assert request is not None
+    assert request.account_login == "octocat"
+    result = await service.confirm_disconnect(user_id=user_id, token=request.token)
+    assert result.state is DisconnectState.DISCONNECTED
+    assert result.installations_removed == 1
+
+    async with sessions() as session:
+        assert await session.scalar(select(func.count(GitHubInstallation.id))) == 0
+
+    await engine.dispose()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_old_disconnect_confirmation_cannot_remove_newer_reauthorization() -> None:
     engine, sessions, _, service, user_id = await make_service()
 
@@ -210,18 +242,43 @@ async def test_old_disconnect_confirmation_cannot_remove_newer_reauthorization()
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_disconnect_cancel_consumes_confirmation_and_blocks_later_confirm() -> None:
+async def test_disconnect_confirmation_fails_closed_when_installation_set_changes() -> None:
+    engine, sessions, _, service, user_id = await make_service()
+    await add_installation(sessions, user_id, 99)
+
+    request = await service.begin_disconnect(user_id=user_id)
+    assert request is not None
+    await add_installation(sessions, user_id, 100)
+
+    result = await service.confirm_disconnect(user_id=user_id, token=request.token)
+    assert result.state is DisconnectState.STALE
+    assert (await service.status(user_id=user_id)).installation_count == 2
+
+    await engine.dispose()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_disconnect_cancel_and_home_navigation_consume_pending_confirmation() -> None:
     engine, sessions, _, service, user_id = await make_service()
 
     async with sessions() as session:
         async with session.begin():
             await service.persist_authorization(session, user_id=user_id, token=token())
 
-    request = await service.begin_disconnect(user_id=user_id)
-    assert request is not None
-    assert await service.cancel_disconnect(user_id=user_id, token=request.token) is True
-    result = await service.confirm_disconnect(user_id=user_id, token=request.token)
-    assert result.state is DisconnectState.INVALID
+    first = await service.begin_disconnect(user_id=user_id)
+    assert first is not None
+    assert await service.cancel_disconnect(user_id=user_id, token=first.token) is True
+    assert (
+        await service.confirm_disconnect(user_id=user_id, token=first.token)
+    ).state is DisconnectState.INVALID
+
+    second = await service.begin_disconnect(user_id=user_id)
+    assert second is not None
+    assert await service.cancel_pending_disconnects(user_id=user_id) is True
+    assert (
+        await service.confirm_disconnect(user_id=user_id, token=second.token)
+    ).state is DisconnectState.INVALID
     assert (await service.status(user_id=user_id)).authorized is True
 
     await engine.dispose()

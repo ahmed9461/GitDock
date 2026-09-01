@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import httpx
 import pytest
 from fastapi import FastAPI
 
-from gitdock.github.connection import ConnectionRedirect
+from gitdock.github.connection import ConnectionCompletion, ConnectionRedirect
 from gitdock.http.routes.github import router
 
 
@@ -31,9 +29,12 @@ class FakeConnectionService:
         state: str,
         code: str,
         redirect_uri: str,
-    ):
+    ) -> ConnectionCompletion:
         self.oauth_call = (state, code, redirect_uri)
-        return SimpleNamespace(account_login="ahmed9461")
+        return ConnectionCompletion(
+            account_login="ahmed9461",
+            installation_account_login="ahmed-org",
+        )
 
 
 @pytest.mark.integration
@@ -42,8 +43,8 @@ async def test_setup_callback_redirects_only_through_connection_service() -> Non
     service = FakeConnectionService()
     app = FastAPI()
     app.include_router(router)
-    app.state.runtime_services = SimpleNamespace(github_connection=service)
-    app.state.settings = SimpleNamespace(public_base_url="https://gitdock.example/")
+    app.state.runtime_services = type("Runtime", (), {"github_connection": service})()
+    app.state.settings = type("Settings", (), {"public_base_url": "https://gitdock.example/"})()
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="https://gitdock.example") as client:
@@ -64,12 +65,12 @@ async def test_setup_callback_redirects_only_through_connection_service() -> Non
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_oauth_callback_returns_static_success_without_echoing_code() -> None:
+async def test_oauth_callback_returns_safe_user_and_installation_success_copy() -> None:
     service = FakeConnectionService()
     app = FastAPI()
     app.include_router(router)
-    app.state.runtime_services = SimpleNamespace(github_connection=service)
-    app.state.settings = SimpleNamespace(public_base_url="https://gitdock.example")
+    app.state.runtime_services = type("Runtime", (), {"github_connection": service})()
+    app.state.settings = type("Settings", (), {"public_base_url": "https://gitdock.example"})()
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="https://gitdock.example") as client:
@@ -79,7 +80,11 @@ async def test_oauth_callback_returns_static_success_without_echoing_code() -> N
         )
 
     assert response.status_code == 200
-    assert "تم ربط GitHub بنجاح" in response.text
+    assert "تم تفويض GitHub بنجاح" in response.text
+    assert "حساب GitHub" in response.text
+    assert "ahmed9461" in response.text
+    assert "تثبيت GitHub App" in response.text
+    assert "ahmed-org" in response.text
     assert "secret-code" not in response.text
     assert service.oauth_call == (
         "opaque",
@@ -90,12 +95,12 @@ async def test_oauth_callback_returns_static_success_without_echoing_code() -> N
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_oauth_cancellation_does_not_call_connection_service() -> None:
+async def test_oauth_cancellation_does_not_call_connection_service_or_echo_error() -> None:
     service = FakeConnectionService()
     app = FastAPI()
     app.include_router(router)
-    app.state.runtime_services = SimpleNamespace(github_connection=service)
-    app.state.settings = SimpleNamespace(public_base_url="https://gitdock.example")
+    app.state.runtime_services = type("Runtime", (), {"github_connection": service})()
+    app.state.settings = type("Settings", (), {"public_base_url": "https://gitdock.example"})()
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="https://gitdock.example") as client:

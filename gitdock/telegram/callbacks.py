@@ -13,10 +13,15 @@ HOME_OPEN = f"{PREFIX}:home:open"
 HOME_REFRESH = f"{PREFIX}:home:refresh"
 CONNECT_BEGIN = f"{PREFIX}:connect:begin"
 CONNECT_INFO = f"{PREFIX}:connect:info"
+ACCOUNT_OPEN = f"{PREFIX}:account:open"
+ACCOUNT_REFRESH = f"{PREFIX}:account:refresh"
+ACCOUNT_AUTHORIZE = f"{PREFIX}:account:authorize"
+ACCOUNT_DISCONNECT_BEGIN = f"{PREFIX}:account:disconnect:begin"
 SEARCH_BEGIN = f"{PREFIX}:search:begin"
 PLACEHOLDER_PREFIX = f"{PREFIX}:later:"
 
 _SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{6,16}$")
+_CONFIRMATION_TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{12,24}$")
 _LANGUAGE_CODES = {
     SearchLanguage.PYTHON: "py",
     SearchLanguage.JAVASCRIPT: "js",
@@ -110,6 +115,24 @@ def parse_repository_filter(data: str) -> RepositoryFilter | None:
         return RepositoryFilter(data[len(prefix) :])
     except ValueError:
         return None
+
+
+def account_disconnect_confirm(token: str) -> str:
+    _require_confirmation_token(token)
+    return f"{PREFIX}:account:disconnect:yes:{token}"
+
+
+def parse_account_disconnect_confirm(data: str) -> str | None:
+    return _parse_confirmation_callback(data, "yes")
+
+
+def account_disconnect_cancel(token: str) -> str:
+    _require_confirmation_token(token)
+    return f"{PREFIX}:account:disconnect:no:{token}"
+
+
+def parse_account_disconnect_cancel(data: str) -> str | None:
+    return _parse_confirmation_callback(data, "no")
 
 
 def search_results(session_id: str, page: int) -> str:
@@ -239,6 +262,19 @@ def placeholder(area: str) -> str:
     if not normalized or len(normalized) > 20:
         raise ValueError("placeholder area is invalid")
     return f"{PLACEHOLDER_PREFIX}{normalized}"
+
+
+def _parse_confirmation_callback(data: str, action: str) -> str | None:
+    prefix = f"{PREFIX}:account:disconnect:{action}:"
+    if not data.startswith(prefix):
+        return None
+    token = data[len(prefix) :]
+    return token if _CONFIRMATION_TOKEN_RE.fullmatch(token) is not None else None
+
+
+def _require_confirmation_token(value: str) -> None:
+    if _CONFIRMATION_TOKEN_RE.fullmatch(value) is None:
+        raise ValueError("confirmation token is invalid")
 
 
 def _require_session_id(value: str) -> None:

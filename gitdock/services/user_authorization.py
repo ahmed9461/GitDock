@@ -240,33 +240,31 @@ class GitHubUserAuthorizationService:
         async with self._session_factory() as session:
             async with session.begin():
                 account = await self._active_account(session, user_id)
-                if account is None:
+                installations = await self._installations(session, user_id)
+                if account is None and not installations:
                     return None
-                installation_count = int(
-                    await session.scalar(
-                        select(func.count(GitHubInstallation.id)).where(
-                            GitHubInstallation.user_id == user_id
-                        )
-                    )
-                    or 0
-                )
-                target = self._fingerprint(account)
+                installation_ids = [row.installation_id for row in installations]
+                account_login = account.login if account is not None else installations[0].account_login
+                target = self._disconnect_fingerprint(account, installation_ids)
                 issued = await self._confirmations.create(
                     session,
                     user_id=user_id,
                     operation_type=DISCONNECT_OPERATION,
                     target_fingerprint=target,
                     payload={
-                        "account_id": account.id,
-                        "github_user_id": account.github_user_id,
-                        "credential_generation": account.credential_generation,
+                        "account_id": account.id if account is not None else None,
+                        "github_user_id": account.github_user_id if account is not None else None,
+                        "credential_generation": (
+                            account.credential_generation if account is not None else None
+                        ),
+                        "installation_ids": installation_ids,
                     },
                     risk_tier=1,
                 )
                 return DisconnectRequest(
                     issued.token,
-                    account.login,
-                    installation_count,
+                    account_login,
+                    len(installations),
                     issued.expires_at,
                 )
 
@@ -279,6 +277,25 @@ class GitHubUserAuthorizationService:
                     token=token,
                     expected_operation=DISCONNECT_OPERATION,
                 )
+
+    async def cancel_pending_disconnects(self, *, user_id: int) -> bool:
+        if user_id <= 0:
+            return False
+        async with self._session_factory() as session:
+            async with session.begin():
+                statement = (
+                    update(PendingConfirmation)
+                    .where(
+                        PendingConfirmation.user_id == user_id,
+                        PendingConfirmation.operation_type == DISCONNECT_OPERATION,
+                        PendingConfirmation.consumed_at.is_(None),
+                    )
+                    .values(consumed_at=self._now())
+                    .returning(PendingConfirmation.id)
+                    .execution_options(synchronize_session=False)
+                )
+                result = await session.execute(statement)
+                return result.first() is not None
 
     async def confirm_disconnect(self, *, user_id: int, token: str) -> DisconnectResult:
         if user_id <= 0 or not token:
@@ -294,35 +311,55 @@ class GitHubUserAuthorizationService:
                 if consumed is None:
                     return DisconnectResult(DisconnectState.INVALID)
 
+                raw_installation_ids = consumed.payload.get("installation_ids")
+                if not isinstance(raw_installation_ids, list) or any(
+                    not isinstance(value, int) or isinstance(value, bool) or value <= 0
+                    for value in raw_installation_ids
+                ):
+                    return DisconnectResult(DisconnectState.STALE)
+                expected_installation_ids = list(raw_installation_ids)
+                installations = await self._installations(session, user_id)
+                current_installation_ids = [row.installation_id for row in installations]
+                if current_installation_ids != expected_installation_ids:
+                    return DisconnectResult(DisconnectState.STALE)
+
+                account = await self._active_account(session, user_id)
                 account_id = consumed.payload.get("account_id")
                 github_user_id = consumed.payload.get("github_user_id")
                 credential_generation = consumed.payload.get("credential_generation")
-                if not all(
-                    isinstance(value, int) and not isinstance(value, bool)
-                    for value in (account_id, github_user_id, credential_generation)
+                if account_id is None:
+                    if (
+                        account is not None
+                        or github_user_id is not None
+                        or credential_generation is not None
+                    ):
+                        return DisconnectResult(DisconnectState.STALE)
+                else:
+                    if not all(
+                        isinstance(value, int) and not isinstance(value, bool)
+                        for value in (account_id, github_user_id, credential_generation)
+                    ):
+                        return DisconnectResult(DisconnectState.STALE)
+                    if (
+                        account is None
+                        or account.id != account_id
+                        or account.github_user_id != github_user_id
+                        or account.credential_generation != credential_generation
+                        or account.encrypted_access_token is None
+                    ):
+                        return DisconnectResult(DisconnectState.STALE)
+
+                if consumed.target_fingerprint != self._disconnect_fingerprint(
+                    account, current_installation_ids
                 ):
                     return DisconnectResult(DisconnectState.STALE)
 
-                account = await session.get(GitHubAccount, account_id)
-                if (
-                    account is None
-                    or account.user_id != user_id
-                    or account.github_user_id != github_user_id
-                    or account.credential_generation != credential_generation
-                    or account.encrypted_access_token is None
-                    or consumed.target_fingerprint != self._fingerprint(account)
-                ):
-                    return DisconnectResult(DisconnectState.STALE)
-
-                account_login = account.login
-                installations_removed = int(
-                    await session.scalar(
-                        select(func.count(GitHubInstallation.id)).where(
-                            GitHubInstallation.user_id == user_id
-                        )
-                    )
-                    or 0
+                account_login = (
+                    account.login
+                    if account is not None
+                    else (installations[0].account_login if installations else None)
                 )
+                installations_removed = len(installations)
 
                 accounts = (
                     await session.scalars(
@@ -376,10 +413,31 @@ class GitHubUserAuthorizationService:
         return rows[0] if rows else None
 
     @staticmethod
-    def _fingerprint(account: GitHubAccount) -> str:
+    async def _installations(
+        session: AsyncSession,
+        user_id: int,
+    ) -> list[GitHubInstallation]:
+        return list(
+            (
+                await session.scalars(
+                    select(GitHubInstallation)
+                    .where(GitHubInstallation.user_id == user_id)
+                    .order_by(GitHubInstallation.installation_id)
+                )
+            ).all()
+        )
+
+    @staticmethod
+    def _disconnect_fingerprint(
+        account: GitHubAccount | None,
+        installation_ids: list[int],
+    ) -> str:
+        installation_part = ",".join(str(value) for value in installation_ids) or "none"
+        if account is None:
+            return f"github-local:none:installations:{installation_part}"
         return (
             f"github-account:{account.id}:user:{account.github_user_id}:"
-            f"generation:{account.credential_generation}"
+            f"generation:{account.credential_generation}:installations:{installation_part}"
         )
 
     def _now(self) -> datetime:
