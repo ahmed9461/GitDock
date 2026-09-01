@@ -107,19 +107,22 @@ P2.3:
 - Python 3.12 and 3.13 each passed Ruff format/lint, mypy, **65 pytest tests**, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff.
 - PostgreSQL 17 upgrade -> downgrade -> upgrade including migration `0003` passed.
 
-P3.1 implementation branch:
+P3.1:
 
-- verified implementation head: `4a4f00d50e886ab494e2a83f2c649cd64b7398b2`.
-- implementation CI `33453960817` — green.
+- implementation head `4a4f00d50e886ab494e2a83f2c649cd64b7398b2` — CI `33453960817` green.
+- final documentation-synchronized feature head `14e149ea307871abd8406ffc6212fe062ead9098` — branch CI `33454438202` green.
+- non-draft PR #10 CI `33454524953` — green and mergeable on the unchanged head.
+- squash merge commit: `d822338fcc1546418ed2100cc9534cdc71a6bcbe`.
+- post-merge `main` CI `33454619065` — green.
 - Python 3.12 and 3.13 each passed Ruff format/lint, mypy, **83 pytest tests**, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff.
 - PostgreSQL 17 Alembic upgrade -> downgrade -> upgrade passed.
 - `pip-audit` reported no known runtime vulnerabilities.
-- P3.1 is implementation-verified but is not yet recorded as fully merged/closed until documentation-head CI, non-draft PR, squash merge, post-merge `main` CI, and governance closeout are complete.
+- P3.1 feature delivery is verified complete; the small `docs/p3-1-closeout` PR records the final governance facts before P3.2 begins.
 
 ### Known maintenance warnings
 
-- Green P3.1 implementation CI continues to report a Starlette/FastAPI `TestClient` deprecation warning for the current `httpx` integration/future `httpx2` direction.
-- Green P3.1 implementation CI continues to report an Alembic deprecation warning because `alembic.ini` does not yet set explicit `path_separator` for `prepend_sys_path`.
+- Green P3.1 verification continues to report a Starlette/FastAPI `TestClient` deprecation warning for the current `httpx` integration/future `httpx2` direction.
+- Green P3.1 verification continues to report an Alembic deprecation warning because `alembic.ini` does not yet set explicit `path_separator` for `prepend_sys_path`.
 
 These warnings are recorded rather than hidden; they do not currently fail the build.
 

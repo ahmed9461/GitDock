@@ -85,17 +85,17 @@ Durable repository-read facts:
 - Repository detail is re-fetched from GitHub before render.
 - P2.3 is Tier 0 read-only and adds no repository write/admin permission.
 
-## P3.1 — public GitHub repository search
+### P3.1 — public GitHub repository search ✅
 
-P3.1 implementation is verified on branch `feat/p3-1-github-search`; final PR/merge/main-CI closeout is still required before marking the milestone fully merged complete.
+P3.1 feature delivery is verified complete.
 
-Verified implementation head:
+Verification chain:
 
-`4a4f00d50e886ab494e2a83f2c649cd64b7398b2`
-
-Implementation CI:
-
-`33453960817` — green on Python 3.12, Python 3.13, and PostgreSQL 17 with **83 tests**, Ruff format/lint, mypy, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff all passing.
+- implementation head `4a4f00d50e886ab494e2a83f2c649cd64b7398b2` — CI `33453960817` green;
+- final documentation-synchronized feature head `14e149ea307871abd8406ffc6212fe062ead9098` — branch CI `33454438202` green;
+- non-draft PR #10 — PR CI `33454524953` green and mergeable on the unchanged head;
+- squash merge commit `d822338fcc1546418ed2100cc9534cdc71a6bcbe`;
+- post-merge `main` CI `33454619065` — green on Python 3.12, Python 3.13, and PostgreSQL 17 with **83 tests** and all configured quality/security gates.
 
 Durable P3.1 facts:
 
@@ -111,7 +111,7 @@ Durable P3.1 facts:
 - `/start` and Home clear transient search FSM state so abandoned input cannot be interpreted later.
 - Public search results are never inserted into installed `repositories_cache` as authorization context.
 - Search introduces no repository write/admin permission.
-- Search detail currently shows **📥 أوامر التنزيل** only as a placeholder. Actual clone/update/setup/run command generation remains P4.3 and must not be described as implemented in P3.1.
+- Search detail shows **📥 أوامر التنزيل** only as a placeholder. Actual clone/update/setup/run command generation remains P4.3 and must not be described as implemented in P3.1.
 
 ## Dependency reproducibility
 
@@ -132,7 +132,7 @@ Known connector issue: the connector's Draft -> Ready GraphQL path has previousl
 
 ## Known non-blocking maintenance warnings
 
-As of P3.1 implementation CI `33453960817`:
+As of P3.1 verification:
 
 - FastAPI/Starlette `TestClient` emits a deprecation warning about the existing `httpx` integration/future `httpx2` direction.
 - Alembic emits a deprecation warning because `alembic.ini` has no explicit `path_separator` for `prepend_sys_path` handling.
@@ -186,9 +186,9 @@ These warnings do not fail tests, but must remain recorded maintenance debt.
 - `CHANGELOG.md`
 - affected architecture/security/constants/decision/test/UX docs.
 
-P3.1 is currently at the documentation-synchronization / PR-closeout boundary. Do not start P3.2 until the feature branch has final green CI, a non-draft PR is merged from the unchanged green head, post-merge `main` CI is green, and governance closeout records the exact final facts.
+The P3.1 feature PR and post-merge main CI are verified. Finish the small `docs/p3-1-closeout` governance PR and its post-merge `main` CI before beginning P3.2.
 
-## Next milestone after P3.1 closeout
+## Next milestone
 
 **P3.2 — user-context authorization/disconnect support.** Reuse the P2.1 secure one-time-state/PKCE/encryption foundation; do not duplicate auth machinery.
 

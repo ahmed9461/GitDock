@@ -11,44 +11,41 @@ Last updated: 2026-09-01
 - P2.1 — GitHub App authentication foundation ✅
 - P2.2 — GitHub gateway foundation ✅
 - P2.3 — Home + repository read screens ✅
+- P3.1 — GitHub repository search ✅
 
 **Current phase:** P3 — Search & repository administration
 
-**Current implementation item:** **P3.1 — GitHub repository search — implementation verified on branch; closure pending PR + post-merge `main` verification** on `feat/p3-1-github-search`.
+**Next implementation item:** **P3.2 — user-context authorization/disconnect support**. Do not start it from this closeout branch; begin from a fresh feature branch after this governance closeout is merged and its `main` CI is green.
 
 ## P2.3 final closeout
 
-P2.3 was squash-merged through non-draft PR #8 into `main` as commit:
+P2.3 was squash-merged through non-draft PR #8 into `main` as `939d218d76fd87f3ba6cf0a80a89b4a816aac557`. Governance closeout PR #9 merged as `ac8230eb1f8b7099979c55e767d9f6d14e0118a7`; post-closeout `main` CI `33444410513` is green.
 
-`939d218d76fd87f3ba6cf0a80a89b4a816aac557`
+## P3.1 — verified complete
 
-Final governance closeout was squash-merged through PR #9 as:
+P3.1 public GitHub repository search is implementation-, PR-, merge-, and post-merge-verified.
 
-`ac8230eb1f8b7099979c55e767d9f6d14e0118a7`
+Verification chain:
 
-Verification evidence:
+- implementation head `4a4f00d50e886ab494e2a83f2c649cd64b7398b2` — CI `33453960817` green;
+- final documentation-synchronized feature head `14e149ea307871abd8406ffc6212fe062ead9098` — branch CI `33454438202` green;
+- non-draft PR #10 — PR CI `33454524953` green and `mergeable=true` on the unchanged head;
+- PR #10 squash merge commit `d822338fcc1546418ed2100cc9534cdc71a6bcbe`;
+- post-merge `main` CI `33454619065` — green on Python 3.12, Python 3.13, and PostgreSQL 17.
 
-- implementation-head CI `33423169021` — green;
-- documentation-synchronized branch-head CI `33424505117` — green;
-- PR #8 CI `33424652835` — green;
-- post-P2.3 merge `main` CI `33424799759` — green;
-- closeout PR #9 CI `33444114152` — green;
-- post-closeout `main` CI `33444410513` — green.
+Verified gate set:
 
-## P3.1 implementation verified
+- Ruff format ✅;
+- Ruff lint ✅;
+- mypy ✅;
+- **83 pytest tests ✅**;
+- compile ✅;
+- `pip-audit` ✅ with no known runtime vulnerabilities reported;
+- `detect-secrets` ✅;
+- PEP 751 lock regeneration/diff ✅;
+- PostgreSQL 17 Alembic upgrade -> downgrade -> re-upgrade ✅.
 
-Implementation head:
-
-`4a4f00d50e886ab494e2a83f2c649cd64b7398b2`
-
-GitHub Actions run `33453960817` is green across the complete configured gate set:
-
-- Python 3.12: Ruff format ✅, Ruff lint ✅, mypy ✅, **83 pytest tests ✅**, compile ✅, `pip-audit` ✅, `detect-secrets` ✅, PEP 751 lock regeneration/diff ✅;
-- Python 3.13: same configured complete gate set ✅;
-- PostgreSQL 17: Alembic upgrade -> downgrade -> re-upgrade ✅;
-- `pip-audit`: no known runtime vulnerabilities reported ✅.
-
-P3.1 currently implements:
+P3.1 implements:
 
 - public GitHub repository search without requiring a bound GitHub App installation;
 - typed repository-search payload/result models over the canonical `GitHubRestClient`;
@@ -59,37 +56,25 @@ P3.1 currently implements:
 - stable application pagination using `SEARCH_PAGE_SIZE`;
 - Arabic result/detail/filter UI and `/search` entry point;
 - compact versioned callbacks with opaque search-session IDs;
-- active-session validation so callbacks from an older search fail closed;
+- active-session validation so callbacks from older searches fail closed;
 - detail resolution only through the active result context followed by a fresh GitHub detail request;
-- Home navigation clears transient search FSM state;
-- public search state remains separate from installed `repositories_cache` and grants no repository authorization;
-- search remains Tier 0 read-only and introduces no repository write/admin permission.
+- `/start` and Home clearing transient search FSM state;
+- public search state kept separate from installed `repositories_cache`;
+- Tier 0 read-only behavior with no repository write/admin permission.
 
-The search detail screen exposes a **📥 أوامر التنزيل** entry point only as a safe placeholder. Actual clone/setup/run command generation is intentionally deferred to P4.3 and must not be reported as implemented in P3.1.
-
-## P3.1 closure still required
-
-P3.1 is not yet marked final/merged complete until all of the following occur:
-
-1. synchronize project-control documentation on the verified feature branch;
-2. run CI on that final documentation-synchronized head;
-3. open a non-draft PR from the unchanged green head;
-4. verify PR CI and mergeability;
-5. squash-merge without changing the verified head;
-6. verify post-merge `main` CI;
-7. record exact PR/merge/main-CI facts in the governance closeout before moving P3.1 to final ✅ state.
+The search detail screen exposes **📥 أوامر التنزيل** only as a safe placeholder. Actual clone/update/setup/run command generation remains P4.3 and is not part of P3.1 completion.
 
 ## P3.1 durable invariants
 
 - GitHub remains source of truth.
-- Public search is discovery context, not installed-repository authorization context.
+- Public search is discovery context, never installed-repository authorization context.
 - Public search results must never be inserted into `repositories_cache` as though they belonged to a GitHub App installation.
-- Search callbacks carry compact session/result identifiers instead of arbitrary repository names.
-- A stale/restarted/older search session fails closed and asks for a new search.
+- Search callbacks carry compact session/result identifiers rather than arbitrary repository names.
+- A stale/restarted/older search session fails closed.
 - Search detail is re-fetched from GitHub before display.
-- Search may use ephemeral FSM state because it is Tier 0 and authorizes no write; Home explicitly clears that state.
-- Telegram handlers remain thin; search service owns query/filter behavior and the GitHub gateway owns normal HTTP details.
-- P3.1 does not request repository write/admin permissions.
+- Search may use ephemeral FSM state because it is Tier 0 and authorizes no write; Home/start explicitly clear that state.
+- Telegram handlers remain thin; the search service owns query/filter behavior and the GitHub gateway owns normal HTTP details.
+- P3.1 adds no repository write/admin permission.
 - Clone/setup/run command generation remains P4.3.
 
 ## Known non-blocking maintenance warnings
@@ -103,4 +88,4 @@ They are maintenance debt, not hidden test failures.
 
 ## Handoff instruction
 
-Continue only P3.1 closure on `feat/p3-1-github-search` until documentation-head CI, non-draft PR, squash merge, post-merge `main` CI, and final governance closeout are verified. Preserve D-013, D-016, and D-017. Do not start P3.2 before P3.1 is fully closed. The next roadmap item after verified P3.1 is P3.2 user-context authorization/disconnect support.
+Finish only the `docs/p3-1-closeout` governance PR and verify its post-merge `main` CI. Then open a fresh branch for P3.2 from that final green `main` commit and mark P3.2 Active before implementation. Preserve D-013, D-016, D-017, the P2.1 secure OAuth/PKCE/encryption invariants, and all P3.1 public-search provenance/session boundaries.
