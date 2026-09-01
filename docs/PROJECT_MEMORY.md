@@ -53,8 +53,7 @@ Durable auth facts:
 - Raw OAuth state is not persisted; only its SHA-256 digest is stored.
 - PKCE verifier and persisted GitHub user credentials are encrypted with versioned keys.
 - Capability -> GitHub permission/token-context mapping is centralized.
-
-Critical installation-binding invariant: a setup/install `installation_id` is untrusted candidate data. Binding is persisted only after the same installation/account identity is independently resolved through GitHub App context and authenticated GitHub user context, matched, and confirmed unsuspended.
+- A setup/install `installation_id` is untrusted candidate data. Binding persists only after the same installation/account identity is independently resolved through GitHub App context and authenticated GitHub user context, matched, and confirmed unsuspended.
 
 ### P2.2 — GitHub gateway ✅
 
@@ -105,51 +104,53 @@ Durable P3.1 facts:
 - Public repository search works without a bound GitHub App installation.
 - Search uses the canonical `GitHubRestClient`; no parallel raw HTTP client was introduced.
 - Search models/service are distinct from installed repository read/cache semantics.
-- Query/filter construction is validated and supports stars/update sort, language, min-stars, `user:`/`org:` scope, topic, and archive visibility.
+- Query/filter construction supports stars/update sort, language, min-stars, `user:`/`org:` scope, topic, and archive visibility.
 - Search displays typed stars/forks/language/license/default-branch/topics/archive/update metadata.
 - Search uses stable application pagination (`SEARCH_PAGE_SIZE`).
 - Public result/session context is ephemeral FSM state because it is Tier 0 and authorizes no write.
 - Every search session has an opaque compact session ID; callbacks from older sessions fail closed after a newer search becomes active.
-- Result detail can only resolve from active result context and is then re-fetched from GitHub before display.
-- `/start` and Home clear transient search FSM state so abandoned input cannot be interpreted later.
+- Result detail resolves only from active result context and is re-fetched from GitHub before display.
+- `/start` and Home clear transient search FSM state.
 - Public search results are never inserted into installed `repositories_cache` as authorization context.
 - Search introduces no repository write/admin permission.
-- Search detail shows **📥 أوامر التنزيل** only as a placeholder. Actual clone/update/setup/run command generation remains P4.3.
+- `📥 أوامر التنزيل` is still only a placeholder; actual command generation remains P4.3.
 
-### P3.2 — durable GitHub user context — implementation pre-merge verified
+### P3.2 — durable GitHub user context ✅
 
-P3.2 implementation is complete on `feat/p3-2-user-authorization`, but it is not yet recorded as fully merged/closed.
+P3.2 feature delivery is merged and post-merge verified.
 
-Pre-merge verified implementation head:
+Verification chain:
 
-- commit `5068b58ec41fb5ac417408d3a535bbb5d66207fc`;
-- branch CI `33515291600` — green;
-- Python 3.12 and Python 3.13 each pass format, lint, mypy, **97 tests**, compile, dependency audit, secret scan, and PEP 751 lock regeneration/diff;
-- PostgreSQL 17 Alembic upgrade -> downgrade -> upgrade passes including `0004_user_auth`;
-- no known runtime vulnerabilities, secret findings, or lock drift.
+- implementation head before documentation synchronization `5068b58ec41fb5ac417408d3a535bbb5d66207fc` — CI `33515291600` green;
+- final documentation-synchronized feature head `492183bfba311827a965153eff61747bfabf76ed` — branch CI `33517270731` green;
+- non-draft PR #12 — PR CI `33527318485` green and `mergeable=true` on unchanged head `492183bfba311827a965153eff61747bfabf76ed`;
+- PR #12 squash merge commit `8a5d692dd875b8959b27b1b0c53bbc5b5359c7f8`;
+- post-feature-merge `main` CI `33527484948` — green on Python 3.12, Python 3.13, and PostgreSQL 17.
+
+Verified suite at P3.2: **97 tests** plus Ruff format/lint, mypy, compile, `pip-audit`, `detect-secrets`, PEP 751 lock verification, and PostgreSQL 17 Alembic upgrade -> downgrade -> upgrade including `0004_user_auth`.
 
 Durable P3.2 facts:
 
-- GitHub user identity for durable user context comes from authenticated `GET /user`; do not infer it from Telegram identity or installation labels.
+- GitHub user identity for durable user context comes from authenticated `GET /user`; never infer it from Telegram identity or installation labels.
 - Standalone user authorization reuses the P2.1 one-time OAuth state + PKCE S256 machinery. Reauthorizing user context does not require reinstalling the GitHub App.
-- The OAuth completion path can persist durable user access/refresh credentials through `GitHubUserCredentialStore` after identity verification.
-- P3.2 uses the existing versioned authenticated-encryption abstraction; it does not introduce custom crypto or a second credential store.
+- Explicit durable user authorization may persist GitHub access/refresh credentials through `GitHubUserCredentialStore` after identity verification.
+- P3.2 reuses the existing versioned authenticated-encryption abstraction; it does not introduce custom crypto or a second credential store.
 - Access/refresh expiry metadata remains separate from ciphertext.
-- `credential_generation` is a durable concurrency/version guard on GitHub user credentials. Persisting or clearing credentials advances the generation.
-- Expiry-aware refresh snapshots account ID + credential generation before network I/O. A rotated access/refresh pair is persisted only if the current row still belongs to the same GitDock user, remains authorized, and has the same generation. Concurrent reconnect/disconnect therefore causes the stale refresh to fail closed.
-- Refresh tokens are treated as rotating one-use credentials; the newly returned refresh token replaces the old one only after the generation precondition succeeds.
+- `credential_generation` is the durable concurrency/version guard on GitHub user credentials. Persisting or clearing credentials advances the generation.
+- Expiry-aware refresh snapshots account ID + credential generation before network I/O. A rotated access/refresh pair is persisted only if the current row still belongs to the same GitDock user, remains authorized, and has the same generation.
+- Refresh tokens are rotating credentials; the new refresh token replaces the old one only after the generation precondition succeeds.
 - `pending_confirmations` is the general DB-backed one-time confirmation store introduced in P3.2. It records user, operation, opaque token digest, target fingerprint, payload, risk tier, expiry, consumed state, and timestamps without putting secrets in Telegram callback data.
-- GitHub local-disconnect confirmation fingerprints account DB ID, GitHub user ID, current `credential_generation`, and the ordered current installation IDs. A confirmation becomes stale if any of those authorization preconditions changed.
-- Stale, expired/invalid, reused, or explicitly cancelled disconnect confirmations never claim deletion and never remove current authorization state.
-- Returning Home consumes outstanding GitHub disconnect confirmations so buttons left in older messages cannot remain active destructive authority.
-- P2.3 legacy state is supported: a GitDock user with installation binding(s) but no durable UAT may still remove the local binding safely.
+- GitHub local-disconnect confirmation fingerprints account DB ID, GitHub user ID, current `credential_generation`, and ordered current installation IDs.
+- Stale, expired/invalid, reused, or cancelled disconnect confirmations remove nothing and never claim deletion.
+- Returning Home consumes outstanding GitHub disconnect confirmations so buttons left in old messages cannot remain active destructive authority.
+- P2.3 legacy state is supported: a GitDock user with installation binding(s) but no durable UAT may still remove local binding safely.
 - P3.2 local disconnect clears encrypted GitHub user credentials, deletes local installation bindings and repository cache, and invalidates relevant unconsumed local OAuth/confirmation state.
 - **Local disconnect does not uninstall or revoke the GitHub App on GitHub.** UI copy must keep this distinction explicit.
-- Installation binding and durable user OAuth authorization remain separate concepts. Later code must not treat the existence of one as proof of the other.
-- Connected Home has a real `👤 حساب GitHub` entry. The account UI separates user authorization from installation count, allows activate/re-authorize, refresh, and isolated local disconnect confirmation.
+- Installation binding and durable user OAuth authorization remain separate concepts. Later code must not treat one as proof of the other.
+- Connected Home has a real `👤 حساب GitHub` entry. Account UI separates user authorization from installation count and supports activate/re-authorize, refresh, and isolated local-disconnect confirmation.
 - P3.2 adds no repository-create/settings/delete behavior and no broad new GitHub App permission. P3.3 owns those writes.
 - P3.1 public search remains usable independently of installation/user authorization.
-- The initial Alembic revision identifier `0004_user_authorization_lifecycle` exceeded Alembic's default 32-character `alembic_version.version_num` column. The correct root fix was to use short revision ID `0004_user_auth`, not to widen Alembic's internal table merely for an unnecessarily long revision label.
+- The initial Alembic revision label `0004_user_authorization_lifecycle` exceeded Alembic's default 32-character `alembic_version.version_num` column. Correct fix: short revision ID `0004_user_auth`, not widening Alembic's internal table for an unnecessarily long label.
 
 ## Dependency reproducibility
 
@@ -159,7 +160,7 @@ Durable P3.2 facts:
   - `pylock.py312-linux.toml`
   - `pylock.py313-linux.toml`
 - CI regenerates and diffs each target lock; drift fails the build.
-- P3.2 introduces no runtime dependency drift.
+- P3.2 introduced no runtime dependency drift.
 
 ## GitHub Actions operational memory
 
@@ -171,7 +172,7 @@ Known connector issue: the connector's Draft -> Ready GraphQL path has previousl
 
 ## Known non-blocking maintenance warnings
 
-As of P3.2 pre-merge verification:
+As of P3.2 verification:
 
 - FastAPI/Starlette `TestClient` emits a deprecation warning about the existing `httpx` integration/future `httpx2` direction.
 - Alembic emits a deprecation warning because `alembic.ini` has no explicit `path_separator` for `prepend_sys_path` handling.
@@ -185,7 +186,7 @@ These warnings do not fail tests, but must remain recorded maintenance debt.
 - Direct default-branch mass replacement is not the default.
 - `.github/workflows/*` requires the appropriate Workflows capability.
 - Never blindly retry destructive/non-idempotent writes after an uncertain result; reconcile remote state first.
-- Later repository administration must use P3.2 user context only where GitHub actually requires user context and still pass capability/permission/precondition checks.
+- Repository administration must use P3.2 user context only where GitHub actually requires user context and must still pass capability/permission/precondition checks.
 
 ## Webhook strategy
 
@@ -228,13 +229,24 @@ These warnings do not fail tests, but must remain recorded maintenance debt.
 - `CHANGELOG.md`
 - affected architecture/security/constants/decision/test/UX docs.
 
-P3.2 implementation is pre-merge green. Finish the synchronized documentation head, non-draft PR, unchanged-head PR CI, squash merge, post-merge `main` CI, and small governance closeout before marking P3.2 fully verified complete.
+P3.2 feature delivery is merged and post-merge verified. The small `docs/p3-2-closeout` change records final PR/merge/main facts; after that closeout is merged and `main` is green, P3.3 can begin from the resulting `main` head.
 
 ## Next milestone
 
-After P3.2 closeout: **P3.3 — repository create/settings**.
+**P3.3 — repository create/settings.**
 
-P3.3 must reuse the P3.2 user-context lifecycle and the existing central capability/permission model. It must not introduce one-tap dangerous writes, broad PATs, or handler-local GitHub writes.
+P3.3 must reuse the P3.2 user-context lifecycle and existing central capability/permission model. It must not introduce one-tap dangerous writes, broad PATs, handler-local GitHub writes, or blind retries of uncertain writes.
+
+Planned P3.3 scope:
+
+- create personal repository;
+- optional organization creation when authorized;
+- edit supported repository name/description/settings;
+- archive/unarchive;
+- visibility change behind Tier 2 confirmation;
+- delete behind Tier 3 exact-name + final confirmation;
+- audit all GitHub writes;
+- reconcile uncertain write outcomes before claiming success/failure.
 
 ## Do not forget later
 
