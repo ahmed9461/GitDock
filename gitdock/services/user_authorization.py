@@ -123,9 +123,12 @@ class GitHubUserAuthorizationService:
                 .order_by(GitHubAccount.id)
             )
         ).all()
-        for account in user_accounts:
-            if account.github_user_id != identity.github_user_id and account.encrypted_access_token:
-                self._credential_store.clear(account)
+        for stored_account in user_accounts:
+            if (
+                stored_account.github_user_id != identity.github_user_id
+                and stored_account.encrypted_access_token
+            ):
+                self._credential_store.clear(stored_account)
 
         account = by_identity
         if account is None:
