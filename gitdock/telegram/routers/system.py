@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from aiogram import F, Router
 from aiogram.filters import CommandStart
+from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, InlineKeyboardMarkup, Message
 from aiogram.types import User as TelegramUser
 
@@ -41,14 +42,16 @@ def create_system_router(
     router = Router(name="system")
 
     @router.message(CommandStart())
-    async def start(message: Message) -> None:
+    async def start(message: Message, state: FSMContext) -> None:
+        await state.clear()
         if settings is None or services is None:
             await message.answer("🐙 GitDock\n\nتم تشغيل الأساس التقني للبوت.")
             return
         await _show_home_message(message, settings, services)
 
     @router.callback_query(F.data.in_({callbacks.HOME_OPEN, callbacks.HOME_REFRESH}))
-    async def home(callback: CallbackQuery) -> None:
+    async def home(callback: CallbackQuery, state: FSMContext) -> None:
+        await state.clear()
         if settings is None or services is None:
             await callback.answer()
             return

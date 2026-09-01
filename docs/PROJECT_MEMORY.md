@@ -2,47 +2,49 @@
 
 Purpose: durable facts that future sessions must remember. This is not a task list.
 
-Last updated: 2026-08-31
+Last updated: 2026-09-01
 
 ## Identity
 
 - Product name: **GitDock**.
 - Repository: `ahmed9461/GitDock`.
 - Product type: Telegram-first GitHub management/control bot.
-- v1 primary language: Arabic UI; code and technical identifiers in English.
-- v1 deployment model: owner-first/single-user, designed so multi-user support can be added without rewriting core services.
+- v1 primary language: Arabic UI; code and technical identifiers remain English/native.
+- v1 deployment model: owner-first/single-user with service/persistence boundaries kept multi-user-ready.
 
 ## Product intent
 
-GitDock is broader than a GitHub notification bot. Planned scope includes repository creation/settings, file operations, Git/branch/commit tools, Issues/PRs, GitHub Actions, releases, GitHub search, clone/run command generation, webhook notifications, and safe ZIP/project synchronization.
+GitDock is broader than a notification bot. Planned scope includes repository search and administration, file operations, Git/branch/commit tools, Issues/PRs, GitHub Actions, releases, clone/setup/run command generation, webhook notifications, and safe ZIP/project synchronization.
 
 ## Canonical implementation direction
 
 - Python 3.12+; CI verifies Python 3.12 and 3.13.
 - aiogram 3.x for Telegram.
 - FastAPI for HTTP ingress.
-- httpx for outbound GitHub HTTP.
+- httpx behind the canonical GitHub REST gateway.
 - SQLAlchemy 2.x async + Alembic.
-- PostgreSQL in production; SQLite only for portable development/tests.
+- PostgreSQL production; SQLite only for portable development/tests.
 - Durable DB-backed event/operation state when restart safety matters.
 - Production deployment remains suitable for systemd.
 
-## P1 verified foundation
+## Verified phase history
 
-P1 was squash-merged through PR #2 as `6f0a93694418c278e400a4c23b84e2f08ac56bdb`; post-merge `main` CI run `33345193470` was green.
+### P1 — foundation
 
-Foundation includes typed settings, FastAPI health/readiness and Telegram webhook ingress, aiogram polling/webhook bootstrap, owner-only middleware, async SQLAlchemy/Alembic, structured secret-redacting logging, tests, PostgreSQL migration verification, and CI quality/security gates.
+P1 was squash-merged through PR #2 as `6f0a93694418c278e400a4c23b84e2f08ac56bdb`; post-merge `main` CI `33345193470` was green.
 
-Important lifecycle rule caught by P1 tests: create a fresh aiogram Router for each Dispatcher; do not reuse a module-global Router across Dispatcher instances.
+Foundation includes typed settings, FastAPI health/readiness and Telegram ingress, aiogram polling/webhook bootstrap, owner-only middleware, async SQLAlchemy/Alembic, structured secret-redacting logging, tests, PostgreSQL migration verification, and CI quality/security gates.
 
-## P2.1 GitHub App authentication foundation
+Important lifecycle invariant: create a fresh aiogram Router for each Dispatcher; do not reuse a module-global Router across Dispatcher instances.
 
-P2.1 was squash-merged through PR #5 as commit `81dfaf406d046205b39980d6a64c681ea3ab18c6`; post-merge `main` CI `33348851085` is green.
+### P2.1 — GitHub App authentication
+
+P2.1 was squash-merged through PR #5 as `81dfaf406d046205b39980d6a64c681ea3ab18c6`; post-merge `main` CI `33348851085` is green.
 
 Durable auth facts:
 
 - GitHub App is primary auth; do not introduce a broad long-lived PAT as the normal credential model.
-- App JWTs use RS256 and configured GitHub App identity.
+- App JWTs use RS256.
 - REST API version is pinned to `2026-03-10`.
 - Installation access tokens are short-lived and expiry-aware.
 - OAuth user authorization uses PKCE S256.
@@ -51,76 +53,65 @@ Durable auth facts:
 - PKCE verifier and persisted GitHub user credentials are encrypted with versioned keys.
 - Capability -> GitHub permission/token-context mapping is centralized.
 
-### Critical installation-binding invariant
+Critical installation-binding invariant: a setup/install `installation_id` is untrusted candidate data. Binding is persisted only after the same installation/account identity is independently resolved through GitHub App context and authenticated GitHub user context, matched, and confirmed unsuspended.
 
-A setup/install `installation_id` is **untrusted candidate data**, not authorization proof. Binding is persisted only after the same installation/account identity is independently resolved through GitHub App context and authenticated GitHub user context, matched, and confirmed unsuspended.
+### P2.2 — GitHub gateway
 
-Do not simplify this to trusting a callback query parameter.
-
-## P2.2 GitHub gateway foundation
-
-P2.2 was squash-merged through PR #7 into `main` as commit `4bffdcc8322857aaa16e94aaafe8b5a9d52e69c2`; post-merge `main` CI `33409825480` is green.
+P2.2 was squash-merged through PR #7 as `4bffdcc8322857aaa16e94aaafe8b5a9d52e69c2`; post-merge `main` CI `33409825480` is green.
 
 Durable gateway facts:
 
-- `GitHubRestClient` is the canonical REST transport boundary.
-- Telegram handlers and normal application services must not issue raw GitHub HTTP requests.
-- Canonical outbound REST headers include GitHub media type, API version `2026-03-10`, and `User-Agent: GitDock/0.1`.
-- Payload parsing is caller-supplied at the gateway boundary.
-- `GitHubResponse[T]` and `GitHubPage[T]` carry safe request/status/pagination/rate-limit metadata.
-- Pagination links are accepted only when they resolve to canonical HTTPS `api.github.com`; unsafe targets are rejected before network I/O.
-- Pagination iteration has repeated-next-link detection and a configured max-page safety bound.
-- The gateway is not a generic URL fetcher.
-- Stable error categories cover authentication, permission, not-found, conflict/precondition, validation, rate-limit, transient, and unexpected failures.
-- Gateway exceptions intentionally omit raw GitHub response bodies.
-- GET/HEAD are retry-safe by default for bounded transient conditions.
-- Write-like methods do **not** retry by default; explicit safe retry requires higher-level idempotency reasoning.
-- Redirects are not automatically followed by the REST gateway.
+- `GitHubRestClient` is the canonical normal REST transport boundary.
+- Telegram handlers and ordinary services must not issue raw GitHub HTTP requests.
+- Canonical outbound headers include GitHub media type, API version `2026-03-10`, and `User-Agent: GitDock/0.1`.
+- `GitHubResponse[T]` / `GitHubPage[T]` carry safe status/request/pagination/rate-limit metadata.
+- Absolute pagination targets are restricted to canonical HTTPS `api.github.com`; unsafe targets fail before network I/O.
+- Pagination has repeated-link detection and a configured maximum page count.
+- Gateway exceptions expose stable categories and do not echo raw GitHub response bodies.
+- GET/HEAD have bounded transient retry by default; write-like methods do not retry by default.
+- Redirects are not automatically followed by the generic REST transport.
 
-P2.2 added 12 contract tests, growing the suite from 37 to 49 tests before P2.3.
+### P2.3 — Home + installed repository read
 
-## P2.3 home + repository read — verified complete
+P2.3 was squash-merged through non-draft PR #8 as `939d218d76fd87f3ba6cf0a80a89b4a816aac557`; post-merge `main` CI `33424799759` is green. Governance closeout PR #9 merged as `ac8230eb1f8b7099979c55e767d9f6d14e0118a7`; post-closeout `main` CI `33444410513` is green.
 
-P2.3 was squash-merged through non-draft PR #8 into `main` as commit:
+Durable repository-read facts:
 
-`939d218d76fd87f3ba6cf0a80a89b4a816aac557`
+- GitHub remains source of truth.
+- `repositories_cache` is minimal non-authoritative navigation/callback context, not a shadow GitHub database and never authorization proof.
+- Cache contains no access/refresh tokens, OAuth state/code, PKCE material, private keys, or raw GitHub error bodies.
+- Repository callbacks use compact stable GitHub repository IDs plus navigation context rather than arbitrary long `owner/name` strings.
+- Repository selection resolves server-side inside the current GitDock user and active unsuspended installation.
+- Repository detail is re-fetched from GitHub before render.
+- P2.3 is Tier 0 read-only and adds no repository write/admin permission.
 
-Verification chain:
+## P3.1 — public GitHub repository search
 
-- implementation-head CI `33423169021` — green;
-- documentation-synchronized branch-head CI `33424505117` — green;
-- PR #8 CI `33424652835` — green;
-- post-merge `main` CI `33424799759` — green.
+P3.1 implementation is verified on branch `feat/p3-1-github-search`; final PR/merge/main-CI closeout is still required before marking the milestone fully merged complete.
 
-Final verified facts:
+Verified implementation head:
 
-- Python 3.12 and 3.13 each pass Ruff format/lint, mypy, **65 pytest tests**, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff.
-- PostgreSQL 17 upgrade -> downgrade -> upgrade passes with Alembic migration `0003`.
-- `pip-audit` reports no known runtime vulnerabilities.
-- The working Telegram/FastAPI runtime now includes GitHub App installation/setup + OAuth callback wiring through the P2.1 secure state/PKCE/dual-context binding flow.
-- Home, installed repository list, pagination, filtering, repository detail, refresh, stale/error states, and Arabic renderers/keyboards are implemented.
+`4a4f00d50e886ab494e2a83f2c649cd64b7398b2`
 
-### Durable repository-read invariants
+Implementation CI:
 
-- GitHub remains the source of truth for repositories.
-- `repositories_cache` is a **minimal non-authoritative callback/context cache**, not a shadow repository database.
-- Cache stores only safe non-secret repository metadata/context needed for compact Telegram navigation and server-side repository resolution.
-- Never store installation/user access tokens, OAuth codes/state, PKCE material, private keys, or raw GitHub error bodies in repository cache rows.
-- Telegram repository callbacks are compact and versioned. They use stable GitHub repository ID plus navigation context instead of arbitrary long `owner/name` values.
-- Callback resolution must be scoped to the current GitDock user and a currently bound, unsuspended GitHub installation.
-- A repository detail view must be re-fetched from GitHub before render. A GitHub not-found result removes stale local cache state.
-- A cache hit is never authorization proof by itself.
-- Repository read flows request only metadata/read capabilities; P2.3 adds no repository write/admin behavior.
-- Repository listing supports all/private/public/active/archived/source/fork filters and stable application-level pagination.
-- Future P3/P4/P6/P7 features must extend these services/gateways rather than bypass the P2.2 transport or make cache authoritative.
+`33453960817` — green on Python 3.12, Python 3.13, and PostgreSQL 17 with **83 tests**, Ruff format/lint, mypy, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff all passing.
 
-### Working GitHub connection UI
+Durable P3.1 facts:
 
-- Telegram can create the short-lived GitHub installation/setup session.
-- GitHub setup callback continues into OAuth/PKCE verification.
-- OAuth callback completes the existing dual-context binding flow.
-- Success/error HTML pages never display tokens, OAuth codes, PKCE material, or raw upstream error bodies.
-- FastAPI GitHub callback routes explicitly disable response-model inference for Response subclasses; do not regress to a union annotation that FastAPI tries to model with Pydantic.
+- Public repository search works without a bound GitHub App installation.
+- Search uses the canonical `GitHubRestClient`; no parallel raw HTTP client was introduced.
+- Search models/service are distinct from installed repository read/cache semantics.
+- Query/filter construction is validated and supports stars/update sort, language, min-stars, `user:`/`org:` scope, topic, and archive visibility.
+- Search displays typed stars/forks/language/license/default-branch/topics/archive/update metadata.
+- Search uses stable application pagination (`SEARCH_PAGE_SIZE`).
+- Public result/session context is ephemeral FSM state because it is Tier 0 and authorizes no write.
+- Every search session has an opaque compact session ID; callbacks from older sessions fail closed after a newer search becomes active.
+- Result detail can only resolve from the active result context and is then re-fetched from GitHub before display.
+- `/start` and Home clear transient search FSM state so abandoned input cannot be interpreted later.
+- Public search results are never inserted into installed `repositories_cache` as authorization context.
+- Search introduces no repository write/admin permission.
+- Search detail currently shows **📥 أوامر التنزيل** only as a placeholder. Actual clone/update/setup/run command generation remains P4.3 and must not be described as implemented in P3.1.
 
 ## Dependency reproducibility
 
@@ -137,16 +128,16 @@ The repository was initially private during P1 and the account's included privat
 
 Do not diagnose a zero-step Actions failure as code failure without checking whether a runner step actually started.
 
-Known connector issue: the connector's Draft -> Ready GraphQL path has failed because it requested nonexistent `Repository.fullDatabaseId`. Safe prior workaround: close the verified Draft without merging, open a non-draft replacement from the same branch, and require new final-head CI before merge. Never bypass CI or merge a Draft merely to work around the connector.
+Known connector issue: the connector's Draft -> Ready GraphQL path has previously failed because it requested nonexistent `Repository.fullDatabaseId`. Safe prior workaround: close the verified Draft without merging, open a non-draft replacement from the same unchanged branch, and require final-head CI before merge. Never bypass CI merely to work around connector behavior.
 
 ## Known non-blocking maintenance warnings
 
-As of P2.3 verified CI:
+As of P3.1 implementation CI `33453960817`:
 
-- FastAPI/Starlette `TestClient` emits a deprecation warning about the existing `httpx` integration and future `httpx2` direction.
+- FastAPI/Starlette `TestClient` emits a deprecation warning about the existing `httpx` integration/future `httpx2` direction.
 - Alembic emits a deprecation warning because `alembic.ini` has no explicit `path_separator` for `prepend_sys_path` handling.
 
-These warnings do not currently fail tests, but future maintenance should resolve them deliberately rather than forgetting them.
+These warnings do not fail tests, but must remain recorded maintenance debt.
 
 ## GitHub write strategy
 
@@ -154,12 +145,12 @@ These warnings do not currently fail tests, but future maintenance should resolv
 - Multi-file/ZIP sync uses a reviewable coherent batch commit, normally on a review branch followed by optional PR.
 - Direct default-branch mass replacement is not the default.
 - `.github/workflows/*` requires the appropriate Workflows capability.
-- Never blindly retry a destructive/non-idempotent write after an uncertain result; reconcile remote state first.
+- Never blindly retry destructive/non-idempotent writes after an uncertain result; reconcile remote state first.
 
 ## Webhook strategy
 
 - GitHub webhooks drive immediate notifications.
-- Verify `X-Hub-Signature-256` using HMAC-SHA256 before parsing/processing.
+- Verify `X-Hub-Signature-256` using HMAC-SHA256 before processing.
 - Deduplicate by GitHub delivery ID.
 - Persist accepted events before asynchronous processing.
 - Keep ingress fast; enrichment/rendering happens after durable acceptance.
@@ -170,8 +161,8 @@ These warnings do not currently fail tests, but future maintenance should resolv
 - Prefer editing the existing navigation message when practical.
 - Use inline keyboards; normally no more than two primary action buttons per row.
 - Keep Home / Cancel / Back consistent.
-- Destructive actions are isolated and Tier 2/3 actions require persisted explicit confirmation.
-- Repository deletion additionally requires exact repository name plus final confirmation.
+- Home/start must invalidate transient input flows where continuing them would surprise the user.
+- Destructive Tier 2/3 actions require persisted explicit confirmation; repository deletion additionally requires exact repository name.
 - Long logs/files use pagination or document delivery.
 
 ## Safety memory
@@ -182,8 +173,8 @@ These warnings do not currently fail tests, but future maintenance should resolv
 - No normal v1 force-push UI.
 - High-impact multi-step operations must not depend only on volatile in-memory FSM state.
 - Audit GitHub writes without secret material.
-- GitHub remains source of truth for GitHub resources; local GitHub metadata is cache/preferences/operation state only.
-- Do not turn GitHub pagination/download helpers into arbitrary outbound URL fetchers.
+- GitHub remains source of truth for GitHub resources.
+- Do not turn pagination/download helpers into arbitrary outbound URL fetchers.
 
 ## Development governance memory
 
@@ -195,30 +186,15 @@ These warnings do not currently fail tests, but future maintenance should resolv
 - `CHANGELOG.md`
 - affected architecture/security/constants/decision/test/UX docs.
 
-## Current implementation fact
+P3.1 is currently at the documentation-synchronization / PR-closeout boundary. Do not start P3.2 until the feature branch has final green CI, a non-draft PR is merged from the unchanged green head, post-merge `main` CI is green, and governance closeout records the exact final facts.
 
-As of 2026-08-31:
+## Next milestone after P3.1 closeout
 
-- P0 complete.
-- P1 merged and post-merge verified.
-- P2.1 merged as `81dfaf406d046205b39980d6a64c681ea3ab18c6`; post-merge CI `33348851085` green.
-- P2.2 merged as `4bffdcc8322857aaa16e94aaafe8b5a9d52e69c2`; post-merge CI `33409825480` green.
-- P2.3 merged as `939d218d76fd87f3ba6cf0a80a89b4a816aac557`; post-merge CI `33424799759` green; suite is 65 tests.
-- The next implementation milestone is **P3.1 — GitHub repository search**.
-
-## P3.1 durable boundary reminders
-
-- Search is read-only; do not request repository write/admin permission.
-- Build on `GitHubRestClient`; no raw GitHub HTTP in Telegram handlers/services.
-- Public search results are not installed-repository authorization context and must not be inserted into `repositories_cache` as though installed.
-- Normalize search results to typed models and keep callbacks compact/versioned.
-- Search detail may reuse read-only rendering/model concepts but must preserve installed-vs-public provenance.
-- Repository creation/settings/deletion remain P3.3, not P3.1.
+**P3.2 — user-context authorization/disconnect support.** Reuse the P2.1 secure one-time-state/PKCE/encryption foundation; do not duplicate auth machinery.
 
 ## Do not forget later
 
-- Search results: stars, forks, language, license, archived state, recency.
-- Generate fresh-clone and existing-clone update commands.
+- Generate fresh-clone and existing-clone update commands under P4.3.
 - Run/setup commands derive from repository evidence and label uncertainty.
 - Notification preferences are per repository and event type.
 - Actions support includes status, jobs/steps/logs/artifacts, dispatch, retry where authorized.

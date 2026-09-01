@@ -1,16 +1,29 @@
-"""Compact versioned Telegram callback helpers for P2.3."""
+"""Compact versioned Telegram callback helpers."""
 
 from __future__ import annotations
 
+import re
+
 from gitdock.core.constants import CALLBACK_SCHEMA_VERSION, TELEGRAM_CALLBACK_PREFIX
 from gitdock.services.repositories import RepositoryFilter
+from gitdock.services.search import SearchLanguage, SearchSort
 
 PREFIX = f"{TELEGRAM_CALLBACK_PREFIX}:{CALLBACK_SCHEMA_VERSION}"
 HOME_OPEN = f"{PREFIX}:home:open"
 HOME_REFRESH = f"{PREFIX}:home:refresh"
 CONNECT_BEGIN = f"{PREFIX}:connect:begin"
 CONNECT_INFO = f"{PREFIX}:connect:info"
+SEARCH_BEGIN = f"{PREFIX}:search:begin"
 PLACEHOLDER_PREFIX = f"{PREFIX}:later:"
+
+_SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{6,16}$")
+_LANGUAGE_CODES = {
+    SearchLanguage.PYTHON: "py",
+    SearchLanguage.JAVASCRIPT: "js",
+    SearchLanguage.TYPESCRIPT: "ts",
+    SearchLanguage.KOTLIN: "kt",
+}
+_LANGUAGE_BY_CODE = {value: key for key, value in _LANGUAGE_CODES.items()}
 
 
 def repository_list(repository_filter: RepositoryFilter, page: int) -> str:
@@ -99,11 +112,142 @@ def parse_repository_filter(data: str) -> RepositoryFilter | None:
         return None
 
 
+def search_results(session_id: str, page: int) -> str:
+    _require_session_id(session_id)
+    if page <= 0:
+        raise ValueError("page must be positive")
+    return f"{PREFIX}:search:list:{session_id}:{page}"
+
+
+def parse_search_results(data: str) -> tuple[str, int] | None:
+    prefix = f"{PREFIX}:search:list:"
+    if not data.startswith(prefix):
+        return None
+    parts = data[len(prefix) :].split(":")
+    if len(parts) != 2 or not _is_session_id(parts[0]):
+        return None
+    try:
+        page = int(parts[1])
+    except ValueError:
+        return None
+    return (parts[0], page) if page > 0 else None
+
+
+def search_open(session_id: str, page: int, github_repository_id: int) -> str:
+    _require_session_id(session_id)
+    if page <= 0 or github_repository_id <= 0:
+        raise ValueError("page and repository ID must be positive")
+    return f"{PREFIX}:search:open:{session_id}:{page}:{_base36(github_repository_id)}"
+
+
+def parse_search_open(data: str) -> tuple[str, int, int] | None:
+    prefix = f"{PREFIX}:search:open:"
+    if not data.startswith(prefix):
+        return None
+    parts = data[len(prefix) :].split(":")
+    if len(parts) != 3 or not _is_session_id(parts[0]):
+        return None
+    try:
+        page = int(parts[1])
+        repository_id = int(parts[2], 36)
+    except ValueError:
+        return None
+    if page <= 0 or repository_id <= 0:
+        return None
+    return parts[0], page, repository_id
+
+
+def search_sort(session_id: str, sort: SearchSort) -> str:
+    _require_session_id(session_id)
+    return f"{PREFIX}:search:sort:{session_id}:{sort.value}"
+
+
+def parse_search_sort(data: str) -> tuple[str, SearchSort] | None:
+    prefix = f"{PREFIX}:search:sort:"
+    if not data.startswith(prefix):
+        return None
+    parts = data[len(prefix) :].split(":")
+    if len(parts) != 2 or not _is_session_id(parts[0]):
+        return None
+    try:
+        return parts[0], SearchSort(parts[1])
+    except ValueError:
+        return None
+
+
+def search_filters(session_id: str, page: int) -> str:
+    _require_session_id(session_id)
+    if page <= 0:
+        raise ValueError("page must be positive")
+    return f"{PREFIX}:search:filters:{session_id}:{page}"
+
+
+def parse_search_filters(data: str) -> tuple[str, int] | None:
+    prefix = f"{PREFIX}:search:filters:"
+    if not data.startswith(prefix):
+        return None
+    parts = data[len(prefix) :].split(":")
+    if len(parts) != 2 or not _is_session_id(parts[0]):
+        return None
+    try:
+        page = int(parts[1])
+    except ValueError:
+        return None
+    return (parts[0], page) if page > 0 else None
+
+
+def search_language(session_id: str, language: SearchLanguage | None) -> str:
+    _require_session_id(session_id)
+    code = "all" if language is None else _LANGUAGE_CODES[language]
+    return f"{PREFIX}:search:lang:{session_id}:{code}"
+
+
+def parse_search_language(data: str) -> tuple[str, SearchLanguage | None] | None:
+    prefix = f"{PREFIX}:search:lang:"
+    if not data.startswith(prefix):
+        return None
+    parts = data[len(prefix) :].split(":")
+    if len(parts) != 2 or not _is_session_id(parts[0]):
+        return None
+    if parts[1] == "all":
+        return parts[0], None
+    language = _LANGUAGE_BY_CODE.get(parts[1])
+    return (parts[0], language) if language is not None else None
+
+
+def search_filter_action(session_id: str, action: str) -> str:
+    _require_session_id(session_id)
+    if action not in {"stars", "owner", "topic", "arch", "clear", "apply"}:
+        raise ValueError("search filter action is invalid")
+    return f"{PREFIX}:search:flt:{session_id}:{action}"
+
+
+def parse_search_filter_action(data: str) -> tuple[str, str] | None:
+    prefix = f"{PREFIX}:search:flt:"
+    if not data.startswith(prefix):
+        return None
+    parts = data[len(prefix) :].split(":")
+    if len(parts) != 2 or not _is_session_id(parts[0]):
+        return None
+    if parts[1] not in {"stars", "owner", "topic", "arch", "clear", "apply"}:
+        return None
+    return parts[0], parts[1]
+
+
 def placeholder(area: str) -> str:
     normalized = area.strip().lower().replace(":", "-")
     if not normalized or len(normalized) > 20:
         raise ValueError("placeholder area is invalid")
     return f"{PLACEHOLDER_PREFIX}{normalized}"
+
+
+def _require_session_id(value: str) -> None:
+    if not _is_session_id(value):
+        raise ValueError("search session ID is invalid")
+
+
+def _is_session_id(value: str) -> bool:
+    return _SESSION_RE.fullmatch(value) is not None
 
 
 def _base36(value: int) -> str:

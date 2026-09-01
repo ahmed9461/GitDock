@@ -1,6 +1,6 @@
 # GitDock — Current Status / Handoff
 
-Last updated: 2026-08-31
+Last updated: 2026-09-01
 
 ## Project state
 
@@ -14,7 +14,7 @@ Last updated: 2026-08-31
 
 **Current phase:** P3 — Search & repository administration
 
-**Next implementation item:** **P3.1 — GitHub repository search**.
+**Current implementation item:** **P3.1 — GitHub repository search — implementation verified on branch; closure pending PR + post-merge `main` verification** on `feat/p3-1-github-search`.
 
 ## P2.3 final closeout
 
@@ -22,81 +22,85 @@ P2.3 was squash-merged through non-draft PR #8 into `main` as commit:
 
 `939d218d76fd87f3ba6cf0a80a89b4a816aac557`
 
+Final governance closeout was squash-merged through PR #9 as:
+
+`ac8230eb1f8b7099979c55e767d9f6d14e0118a7`
+
 Verification evidence:
 
 - implementation-head CI `33423169021` — green;
 - documentation-synchronized branch-head CI `33424505117` — green;
 - PR #8 CI `33424652835` — green;
-- post-merge `main` CI `33424799759` — green.
+- post-P2.3 merge `main` CI `33424799759` — green;
+- closeout PR #9 CI `33444114152` — green;
+- post-closeout `main` CI `33444410513` — green.
 
-Final verified gate set:
+## P3.1 implementation verified
 
-- Python 3.12: Ruff format ✅, Ruff lint ✅, mypy ✅, **65 pytest tests ✅**, compile ✅, `pip-audit` ✅, `detect-secrets` ✅, PEP 751 lock regeneration/diff ✅;
+Implementation head:
+
+`4a4f00d50e886ab494e2a83f2c649cd64b7398b2`
+
+GitHub Actions run `33453960817` is green across the complete configured gate set:
+
+- Python 3.12: Ruff format ✅, Ruff lint ✅, mypy ✅, **83 pytest tests ✅**, compile ✅, `pip-audit` ✅, `detect-secrets` ✅, PEP 751 lock regeneration/diff ✅;
 - Python 3.13: same configured complete gate set ✅;
-- PostgreSQL 17: Alembic upgrade -> downgrade -> re-upgrade including migration `0003` ✅;
+- PostgreSQL 17: Alembic upgrade -> downgrade -> re-upgrade ✅;
 - `pip-audit`: no known runtime vulnerabilities reported ✅.
 
-## What P2.3 delivered
+P3.1 currently implements:
 
-- working Arabic Telegram home/connection state;
-- working GitHub App installation/setup + OAuth callback wiring through the existing secure P2.1 state/PKCE/dual-context binding flow;
-- installed repository list sourced through the P2.2 gateway;
-- stable pagination and filters: all/private/public/active/archived/source/fork;
-- repository dashboard metadata: visibility, archive/fork state, default branch, language, stars/forks, description, update time;
-- refresh, disconnected/empty, stale-selection, authentication, permission, not-found, rate-limit, transient/error states;
-- compact versioned repository callbacks that remain under Telegram callback limits;
-- minimal `repositories_cache` + Alembic migration `0003` for server-side callback/navigation context;
-- repository callback resolution scoped to GitDock user + active unsuspended installation;
-- repository detail re-fetch from GitHub before render;
-- stale cache pruning when repositories leave an installation;
-- owner identity and runtime composition services;
-- expanded test suite from 49 to **65 tests**.
+- public GitHub repository search without requiring a bound GitHub App installation;
+- typed repository-search payload/result models over the canonical `GitHubRestClient`;
+- query validation and normalized GitHub qualifiers;
+- stars/forks/language/license/default-branch/topics/archive/update metadata;
+- sorting by stars or last update;
+- filters for language, minimum stars, `user:`/`org:` owner scope, topic, and archive visibility;
+- stable application pagination using `SEARCH_PAGE_SIZE`;
+- Arabic result/detail/filter UI and `/search` entry point;
+- compact versioned callbacks with opaque search-session IDs;
+- active-session validation so callbacks from an older search fail closed;
+- detail resolution only through the active result context followed by a fresh GitHub detail request;
+- Home navigation clears transient search FSM state;
+- public search state remains separate from installed `repositories_cache` and grants no repository authorization;
+- search remains Tier 0 read-only and introduces no repository write/admin permission.
 
-## P2.3 durable invariants
+The search detail screen exposes a **📥 أوامر التنزيل** entry point only as a safe placeholder. Actual clone/setup/run command generation is intentionally deferred to P4.3 and must not be reported as implemented in P3.1.
+
+## P3.1 closure still required
+
+P3.1 is not yet marked final/merged complete until all of the following occur:
+
+1. synchronize project-control documentation on the verified feature branch;
+2. run CI on that final documentation-synchronized head;
+3. open a non-draft PR from the unchanged green head;
+4. verify PR CI and mergeability;
+5. squash-merge without changing the verified head;
+6. verify post-merge `main` CI;
+7. record exact PR/merge/main-CI facts in the governance closeout before moving P3.1 to final ✅ state.
+
+## P3.1 durable invariants
 
 - GitHub remains source of truth.
-- `repositories_cache` is navigation/callback context only; it is not authorization proof and not a shadow GitHub database.
-- Cache rows contain no access/refresh tokens, OAuth code/state, PKCE material, private keys, or raw GitHub error bodies.
-- Repository callbacks use compact stable repository IDs + navigation context instead of arbitrary long `owner/name` strings.
-- Repository selection is resolved server-side against the current GitDock user and bound unsuspended installation.
-- Repository detail is revalidated from GitHub before display.
-- P2.3 remains Tier 0 read-only and introduced no repository write/admin permission.
-- Setup `installation_id` is still untrusted until P2.1 dual-context verification completes.
-- Telegram handlers remain thin; application services own use cases and the GitHub gateway owns normal HTTP details.
+- Public search is discovery context, not installed-repository authorization context.
+- Public search results must never be inserted into `repositories_cache` as though they belonged to a GitHub App installation.
+- Search callbacks carry compact session/result identifiers instead of arbitrary repository names.
+- A stale/restarted/older search session fails closed and asks for a new search.
+- Search detail is re-fetched from GitHub before display.
+- Search may use ephemeral FSM state because it is Tier 0 and authorizes no write; Home explicitly clears that state.
+- Telegram handlers remain thin; search service owns query/filter behavior and the GitHub gateway owns normal HTTP details.
+- P3.1 does not request repository write/admin permissions.
+- Clone/setup/run command generation remains P4.3.
 
 ## Known non-blocking maintenance warnings
 
-The verified P2.3 suite still reports two recorded deprecation warnings:
+The verified suite still reports the two recorded deprecation warnings:
 
 - Starlette/FastAPI `TestClient` warning about the current `httpx` integration/future `httpx2` direction;
 - Alembic warning because `alembic.ini` does not yet set explicit `path_separator` for `prepend_sys_path`.
 
 They are maintenance debt, not hidden test failures.
 
-## P3.1 scope — next
-
-Build **GitHub repository search** without adding repository writes:
-
-- search query flow using GitHub repository search;
-- typed search-result model over the canonical P2.2 REST transport;
-- stars/forks/language/license/archived/updated metadata;
-- sort by stars/update;
-- filters for language/min-stars/owner/topic/archive as planned;
-- result pagination;
-- result detail screen;
-- clone-command entry point may be shown but command-generation implementation remains P4.3 unless explicitly scoped;
-- safe no-results/rate/auth/error states;
-- Telegram callbacks remain compact/versioned;
-- public search results must not be inserted into installed `repositories_cache` as if they belonged to a GitHub App installation.
-
-### P3.1 boundaries
-
-- Do not implement repository creation/settings/deletion yet; that is P3.3.
-- Do not introduce write/admin GitHub permission for search.
-- Do not bypass `GitHubRestClient` with raw HTTP in handlers/services.
-- Do not treat search results as installed-repository authorization context.
-- Do not start P4 file browsing from the search milestone.
-
 ## Handoff instruction
 
-Read `AGENTS.md` and mandatory pre-flight docs, branch from verified `main`, mark **P3.1 Active**, then build the repository-search use case through the existing gateway/service/Telegram boundaries. Preserve D-013, D-016, and D-017.
+Continue only P3.1 closure on `feat/p3-1-github-search` until documentation-head CI, non-draft PR, squash merge, post-merge `main` CI, and final governance closeout are verified. Preserve D-013, D-016, and D-017. Do not start P3.2 before P3.1 is fully closed. The next roadmap item after verified P3.1 is P3.2 user-context authorization/disconnect support.

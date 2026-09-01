@@ -1,4 +1,4 @@
-"""Inline keyboards for the P2.3 home and repository read screens."""
+"""Inline keyboards for the home and installed-repository read screens."""
 
 from __future__ import annotations
 
@@ -12,7 +12,9 @@ from gitdock.telegram import callbacks
 
 def home_keyboard(*, connected: bool, can_connect: bool) -> InlineKeyboardMarkup:
     if not connected:
-        rows: list[list[InlineKeyboardButton]] = []
+        rows: list[list[InlineKeyboardButton]] = [
+            [InlineKeyboardButton(text="🔎 البحث في GitHub", callback_data=callbacks.SEARCH_BEGIN)]
+        ]
         if can_connect:
             rows.append(
                 [InlineKeyboardButton(text="🔗 ربط GitHub", callback_data=callbacks.CONNECT_BEGIN)]
@@ -37,7 +39,7 @@ def home_keyboard(*, connected: bool, can_connect: bool) -> InlineKeyboardMarkup
                 ),
                 InlineKeyboardButton(
                     text="🔎 البحث في GitHub",
-                    callback_data=callbacks.placeholder("search"),
+                    callback_data=callbacks.SEARCH_BEGIN,
                 ),
             ],
             [

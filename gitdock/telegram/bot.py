@@ -5,6 +5,7 @@ from aiogram import Bot, Dispatcher
 from gitdock.core.config import Settings
 from gitdock.services.runtime import RuntimeServices
 from gitdock.telegram.middleware.owner import OwnerOnlyMiddleware
+from gitdock.telegram.routers.search import create_search_router
 from gitdock.telegram.routers.system import create_system_router
 
 
@@ -21,4 +22,5 @@ def create_dispatcher(
     dispatcher.message.outer_middleware(owner_middleware)
     dispatcher.callback_query.outer_middleware(owner_middleware)
     dispatcher.include_router(create_system_router(settings, services))
+    dispatcher.include_router(create_search_router(services))
     return dispatcher
