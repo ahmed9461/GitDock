@@ -2,7 +2,7 @@
 
 Status: authoritative quality expectations. Concrete tool commands are finalized in P1.
 
-P2.3 implementation verification reference: GitHub Actions run `33423169021` passed the current suite on Python 3.12, Python 3.13, and the PostgreSQL 17 migration job. The suite now contains **65 tests**. P2.3 adds repository REST contracts, GitHub callback-route integration, owner identity, repository read/cache integration, and repository UI/callback coverage on top of the P2.2 gateway suite. Checkmarks below remain conservative: a box is marked only where the current suite directly exercises that requirement.
+P3.1 implementation verification reference: GitHub Actions run `33453960817` passed the current suite on Python 3.12, Python 3.13, and the PostgreSQL 17 migration job. The suite now contains **83 tests**. P3.1 adds public repository-search REST contracts, query/filter/service validation, search UI/callback coverage, active-session context isolation, and transient-navigation-state coverage on top of the P2.3 suite. Checkmarks below remain conservative: a box is marked only where the current suite directly exercises that requirement.
 
 ## 1. Test layers
 
@@ -102,9 +102,12 @@ Not every box applies to every read-only helper; document exclusions sensibly.
 - [x] repository detail callback carries back page/filter context and generated callback stays within Telegram's 64-byte limit.
 - [ ] Cancel invalidates active operation/confirmation.
 - [x] Home/read-only navigation does not apply repository writes.
-- [ ] repeated callback does not duplicate completed write; not applicable to P2.3 because it is read-only.
+- [x] `/start` and Home clear transient FSM search state so later messages cannot be interpreted as abandoned search input.
+- [ ] repeated callback does not duplicate completed write; not applicable to P2.3/P3.1 because they are read-only.
 
 P2.3 UI unit coverage additionally verifies that a 200-character repository name is not embedded in callback payloads and that repository callbacks round-trip with a maximum signed 64-bit repository ID while remaining within Telegram's callback size limit.
+
+P3.1 UI/context coverage verifies compact search callbacks, active-session isolation, result-context lookup, and Home/start cancellation of transient search state.
 
 ## 5. GitHub authentication
 
@@ -162,7 +165,7 @@ Implemented contract/mock coverage:
 - [x] transient safe `GET` requests retry with bounded exponential backoff.
 - [x] write requests are not retried by default.
 - [x] explicitly declared safe operations can opt into retry behavior.
-- [x] P2.2/P2.3 keep `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff green.
+- [x] P2.2/P2.3/P3.1 keep `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff green.
 
 Deferred intentionally to later feature milestones:
 
@@ -190,15 +193,23 @@ Deferred intentionally to later feature milestones:
 - [x] GitHub gateway rate-limit category has a safe user-facing repository renderer mapping.
 - [x] stale repository selection has a safe user-facing state.
 
-### P3.1 search — intentionally deferred
+### P3.1 search — verified implementation coverage
 
-- [ ] search query validation.
-- [ ] sort by stars.
-- [ ] sort by update.
-- [ ] language/min-star/owner/topic filters.
-- [ ] archived search filter.
-- [ ] search no-results state.
-- [ ] public search pagination.
+- [x] search query validation and normalization.
+- [x] typed search payload parsing covers repository metadata used by UI/service.
+- [x] sort by stars.
+- [x] sort by update.
+- [x] language/min-star/`user:`/`org:` owner/topic filters.
+- [x] archived search visibility filter.
+- [x] search no-results state.
+- [x] public search pagination.
+- [x] public/anonymous search path does not require a bound installation token.
+- [x] search detail resolves only through the current active search result context, then re-fetches GitHub detail.
+- [x] older search-session callbacks fail closed when a newer session is active.
+- [x] search callbacks remain compact/versioned and within Telegram's callback size limit in UI coverage.
+- [x] search session/result context is kept separate from installed `repositories_cache` by design/service boundary.
+- [x] P3.1 remains Tier 0 read-only and adds no repository write path.
+- [x] download-command button is intentionally only a placeholder; clone/setup/run generation remains tested/implemented under P4.3, not P3.1.
 
 ## 7. Repository administration
 
@@ -454,6 +465,7 @@ Before production-grade release:
 - [ ] connect GitHub App against the dedicated live test account/repository.
 - [ ] list private test repository.
 - [ ] verify P2.3 Telegram pagination/filter/detail against live GitHub test data.
+- [ ] verify P3.1 public search/query/filter/detail against live public GitHub data.
 - [ ] create test repository.
 - [ ] rename/description update.
 - [ ] create branch.
@@ -468,7 +480,7 @@ Before production-grade release:
 
 ## 23. Known non-blocking test-tool warnings
 
-CI run `33423169021` is green but reports:
+CI run `33453960817` is green but reports:
 
 - Starlette/FastAPI `TestClient` deprecation warning for the current `httpx` integration/future `httpx2` direction.
 - Alembic deprecation warning because `alembic.ini` does not yet set explicit `path_separator` for `prepend_sys_path`.
