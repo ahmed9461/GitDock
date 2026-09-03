@@ -14,11 +14,12 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from gitdock.db.models import AuditLog, GitHubAccount, GitHubInstallation, RepositoryCache
 from gitdock.github.errors import GitHubGatewayError
+from gitdock.github.models import GitHubResponse
 from gitdock.github.permissions import GitHubCapability, combine_installation_permissions
 from gitdock.github.repositories import RepositorySnapshot
 from gitdock.github.repository_admin import RepositoryCreateRequest, RepositoryUpdateRequest
 from gitdock.github.token_provider import InstallationTokenProvider
-from gitdock.services.confirmations import ConfirmationService
+from gitdock.services.confirmations import ConfirmationService, ConsumedConfirmation
 from gitdock.services.user_authorization import (
     GitHubUserAuthorizationService,
     ReauthorizationRequired,
@@ -48,7 +49,7 @@ class RepositoryAdminGateway(Protocol):
         self,
         token: SecretStr,
         request: RepositoryCreateRequest,
-    ): ...
+    ) -> GitHubResponse[RepositorySnapshot]: ...
 
     async def create_organization_repository(
         self,
@@ -56,7 +57,7 @@ class RepositoryAdminGateway(Protocol):
         *,
         organization: str,
         request: RepositoryCreateRequest,
-    ): ...
+    ) -> GitHubResponse[RepositorySnapshot]: ...
 
     async def update_repository(
         self,
@@ -65,7 +66,7 @@ class RepositoryAdminGateway(Protocol):
         owner_login: str,
         name: str,
         request: RepositoryUpdateRequest,
-    ): ...
+    ) -> GitHubResponse[RepositorySnapshot]: ...
 
     async def delete_repository(
         self,
@@ -73,7 +74,7 @@ class RepositoryAdminGateway(Protocol):
         *,
         owner_login: str,
         name: str,
-    ): ...
+    ) -> GitHubResponse[None]: ...
 
 
 class RepositoryReadGateway(Protocol):
@@ -393,7 +394,12 @@ class RepositoryAdminService:
         )
         return RepositoryAdminResult(RepositoryAdminState.APPLIED, current)
 
-    async def _consume(self, user_id: int, token: str, operation: str):
+    async def _consume(
+        self,
+        user_id: int,
+        token: str,
+        operation: str,
+    ) -> ConsumedConfirmation | None:
         async with self._session_factory() as session:
             async with session.begin():
                 return await self._confirmations.consume(
