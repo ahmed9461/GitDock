@@ -13,13 +13,18 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from gitdock.db.models import AuditLog, GitHubAccount, GitHubInstallation, RepositoryCache
-from gitdock.github.errors import GitHubGatewayError
+from gitdock.github.errors import GitHubErrorKind, GitHubGatewayError
 from gitdock.github.models import GitHubResponse
 from gitdock.github.permissions import GitHubCapability, combine_installation_permissions
 from gitdock.github.repositories import RepositorySnapshot
 from gitdock.github.repository_admin import RepositoryCreateRequest, RepositoryUpdateRequest
 from gitdock.github.token_provider import InstallationTokenProvider
 from gitdock.services.confirmations import ConfirmationService, ConsumedConfirmation
+from gitdock.services.repository_reconciliation import (
+    create_matches_remote,
+    should_reconcile_write_error,
+    update_matches_remote,
+)
 from gitdock.services.user_authorization import (
     GitHubUserAuthorizationService,
     ReauthorizationRequired,
@@ -34,6 +39,7 @@ class RepositoryAdminState(StrEnum):
     APPLIED = "applied"
     STALE = "stale"
     INVALID = "invalid"
+    UNCERTAIN = "uncertain"
 
 
 class RepositoryAdminError(RuntimeError):
@@ -164,12 +170,11 @@ class RepositoryAdminService:
                     "github_user_id": account.github_user_id,
                     "credential_generation": account.credential_generation,
                 }
-                fingerprint = _fingerprint(payload)
                 issued = await self._confirmations.create(
                     session,
                     user_id=user_id,
                     operation_type=CREATE_OPERATION,
-                    target_fingerprint=fingerprint,
+                    target_fingerprint=_fingerprint(payload),
                     payload=payload,
                     risk_tier=1,
                 )
@@ -201,8 +206,20 @@ class RepositoryAdminService:
                 organization = _optional_str(payload.get("organization"))
                 github_login = account.login
 
+        repository_full_name = f"{organization or github_login}/{request.name.strip()}"
         try:
             user_token = await self._user_authorization.get_valid_token(user_id=user_id)
+        except ReauthorizationRequired as exc:
+            await self._audit_failure(
+                user_id=user_id,
+                operation=CREATE_OPERATION,
+                github_login=github_login,
+                repository_full_name=repository_full_name,
+                error=exc,
+            )
+            raise
+
+        try:
             if organization is None:
                 response = await self._admin_gateway.create_personal_repository(
                     user_token.token,
@@ -214,12 +231,21 @@ class RepositoryAdminService:
                     organization=organization,
                     request=request,
                 )
-        except (GitHubGatewayError, ReauthorizationRequired) as exc:
+        except GitHubGatewayError as exc:
+            if should_reconcile_write_error(exc):
+                return await self._reconcile_create(
+                    user_id=user_id,
+                    token=user_token.token,
+                    github_login=github_login,
+                    organization=organization,
+                    request=request,
+                    error=exc,
+                )
             await self._audit_failure(
                 user_id=user_id,
                 operation=CREATE_OPERATION,
                 github_login=github_login,
-                repository_full_name=(f"{organization or github_login}/{request.name.strip()}"),
+                repository_full_name=repository_full_name,
                 error=exc,
             )
             raise
@@ -241,7 +267,7 @@ class RepositoryAdminService:
         github_repository_id: int,
         request: RepositoryUpdateRequest,
     ) -> RepositoryUpdatePlan:
-        request.payload()
+        _validate_update_request(request)
         context, snapshot = await self._current_installed_repository(user_id, github_repository_id)
         payload = {
             "repository_id": snapshot.github_repository_id,
@@ -292,6 +318,15 @@ class RepositoryAdminService:
                 request=request,
             )
         except GitHubGatewayError as exc:
+            if should_reconcile_write_error(exc):
+                return await self._reconcile_update(
+                    user_id=user_id,
+                    context=context,
+                    current=current,
+                    request=request,
+                    token=token_value,
+                    error=exc,
+                )
             await self._audit_failure(
                 user_id=user_id,
                 operation=UPDATE_OPERATION,
@@ -368,6 +403,14 @@ class RepositoryAdminService:
                 name=current.name,
             )
         except GitHubGatewayError as exc:
+            if should_reconcile_write_error(exc):
+                return await self._reconcile_delete(
+                    user_id=user_id,
+                    context=context,
+                    current=current,
+                    token=token_value,
+                    error=exc,
+                )
             await self._audit_failure(
                 user_id=user_id,
                 operation=DELETE_OPERATION,
@@ -377,14 +420,7 @@ class RepositoryAdminService:
                 error=exc,
             )
             raise
-        async with self._session_factory() as session:
-            async with session.begin():
-                await session.execute(
-                    delete(RepositoryCache).where(
-                        RepositoryCache.user_id == user_id,
-                        RepositoryCache.github_repository_id == repository_id,
-                    )
-                )
+        await self._remove_cache_after_delete(user_id, repository_id)
         await self._audit_success(
             user_id=user_id,
             operation=DELETE_OPERATION,
@@ -393,6 +429,163 @@ class RepositoryAdminService:
             request_id=response.request_id,
         )
         return RepositoryAdminResult(RepositoryAdminState.APPLIED, current)
+
+    async def _reconcile_create(
+        self,
+        *,
+        user_id: int,
+        token: SecretStr,
+        github_login: str,
+        organization: str | None,
+        request: RepositoryCreateRequest,
+        error: GitHubGatewayError,
+    ) -> RepositoryAdminResult:
+        owner_login = organization or github_login
+        full_name = f"{owner_login}/{request.name.strip()}"
+        try:
+            snapshot = await self._read_gateway.get_repository(
+                token,
+                owner_login=owner_login,
+                name=request.name.strip(),
+            )
+        except GitHubGatewayError:
+            await self._audit_uncertain(
+                user_id=user_id,
+                operation=CREATE_OPERATION,
+                error=error,
+                github_login=github_login,
+                repository_full_name=full_name,
+            )
+            return RepositoryAdminResult(RepositoryAdminState.UNCERTAIN)
+        if not create_matches_remote(snapshot, owner_login=owner_login, request=request):
+            await self._audit_uncertain(
+                user_id=user_id,
+                operation=CREATE_OPERATION,
+                error=error,
+                github_login=github_login,
+                repository_id=snapshot.github_repository_id,
+                repository_full_name=full_name,
+            )
+            return RepositoryAdminResult(RepositoryAdminState.UNCERTAIN, snapshot)
+        await self._audit_success(
+            user_id=user_id,
+            operation=CREATE_OPERATION,
+            github_login=github_login,
+            repository=snapshot,
+            request_id=error.context.request_id,
+            details={
+                "organization": organization,
+                "private": request.private,
+                "reconciled": True,
+                "original_error_kind": error.kind.value,
+            },
+        )
+        return RepositoryAdminResult(RepositoryAdminState.APPLIED, snapshot)
+
+    async def _reconcile_update(
+        self,
+        *,
+        user_id: int,
+        context: _InstalledRepositoryContext,
+        current: RepositorySnapshot,
+        request: RepositoryUpdateRequest,
+        token: SecretStr,
+        error: GitHubGatewayError,
+    ) -> RepositoryAdminResult:
+        target_name = request.name.strip() if request.name is not None else current.name
+        try:
+            snapshot = await self._read_gateway.get_repository(
+                token,
+                owner_login=current.owner_login,
+                name=target_name,
+            )
+        except GitHubGatewayError:
+            await self._audit_uncertain(
+                user_id=user_id,
+                operation=UPDATE_OPERATION,
+                error=error,
+                installation_id=context.installation_id,
+                repository_id=current.github_repository_id,
+                repository_full_name=current.full_name,
+            )
+            return RepositoryAdminResult(RepositoryAdminState.UNCERTAIN)
+        if not update_matches_remote(
+            snapshot,
+            repository_id=current.github_repository_id,
+            request=request,
+        ):
+            await self._audit_uncertain(
+                user_id=user_id,
+                operation=UPDATE_OPERATION,
+                error=error,
+                installation_id=context.installation_id,
+                repository_id=current.github_repository_id,
+                repository_full_name=current.full_name,
+            )
+            return RepositoryAdminResult(RepositoryAdminState.UNCERTAIN, snapshot)
+        await self._refresh_cache_after_write(user_id, context, snapshot)
+        await self._audit_success(
+            user_id=user_id,
+            operation=UPDATE_OPERATION,
+            installation_id=context.installation_id,
+            repository=snapshot,
+            request_id=error.context.request_id,
+            details={
+                "desired": request.payload(),
+                "reconciled": True,
+                "original_error_kind": error.kind.value,
+            },
+        )
+        return RepositoryAdminResult(RepositoryAdminState.APPLIED, snapshot)
+
+    async def _reconcile_delete(
+        self,
+        *,
+        user_id: int,
+        context: _InstalledRepositoryContext,
+        current: RepositorySnapshot,
+        token: SecretStr,
+        error: GitHubGatewayError,
+    ) -> RepositoryAdminResult:
+        try:
+            snapshot = await self._read_gateway.get_repository(
+                token,
+                owner_login=current.owner_login,
+                name=current.name,
+            )
+        except GitHubGatewayError as read_error:
+            if read_error.kind is GitHubErrorKind.NOT_FOUND:
+                await self._remove_cache_after_delete(user_id, current.github_repository_id)
+                await self._audit_success(
+                    user_id=user_id,
+                    operation=DELETE_OPERATION,
+                    installation_id=context.installation_id,
+                    repository=current,
+                    request_id=error.context.request_id,
+                    details={
+                        "reconciled": True,
+                        "original_error_kind": error.kind.value,
+                    },
+                )
+                return RepositoryAdminResult(RepositoryAdminState.APPLIED, current)
+            await self._audit_uncertain(
+                user_id=user_id,
+                operation=DELETE_OPERATION,
+                error=error,
+                installation_id=context.installation_id,
+                repository_id=current.github_repository_id,
+                repository_full_name=current.full_name,
+            )
+            return RepositoryAdminResult(RepositoryAdminState.UNCERTAIN)
+        await self._audit_uncertain(
+            user_id=user_id,
+            operation=DELETE_OPERATION,
+            error=error,
+            installation_id=context.installation_id,
+            repository_id=current.github_repository_id,
+            repository_full_name=current.full_name,
+        )
+        return RepositoryAdminResult(RepositoryAdminState.UNCERTAIN, snapshot)
 
     async def _consume(
         self,
@@ -491,6 +684,16 @@ class RepositoryAdminService:
                 row.default_branch = snapshot.default_branch
                 row.description = snapshot.description
 
+    async def _remove_cache_after_delete(self, user_id: int, repository_id: int) -> None:
+        async with self._session_factory() as session:
+            async with session.begin():
+                await session.execute(
+                    delete(RepositoryCache).where(
+                        RepositoryCache.user_id == user_id,
+                        RepositoryCache.github_repository_id == repository_id,
+                    )
+                )
+
     async def _audit_success(
         self,
         *,
@@ -539,6 +742,29 @@ class RepositoryAdminService:
             details={"error_kind": kind},
         )
 
+    async def _audit_uncertain(
+        self,
+        *,
+        user_id: int,
+        operation: str,
+        error: GitHubGatewayError,
+        github_login: str | None = None,
+        installation_id: int | None = None,
+        repository_id: int | None = None,
+        repository_full_name: str | None = None,
+    ) -> None:
+        await self._write_audit(
+            user_id=user_id,
+            operation=operation,
+            status="uncertain",
+            github_login=github_login,
+            installation_id=installation_id,
+            repository_id=repository_id,
+            repository_full_name=repository_full_name,
+            request_id=error.context.request_id,
+            details={"error_kind": error.kind.value, "reconciled": False},
+        )
+
     async def _write_audit(
         self,
         *,
@@ -577,6 +803,26 @@ def _validate_create_request(request: RepositoryCreateRequest) -> None:
         raise ValueError("repository description is too long")
 
 
+def _validate_update_request(request: RepositoryUpdateRequest) -> None:
+    request.payload()
+    if request.name is not None:
+        name = request.name.strip()
+        if not name or "/" in name or "\\" in name or "\x00" in name or len(name) > 100:
+            raise ValueError("repository name is invalid")
+    if request.description is not None and len(request.description) > 350:
+        raise ValueError("repository description is too long")
+    if request.visibility is not None and request.visibility.strip().lower() not in {
+        "public",
+        "private",
+        "internal",
+    }:
+        raise ValueError("repository visibility is invalid")
+    if request.default_branch is not None:
+        branch = request.default_branch.strip()
+        if not branch or "\x00" in branch or len(branch) > 255:
+            raise ValueError("default branch is invalid")
+
+
 def _create_preconditions_match(payload: dict[str, Any], account: GitHubAccount) -> bool:
     return (
         payload.get("account_id") == account.id
@@ -610,7 +856,7 @@ def _update_request_from_payload(payload: dict[str, Any]) -> RepositoryUpdateReq
         archived=_optional_bool(payload.get("archived")),
         default_branch=_optional_str(payload.get("default_branch")),
     )
-    request.payload()
+    _validate_update_request(request)
     return request
 
 
