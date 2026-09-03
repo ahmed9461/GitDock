@@ -18,7 +18,9 @@ def upgrade() -> None:
     op.create_table(
         "audit_log",
         sa.Column("id", sa.Integer(), primary_key=True),
-        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        ),
         sa.Column("operation", sa.String(length=64), nullable=False),
         sa.Column("status", sa.String(length=32), nullable=False),
         sa.Column("github_login", sa.String(length=255), nullable=True),
@@ -27,7 +29,9 @@ def upgrade() -> None:
         sa.Column("repository_full_name", sa.String(length=511), nullable=True),
         sa.Column("github_request_id", sa.String(length=255), nullable=True),
         sa.Column("details_json", sa.JSON(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+        sa.Column(
+            "created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()
+        ),
     )
     op.create_index("ix_audit_log_user_id", "audit_log", ["user_id"])
     op.create_index("ix_audit_log_user_created_at", "audit_log", ["user_id", "created_at"])
