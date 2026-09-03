@@ -154,9 +154,7 @@ class ReconciliationAdminGateway:
             archived=current.archived if request.archived is None else request.archived,
             description=current.description if request.description is None else request.description,
             default_branch=(
-                current.default_branch
-                if request.default_branch is None
-                else request.default_branch
+                current.default_branch if request.default_branch is None else request.default_branch
             ),
         )
         if self.update_mode == "transient_applied":
