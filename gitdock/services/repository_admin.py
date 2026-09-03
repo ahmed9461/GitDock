@@ -19,7 +19,10 @@ from gitdock.github.repositories import RepositorySnapshot
 from gitdock.github.repository_admin import RepositoryCreateRequest, RepositoryUpdateRequest
 from gitdock.github.token_provider import InstallationTokenProvider
 from gitdock.services.confirmations import ConfirmationService
-from gitdock.services.user_authorization import GitHubUserAuthorizationService, ReauthorizationRequired
+from gitdock.services.user_authorization import (
+    GitHubUserAuthorizationService,
+    ReauthorizationRequired,
+)
 
 CREATE_OPERATION = "repository.create"
 UPDATE_OPERATION = "repository.update"
@@ -215,9 +218,7 @@ class RepositoryAdminService:
                 user_id=user_id,
                 operation=CREATE_OPERATION,
                 github_login=github_login,
-                repository_full_name=(
-                    f"{organization or github_login}/{request.name.strip()}"
-                ),
+                repository_full_name=(f"{organization or github_login}/{request.name.strip()}"),
                 error=exc,
             )
             raise
@@ -273,10 +274,9 @@ class RepositoryAdminService:
             context, current = await self._current_installed_repository(user_id, repository_id)
         except RepositoryAdminSelectionError:
             return RepositoryAdminResult(RepositoryAdminState.STALE)
-        if (
-            context.installation_id != payload.get("installation_id")
-            or _snapshot_preconditions(current) != payload.get("current")
-        ):
+        if context.installation_id != payload.get("installation_id") or _snapshot_preconditions(
+            current
+        ) != payload.get("current"):
             return RepositoryAdminResult(RepositoryAdminState.STALE)
         desired = payload.get("desired")
         if not isinstance(desired, dict):
