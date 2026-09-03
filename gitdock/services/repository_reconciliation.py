@@ -63,7 +63,10 @@ def update_matches_remote(
             return False
     if request.archived is not None and snapshot.archived is not request.archived:
         return False
-    if request.default_branch is not None and snapshot.default_branch != request.default_branch.strip():
+    if (
+        request.default_branch is not None
+        and snapshot.default_branch != request.default_branch.strip()
+    ):
         return False
     return True
 
