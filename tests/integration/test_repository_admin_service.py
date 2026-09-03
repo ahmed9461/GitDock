@@ -76,7 +76,9 @@ class FakeAdminGateway:
     async def create_personal_repository(self, token: SecretStr, request: RepositoryCreateRequest):
         assert token.get_secret_value() == "ghu_test"
         self.create_calls += 1
-        created = snapshot(self.current.github_repository_id + 1, request.name, private=request.private)
+        created = snapshot(
+            self.current.github_repository_id + 1, request.name, private=request.private
+        )
         return response(created, request_id="create-1")
 
     async def create_organization_repository(
@@ -241,7 +243,9 @@ async def test_create_requires_confirmation_and_reuse_cannot_duplicate_write() -
     assert second.state is RepositoryAdminState.INVALID
     assert admin.create_calls == 1
     async with sessions() as session:
-        audit = await session.scalar(select(AuditLog).where(AuditLog.operation == "repository.create"))
+        audit = await session.scalar(
+            select(AuditLog).where(AuditLog.operation == "repository.create")
+        )
         assert audit is not None
         assert audit.status == "success"
         assert audit.repository_full_name == "ahmed9461/NewRepo"
@@ -268,9 +272,14 @@ async def test_update_uses_repository_scoped_admin_token_and_refreshes_cache() -
             select(RepositoryCache).where(RepositoryCache.github_repository_id == 1351822221)
         )
         assert cached is not None and cached.archived is True
-        assert await session.scalar(
-            select(func.count()).select_from(AuditLog).where(AuditLog.operation == "repository.update")
-        ) == 1
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(AuditLog)
+                .where(AuditLog.operation == "repository.update")
+            )
+            == 1
+        )
     await engine.dispose()
 
 
@@ -318,6 +327,8 @@ async def test_delete_requires_exact_full_name_and_removes_cache_once() -> None:
     assert admin.delete_calls == 1
     async with sessions() as session:
         assert await session.scalar(select(func.count()).select_from(RepositoryCache)) == 0
-        audit = await session.scalar(select(AuditLog).where(AuditLog.operation == "repository.delete"))
+        audit = await session.scalar(
+            select(AuditLog).where(AuditLog.operation == "repository.delete")
+        )
         assert audit is not None and audit.status == "success"
     await engine.dispose()
