@@ -27,8 +27,9 @@ def directory_keyboard(
     directory_buttons: list[InlineKeyboardButton] = []
     for index in range(start, stop):
         entry = view.entries[index]
+        icon = "📁" if entry.kind is ContentKind.DIRECTORY else "📄"
         button = InlineKeyboardButton(
-            text=f"{'📁' if entry.kind is ContentKind.DIRECTORY else '📄'} {_short(entry.name, 32)}",
+            text=f"{icon} {_short(entry.name, 32)}",
             callback_data=file_callbacks.entry(session_id, index),
         )
         if entry.kind is ContentKind.DIRECTORY:
@@ -62,7 +63,8 @@ def directory_keyboard(
     rows.append(
         [
             InlineKeyboardButton(
-                text="➕ ملف", callback_data=file_callbacks.directory_action(session_id, "create")
+                text="\u2795 ملف",
+                callback_data=file_callbacks.directory_action(session_id, "create"),
             ),
             InlineKeyboardButton(
                 text="⬆️ رفع/استبدال",
