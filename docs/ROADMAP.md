@@ -221,9 +221,15 @@ Verification chain:
 - [x] no new repository write/admin feature or broad permission introduced by P3.2.
 - [x] documentation/PR/merge/main/governance closeout completed.
 
-### P3.3 Repository create/settings — implementation verified; merge/governance pending
+### P3.3 Repository create/settings ✅
 
-Implementation head before documentation synchronization: `4e71d7f1c962e61584d6532d03c913703dc5295a`, branch CI `33890407945` green with **117 tests** on Python 3.12/3.13 plus PostgreSQL 17 migration round trip and all configured quality/security/lock gates.
+Verification chain:
+
+- implementation head `4e71d7f1c962e61584d6532d03c913703dc5295a` — CI `33890407945` green with **117 tests**;
+- documentation-synchronized head `0cabc820751482c1c6f3dc13dcef5861aa2901d1` — CI `33891756482` green;
+- non-draft PR #14 CI `33891899602` green and mergeable on unchanged head;
+- squash merge `c0ed95a0360d49cdd67cb6c5f702d6beb78e0368`;
+- post-feature `main` CI `33892100584` green.
 
 - [x] create personal repository using durable GitHub user context.
 - [x] optional organization repository creation when authorized.
@@ -239,7 +245,7 @@ Implementation head before documentation synchronization: `4e71d7f1c962e61584d65
 - [x] Arabic Telegram creation wizard and repository-settings UX are wired through centralized callbacks/keyboards/renderers/FSM/router layers.
 - [x] no blind retry for write-like GitHub operations.
 - [x] no runtime dependency or PEP 751 lock drift.
-- [~] documentation-synchronized final-head CI, non-draft PR, squash merge, post-merge `main` CI, and governance closeout.
+- [x] documentation-synchronized final-head CI, non-draft PR, squash merge, post-merge `main` CI, and governance closeout verified.
 
 Acceptance:
 
@@ -252,10 +258,8 @@ Acceptance:
 - [x] stale repository preconditions fail closed;
 - [x] uncertain write outcomes are reconciled before final outcome reporting;
 - [x] cancellation invalidates persisted authority rather than merely navigating away;
-- [x] implementation-head CI is green on Python 3.12, Python 3.13, PostgreSQL 17, audit, secrets, and lock checks;
-- [~] merge/governance verification chain remains pending.
-
-P3.3 is not marked ✅ until the final merge/main/governance verification chain is complete.
+- [x] implementation, documentation-head, PR, and post-merge `main` CI are green on Python 3.12, Python 3.13, PostgreSQL 17, audit, secrets, and lock checks;
+- [x] governance closeout moves the exact next task to P4.1.
 
 ---
 
