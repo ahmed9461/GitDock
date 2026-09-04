@@ -1,3 +1,4 @@
+# ruff: noqa: RUF001
 """Arabic renderers for repository creation and administration flows."""
 
 from __future__ import annotations
