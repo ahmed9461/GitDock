@@ -23,6 +23,7 @@ from gitdock.services.confirmations import ConfirmationService
 from gitdock.services.identity import OwnerIdentityService
 from gitdock.services.repositories import RepositoryReadService
 from gitdock.services.repository_admin import RepositoryAdminService
+from gitdock.services.repository_admin_confirmations import RepositoryAdminConfirmationService
 from gitdock.services.search import RepositorySearchService
 from gitdock.services.user_authorization import GitHubUserAuthorizationService
 
@@ -36,6 +37,7 @@ class RuntimeServices:
     user_authorization: GitHubUserAuthorizationService | None
     http_client: httpx.AsyncClient | None
     repository_admin: RepositoryAdminService | None = None
+    repository_admin_confirmations: RepositoryAdminConfirmationService | None = None
 
     async def close(self) -> None:
         if self.http_client is not None:
@@ -90,6 +92,10 @@ def create_runtime_services(
         GitHubRepositoryAdminGateway(rest_client),
         confirmations,
     )
+    repository_admin_confirmations = RepositoryAdminConfirmationService(
+        session_factory,
+        confirmations,
+    )
     state_service = GitHubAuthorizationStateService(cipher)
     connection = GitHubConnectionService(
         session_factory,
@@ -107,4 +113,5 @@ def create_runtime_services(
         user_authorization=user_authorization,
         http_client=http_client,
         repository_admin=repository_admin,
+        repository_admin_confirmations=repository_admin_confirmations,
     )
