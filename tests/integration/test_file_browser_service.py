@@ -11,7 +11,13 @@ from gitdock.db.models import AuditLog, FileWriteSession, GitHubInstallation, Re
 from gitdock.db.session import create_engine, create_session_factory
 from gitdock.domain.files import RepositoryPathError, git_blob_sha
 from gitdock.github.auth import InstallationAccessToken
-from gitdock.github.contents import ContentEntry, ContentKind, FileContent, FileWriteResult, RefSnapshot
+from gitdock.github.contents import (
+    ContentEntry,
+    ContentKind,
+    FileContent,
+    FileWriteResult,
+    RefSnapshot,
+)
 from gitdock.github.errors import GitHubErrorKind, GitHubNotFoundError, GitHubTransientError
 from gitdock.github.models import GitHubPaginationLinks, GitHubRateLimit, GitHubResponse
 from gitdock.github.repositories import RepositorySnapshot
@@ -178,7 +184,11 @@ class FakeContentsGateway:
         self.files[(branch, path)] = content
         self.branch_heads[branch] = _commit_sha(self.put_calls)
         result = _response(
-            FileWriteResult(git_blob_sha(content), self.branch_heads[branch], _commit_url(self.branch_heads[branch])),
+            FileWriteResult(
+                git_blob_sha(content),
+                self.branch_heads[branch],
+                _commit_url(self.branch_heads[branch]),
+            ),
             request_id="put-request",
         )
         if self.put_mode == "transient_applied":
@@ -203,7 +213,9 @@ class FakeContentsGateway:
         del self.files[(branch, path)]
         self.branch_heads[branch] = _commit_sha(10 + self.delete_calls)
         result = _response(
-            FileWriteResult(None, self.branch_heads[branch], _commit_url(self.branch_heads[branch])),
+            FileWriteResult(
+                None, self.branch_heads[branch], _commit_url(self.branch_heads[branch])
+            ),
             request_id="delete-request",
         )
         if self.delete_mode == "transient_applied":
@@ -381,8 +393,12 @@ async def test_non_default_create_is_tier1_persisted_and_audited() -> None:
     assert result.state is FileWriteState.APPLIED
     assert contents.files[("feature/docs", "docs/new.txt")] == b"hello\n"
     async with sessions() as session:
-        staged = await session.scalar(select(FileWriteSession).where(FileWriteSession.user_id == user_id))
-        assert staged is not None and staged.consumed_at is not None and staged.content_bytes is None
+        staged = await session.scalar(
+            select(FileWriteSession).where(FileWriteSession.user_id == user_id)
+        )
+        assert (
+            staged is not None and staged.consumed_at is not None and staged.content_bytes is None
+        )
         audit = await session.scalar(select(AuditLog).where(AuditLog.operation == "file.create"))
         assert audit is not None and audit.status == "success"
         assert audit.details_json is not None and audit.details_json["path"] == "docs/new.txt"
@@ -423,7 +439,11 @@ async def test_workflow_write_requests_contents_and_workflows_permissions() -> N
     result = await service.confirm_update(user_id=user_id, token=plan.token)
 
     assert result.state is FileWriteState.APPLIED
-    write_permissions = [permissions for permissions, _ in token_source.calls if permissions.get("contents") == "write"]
+    write_permissions = [
+        permissions
+        for permissions, _ in token_source.calls
+        if permissions.get("contents") == "write"
+    ]
     assert {"contents": "write", "workflows": "write"} in write_permissions
     await engine.dispose()
 
