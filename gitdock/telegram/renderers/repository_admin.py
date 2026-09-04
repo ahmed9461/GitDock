@@ -23,12 +23,7 @@ def render_create_description_prompt(name: str) -> str:
 
 def render_create_visibility_prompt(name: str, description: str | None) -> str:
     description_label = description or "بدون وصف"
-    return (
-        "🔐 نوع المستودع\n\n"
-        f"الاسم: {name}\n"
-        f"الوصف: {description_label}\n\n"
-        "اختر مستوى الظهور."
-    )
+    return f"🔐 نوع المستودع\n\nالاسم: {name}\nالوصف: {description_label}\n\nاختر مستوى الظهور."
 
 
 def render_create_preview(plan: RepositoryCreatePlan) -> str:
@@ -62,11 +57,7 @@ def render_repository_settings(repository: RepositorySnapshot) -> str:
 
 def render_setting_input(action: str, repository: RepositorySnapshot) -> str:
     prompts = {
-        "name": (
-            "✏️ تغيير اسم المستودع\n\n"
-            f"الحالي: {repository.name}\n\n"
-            "أرسل الاسم الجديد."
-        ),
+        "name": (f"✏️ تغيير اسم المستودع\n\nالحالي: {repository.name}\n\nأرسل الاسم الجديد."),
         "desc": (
             "📝 تعديل الوصف\n\n"
             f"الحالي: {repository.description or 'بدون وصف'}\n\n"
