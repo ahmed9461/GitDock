@@ -7,7 +7,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from gitdock.core.constants import NAV_BACK, NAV_HOME, NAV_REFRESH
 from gitdock.github.repositories import RepositorySnapshot
 from gitdock.services.repositories import RepositoryFilter, RepositoryListPage
-from gitdock.telegram import callbacks
+from gitdock.telegram import callbacks, file_callbacks
 
 
 def home_keyboard(*, connected: bool, can_connect: bool) -> InlineKeyboardMarkup:
@@ -173,7 +173,12 @@ def repository_detail_keyboard(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="📁 الملفات", callback_data=callbacks.placeholder("files")
+                    text="📁 الملفات",
+                    callback_data=file_callbacks.browser_open(
+                        repository.github_repository_id,
+                        back_filter,
+                        back_page,
+                    ),
                 ),
                 InlineKeyboardButton(
                     text="📝 Commits", callback_data=callbacks.placeholder("commits")
