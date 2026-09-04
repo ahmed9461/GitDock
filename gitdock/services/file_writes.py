@@ -11,8 +11,9 @@ from gitdock.domain.files import (
     normalize_repository_path,
     normalize_repository_ref,
 )
-from gitdock.github.contents import FileContent, RefSnapshot
+from gitdock.github.contents import FileContent, FileWriteResult, RefSnapshot
 from gitdock.github.errors import GitHubGatewayError, GitHubNotFoundError
+from gitdock.github.models import GitHubResponse
 from gitdock.github.permissions import GitHubCapability, combine_installation_permissions
 from gitdock.github.repositories import RepositorySnapshot
 from gitdock.github.token_provider import InstallationTokenProvider
@@ -379,7 +380,7 @@ class FileWriteService:
         staged: StagedWrite,
         repository: RepositorySnapshot,
         write_token: SecretStr,
-    ):
+    ) -> GitHubResponse[FileWriteResult]:
         if staged.operation == FILE_DELETE_OPERATION:
             if staged.expected_file_sha is None:
                 raise FileWriteValidationError("delete staging lost its expected file SHA")
@@ -527,11 +528,7 @@ def _require_writable_repository(repository: RepositorySnapshot) -> None:
 
 def _normalize_commit_message(value: str) -> str:
     normalized = value.strip()
-    if (
-        not normalized
-        or "\x00" in normalized
-        or len(normalized) > FILE_COMMIT_MESSAGE_MAX_CHARS
-    ):
+    if not normalized or "\x00" in normalized or len(normalized) > FILE_COMMIT_MESSAGE_MAX_CHARS:
         raise FileWriteValidationError("commit message is invalid")
     return normalized
 
