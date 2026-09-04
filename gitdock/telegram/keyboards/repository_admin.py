@@ -74,10 +74,15 @@ def create_confirmation_keyboard(token: str) -> InlineKeyboardMarkup:
             [
                 InlineKeyboardButton(
                     text="✏️ تعديل البيانات",
-                    callback_data=callbacks.REPOSITORY_CREATE_EDIT,
+                    callback_data=callbacks.repository_admin_cancel("create", "edit", token),
                 )
             ],
-            [InlineKeyboardButton(text=NAV_CANCEL, callback_data=callbacks.HOME_OPEN)],
+            [
+                InlineKeyboardButton(
+                    text=NAV_CANCEL,
+                    callback_data=callbacks.repository_admin_cancel("create", "home", token),
+                )
+            ],
         ]
     )
 
@@ -160,13 +165,7 @@ def settings_input_keyboard(
     )
 
 
-def update_confirmation_keyboard(
-    token: str,
-    repository_id: int,
-    *,
-    back_filter: RepositoryFilter,
-    back_page: int,
-) -> InlineKeyboardMarkup:
+def update_confirmation_keyboard(token: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -178,25 +177,18 @@ def update_confirmation_keyboard(
             [
                 InlineKeyboardButton(
                     text=NAV_BACK,
-                    callback_data=callbacks.repository_settings(
-                        repository_id,
-                        back_filter,
-                        back_page,
-                    ),
+                    callback_data=callbacks.repository_admin_cancel("update", "settings", token),
                 ),
-                InlineKeyboardButton(text=NAV_CANCEL, callback_data=callbacks.HOME_OPEN),
+                InlineKeyboardButton(
+                    text=NAV_CANCEL,
+                    callback_data=callbacks.repository_admin_cancel("update", "home", token),
+                ),
             ],
         ]
     )
 
 
-def delete_confirmation_keyboard(
-    token: str,
-    repository_id: int,
-    *,
-    back_filter: RepositoryFilter,
-    back_page: int,
-) -> InlineKeyboardMarkup:
+def delete_confirmation_keyboard(token: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -208,13 +200,12 @@ def delete_confirmation_keyboard(
             [
                 InlineKeyboardButton(
                     text=NAV_BACK,
-                    callback_data=callbacks.repository_settings(
-                        repository_id,
-                        back_filter,
-                        back_page,
-                    ),
+                    callback_data=callbacks.repository_admin_cancel("delete", "settings", token),
                 ),
-                InlineKeyboardButton(text=NAV_CANCEL, callback_data=callbacks.HOME_OPEN),
+                InlineKeyboardButton(
+                    text=NAV_CANCEL,
+                    callback_data=callbacks.repository_admin_cancel("delete", "home", token),
+                ),
             ],
         ]
     )
