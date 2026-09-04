@@ -45,13 +45,15 @@ def directory_keyboard(
     if effective > 1:
         nav.append(
             InlineKeyboardButton(
-                text="◀️ السابق", callback_data=file_callbacks.preview_page(session_id, effective - 1)
+                text="◀️ السابق",
+                callback_data=file_callbacks.preview_page(session_id, effective - 1),
             )
         )
     if effective < total_pages:
         nav.append(
             InlineKeyboardButton(
-                text="التالي ▶️", callback_data=file_callbacks.preview_page(session_id, effective + 1)
+                text="التالي ▶️",
+                callback_data=file_callbacks.preview_page(session_id, effective + 1),
             )
         )
     if nav:
@@ -71,7 +73,8 @@ def directory_keyboard(
     rows.append(
         [
             InlineKeyboardButton(
-                text="🌿 تغيير الفرع", callback_data=file_callbacks.directory_action(session_id, "ref")
+                text="🌿 تغيير الفرع",
+                callback_data=file_callbacks.directory_action(session_id, "ref"),
             ),
             InlineKeyboardButton(
                 text=NAV_REFRESH,
@@ -194,18 +197,22 @@ def write_confirmation_keyboard(
     rows: list[list[InlineKeyboardButton]] = []
     if plan.diff is not None and plan.diff.preview:
         rows.append(
-            [
-                InlineKeyboardButton(
-                    text="👁️ عرض Diff", callback_data=file_callbacks.diff(session_id)
-                )
-            ]
+            [InlineKeyboardButton(text="👁️ عرض Diff", callback_data=file_callbacks.diff(session_id))]
         )
     label = "🗑 تأكيد الحذف" if operation == "delete" else "✅ تطبيق التغيير"
     rows.append(
-        [InlineKeyboardButton(text=label, callback_data=file_callbacks.confirm(operation, plan.token))]
+        [
+            InlineKeyboardButton(
+                text=label, callback_data=file_callbacks.confirm(operation, plan.token)
+            )
+        ]
     )
     rows.append(
-        [InlineKeyboardButton(text=NAV_CANCEL, callback_data=file_callbacks.cancel(operation, plan.token))]
+        [
+            InlineKeyboardButton(
+                text=NAV_CANCEL, callback_data=file_callbacks.cancel(operation, plan.token)
+            )
+        ]
     )
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
