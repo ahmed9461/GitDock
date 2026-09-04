@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from gitdock.github.token_provider import InstallationTokenProvider
 from gitdock.services.confirmations import ConfirmationService
 from gitdock.services.file_audit import FileAuditWriter
 from gitdock.services.file_context import FileRepositoryContextResolver
 from gitdock.services.file_reads import FileReadService
 from gitdock.services.file_types import (
+    ContentsGateway,
     DirectoryView,
     FileDisplayKind,
     FileView,
@@ -19,8 +21,6 @@ from gitdock.services.file_types import (
 )
 from gitdock.services.file_write_store import FileWriteStore
 from gitdock.services.file_writes import FileWriteService
-from gitdock.services.file_types import ContentsGateway
-from gitdock.github.token_provider import InstallationTokenProvider
 
 __all__ = [
     "DirectoryView",
