@@ -56,7 +56,8 @@ def home_keyboard(*, connected: bool, can_connect: bool) -> InlineKeyboardMarkup
                     text="📊 النشاط", callback_data=callbacks.placeholder("activity")
                 ),
                 InlineKeyboardButton(
-                    text="\u2795 مستودع جديد", callback_data=callbacks.placeholder("repo-create")
+                    text="\u2795 مستودع جديد",
+                    callback_data=callbacks.REPOSITORY_CREATE_BEGIN,
                 ),
             ],
             [
@@ -200,6 +201,20 @@ def repository_detail_keyboard(
                 ),
                 InlineKeyboardButton(
                     text="📥 تشغيل/تنزيل", callback_data=callbacks.placeholder("run")
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🔔 التنبيهات",
+                    callback_data=callbacks.placeholder("repo-notifications"),
+                ),
+                InlineKeyboardButton(
+                    text="⚙️ إعدادات المستودع",
+                    callback_data=callbacks.repository_settings(
+                        repository.github_repository_id,
+                        back_filter,
+                        back_page,
+                    ),
                 ),
             ],
             [InlineKeyboardButton(text="🔗 فتح GitHub", url=repository.html_url)],
