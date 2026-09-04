@@ -149,19 +149,23 @@ P3.2:
 - `pip-audit` reported no known runtime vulnerabilities;
 - no secret-scan findings and no PEP 751 lock drift.
 
-P3.3 implementation verification (merge/governance still pending):
+P3.3:
 
 - complete implementation head before documentation synchronization `4e71d7f1c962e61584d6532d03c913703dc5295a` — CI `33890407945` green;
+- final documentation-synchronized feature head `0cabc820751482c1c6f3dc13dcef5861aa2901d1` — branch CI `33891756482` green;
+- non-draft PR #14 CI `33891899602` — green; PR was `mergeable=true` on unchanged head `0cabc820751482c1c6f3dc13dcef5861aa2901d1`;
+- squash merge commit `c0ed95a0360d49cdd67cb6c5f702d6beb78e0368`;
+- post-feature `main` CI `33892100584` — green;
 - Python 3.12 and Python 3.13 each passed Ruff format/lint, mypy, **117 tests**, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff;
 - mypy reported no issues in 72 source files;
 - PostgreSQL 17 Alembic upgrade -> downgrade -> upgrade including `0005_audit_log` passed;
 - `pip-audit` reported no known runtime vulnerabilities;
 - no secret-scan findings and no PEP 751 lock drift;
-- documentation-synchronized head CI, non-draft PR CI, squash merge, post-merge `main` CI, and governance closeout remain pending and must be recorded after they actually occur.
+- governance closeout records P3.3 ✅ and hands implementation to P4.1.
 
 ### Known maintenance warnings
 
-- Green P3.3 implementation verification continues to report a Starlette/FastAPI `TestClient` deprecation warning for the current `httpx` integration/future `httpx2` direction.
+- Green P3.3 verification continues to report a Starlette/FastAPI `TestClient` deprecation warning for the current `httpx` integration/future `httpx2` direction.
 - Starlette tests also surface AnyIO's deprecated `anyio.abc.BlockingPortal` alias.
 - Green P3.3 verification continues to report Alembic's `path_separator` deprecation warning because `alembic.ini` does not explicitly set `path_separator` for `prepend_sys_path`.
 
