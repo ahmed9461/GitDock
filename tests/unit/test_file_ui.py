@@ -94,7 +94,10 @@ def test_repository_dashboard_exposes_real_file_browser_action() -> None:
         for button in row
         if button.callback_data is not None
     }
-    assert file_callbacks.browser_open(repository.github_repository_id, RepositoryFilter.ALL, 1) in callbacks
+    assert (
+        file_callbacks.browser_open(repository.github_repository_id, RepositoryFilter.ALL, 1)
+        in callbacks
+    )
 
 
 def test_directory_keyboard_never_embeds_long_repository_path_in_callbacks() -> None:
