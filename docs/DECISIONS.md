@@ -228,6 +228,35 @@ Format:
 
 ---
 
+## D-019 — Repository administration uses operation-specific authority and remote reconciliation
+
+**Date:** 2026-09-04  
+**Status:** Accepted
+
+**Context:** P3.3 is the first GitDock milestone that performs repository-administration writes. A single broad credential context would violate least privilege, while blindly retrying a timeout/transient create/update/delete can duplicate or misreport a write that GitHub may already have applied. Telegram preview buttons can also remain visible after the user navigates away unless server-side authority is explicitly cancelled.
+
+**Decision:**
+
+1. **Select credential context per GitHub operation.** Personal and organization repository creation use durable GitHub user OAuth context because those create endpoints are user-context operations. Repository update/delete use an installation token scoped to the selected repository ID and requesting centralized `administration: write`.
+2. **Do not infer write authority from repository cache.** Cache remains navigation context. Update/delete authority is rebuilt from current GitDock user/installation binding, current GitHub repository state, persisted confirmation, and current scoped capability.
+3. **Persist repository-admin confirmations.** Create is Tier 1, update is Tier 2, delete is Tier 3. Delete additionally requires exact current `owner/name` before final confirmation.
+4. **Cancellation revokes authority, not just UI.** Edit/back/cancel consumes the pending create/update/delete confirmation before navigation. An old Telegram confirm button therefore cannot remain executable.
+5. **Refresh preconditions before sensitive update/delete.** Re-fetch current repository state before mutation and fail closed if the persisted target/request snapshot is stale.
+6. **Issue write-like GitHub calls once.** Normal create/update/delete calls remain no-retry through the canonical transport.
+7. **Reconcile uncertain outcomes remotely.** If an error may have occurred after GitHub applied the write, inspect current remote state instead of replaying the mutation: create checks intended repository state, update checks requested fields, delete checks target existence.
+8. **Keep uncertainty explicit.** If reconciliation proves application, record applied/reconciled. If final state cannot be established, retain `UNCERTAIN`; never convert ambiguity into definite success/failure merely for simpler UX.
+9. **Audit safely.** Migration `0005_audit_log` stores safe operation/status/repository/request/reconciliation context and never credentials/tokens/raw upstream auth bodies.
+
+**Consequences:**
+
+- P3.3 preserves D-003 least privilege rather than introducing a broad PAT or broad installation token;
+- Telegram callback transport cannot outlive consumed/cancelled server-side authority;
+- stale rename/settings/delete operations fail closed against refreshed GitHub state;
+- transient network failures cannot cause automatic duplicate repository writes;
+- later GitHub write features should follow the same pattern: choose the narrowest credential context, persist intent/confirmation, refresh preconditions, issue once, reconcile uncertainty, audit outcome.
+
+---
+
 ## Adding future decisions
 
 Never rewrite history to make an old decision disappear. Add a new decision with `Supersedes D-xxx`, then mark the older decision Superseded.
