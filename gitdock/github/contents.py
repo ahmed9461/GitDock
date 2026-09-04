@@ -297,7 +297,11 @@ def _require_str(data: dict[str, object], key: str) -> str:
 
 def _require_sha(data: dict[str, object], key: str) -> str:
     value = _require_str(data, key)
-    if len(value) < 7 or len(value) > 128 or any(char not in "0123456789abcdefABCDEF" for char in value):
+    if (
+        len(value) < 7
+        or len(value) > 128
+        or any(char not in "0123456789abcdefABCDEF" for char in value)
+    ):
         raise ValueError(f"invalid Git SHA field {key}")
     return value.lower()
 

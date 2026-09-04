@@ -116,7 +116,9 @@ def paginate_text(text: str, *, page_chars: int = FILE_PREVIEW_PAGE_CHARS) -> tu
     return tuple(text[index : index + page_chars] for index in range(0, len(text), page_chars))
 
 
-def build_text_diff(before: bytes | None, after: bytes | None, *, max_chars: int = 2400) -> TextDiffPreview | None:
+def build_text_diff(
+    before: bytes | None, after: bytes | None, *, max_chars: int = 2400
+) -> TextDiffPreview | None:
     before_text = "" if before is None else decode_utf8_text(before)
     after_text = "" if after is None else decode_utf8_text(after)
     if before_text is None or after_text is None:
