@@ -78,29 +78,14 @@ class GitHubRestClient:
         json_body: object | None = None,
         retry_mode: RetryMode | None = None,
     ) -> GitHubResponse[T]:
-        method_upper = method.upper()
-        target = validate_github_api_target(target)
-        effective_retry = retry_mode or (
-            RetryMode.SAFE if method_upper in {"GET", "HEAD"} else RetryMode.NEVER
-        )
-
-        response = await self._send_with_retry(
-            method_upper,
+        response, rate_limit, request_id = await self._request(
+            method,
             target,
             token=token,
             params=params,
             json_body=json_body,
-            retry_mode=effective_retry,
+            retry_mode=retry_mode,
         )
-        rate_limit = _parse_rate_limit(response)
-        request_id = response.headers.get("X-GitHub-Request-Id")
-
-        if not 200 <= response.status_code < 300:
-            raise translate_http_error(
-                response,
-                rate_limit=rate_limit,
-                request_id=request_id,
-            )
 
         try:
             payload: object = response.json()
@@ -128,6 +113,40 @@ class GitHubRestClient:
 
         return GitHubResponse(
             data=parsed,
+            rate_limit=rate_limit,
+            pagination=parse_pagination_links(response),
+            request_id=request_id,
+            status_code=response.status_code,
+        )
+
+    async def request_empty(
+        self,
+        method: str,
+        target: str,
+        *,
+        token: SecretStr | None = None,
+        params: QueryParams | None = None,
+        json_body: object | None = None,
+        retry_mode: RetryMode | None = None,
+    ) -> GitHubResponse[None]:
+        response, rate_limit, request_id = await self._request(
+            method,
+            target,
+            token=token,
+            params=params,
+            json_body=json_body,
+            retry_mode=retry_mode,
+        )
+        if response.content not in {b"", None}:
+            raise GitHubGatewayError(
+                GitHubErrorKind.UNEXPECTED,
+                "GitHub returned an unexpected non-empty response",
+                status_code=response.status_code,
+                request_id=request_id,
+                rate_limit=rate_limit,
+            )
+        return GitHubResponse(
+            data=None,
             rate_limit=rate_limit,
             pagination=parse_pagination_links(response),
             request_id=request_id,
@@ -219,6 +238,39 @@ class GitHubRestClient:
             GitHubErrorKind.UNEXPECTED,
             "GitHub pagination exceeded the configured page safety limit",
         )
+
+    async def _request(
+        self,
+        method: str,
+        target: str,
+        *,
+        token: SecretStr | None,
+        params: QueryParams | None,
+        json_body: object | None,
+        retry_mode: RetryMode | None,
+    ) -> tuple[httpx.Response, GitHubRateLimit, str | None]:
+        method_upper = method.upper()
+        target = validate_github_api_target(target)
+        effective_retry = retry_mode or (
+            RetryMode.SAFE if method_upper in {"GET", "HEAD"} else RetryMode.NEVER
+        )
+        response = await self._send_with_retry(
+            method_upper,
+            target,
+            token=token,
+            params=params,
+            json_body=json_body,
+            retry_mode=effective_retry,
+        )
+        rate_limit = _parse_rate_limit(response)
+        request_id = response.headers.get("X-GitHub-Request-Id")
+        if not 200 <= response.status_code < 300:
+            raise translate_http_error(
+                response,
+                rate_limit=rate_limit,
+                request_id=request_id,
+            )
+        return response, rate_limit, request_id
 
     async def _send_with_retry(
         self,

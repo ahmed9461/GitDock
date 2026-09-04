@@ -1,6 +1,6 @@
 # GitDock — Security Model
 
-Status: mandatory baseline + verified P2 foundations + P2.3 repository-read controls + P3.1 search isolation + P3.2 user-authorization lifecycle controls (pre-merge verified)
+Status: mandatory baseline + verified P2 foundations + P2.3 repository-read controls + P3.1 search isolation + P3.2 authorization lifecycle + P3.3 repository-administration controls
 
 ## 1. Security goals
 
@@ -28,7 +28,8 @@ Untrusted inputs include:
 - setup/install `installation_id` until independently verified through App and authenticated-user contexts;
 - repository IDs carried in Telegram callbacks until user/installation/cache validation succeeds;
 - local repository cache as potentially stale navigation state, never authorization proof;
-- opaque local confirmation tokens carried by Telegram until DB state/preconditions are loaded and validated.
+- opaque local confirmation tokens carried by Telegram until DB state/preconditions are loaded and validated;
+- repository-admin form values and exact delete names until operation-specific server-side validation succeeds.
 
 Trusted only after validation:
 
@@ -37,7 +38,8 @@ Trusted only after validation:
 - validated/persisted one-time OAuth/confirmation state;
 - installation binding whose identity matched across App and authenticated-user contexts;
 - durable GitHub user account identity resolved through authenticated `/user`;
-- repository read state revalidated against the active installation and, for detail, GitHub itself.
+- repository read state revalidated against the active installation and, for detail, GitHub itself;
+- P3.3 write execution only after server-side confirmation consumption, refreshed preconditions, and correct credential context are established.
 
 ## 3. Telegram access control
 
@@ -57,7 +59,10 @@ Do not use a broad permanent PAT as the product's primary credential model.
 
 Use GitHub App permissions and token contexts with least privilege. High-power permissions are enabled only when the corresponding feature is intentionally implemented.
 
-P2.3/P3.1 are read-only. P3.2 adds durable user context but **does not add repository administration permission**. P3.3 will deliberately define the permissions required for its write operations.
+P2.3/P3.1 are read-only. P3.2 adds durable user context but does not itself grant broad repository administration. P3.3 deliberately introduces only the write contexts it needs:
+
+- personal/organization repository creation through durable user OAuth context;
+- repository update/delete through an installation token scoped to the selected repository and requesting centralized `administration: write`.
 
 ## 5. Credential handling
 
@@ -70,8 +75,8 @@ P2.3/P3.1 are read-only. P3.2 adds durable user context but **does not add repos
 - embed tokens in clone commands;
 - store plaintext user access/refresh tokens;
 - assume token validity/type from legacy prefix/length alone;
-- store credentials/OAuth/private keys in `repositories_cache` or `pending_confirmations`;
-- render OAuth code/state, PKCE verifier, tokens, or raw upstream auth bodies in HTML/Telegram errors.
+- store credentials/OAuth/private keys in `repositories_cache`, `pending_confirmations`, or `audit_log`;
+- render OAuth code/state, PKCE verifier, tokens, installation tokens, or raw upstream auth bodies in HTML/Telegram errors.
 
 ### At rest
 
@@ -85,7 +90,7 @@ Rules:
 - old-key decrypt/new-key encrypt supported during rotation windows;
 - no custom cryptography.
 
-P3.2 now uses this existing store for explicit durable user-context authorization. An ephemeral user token used solely to prove installation binding need not be persisted; durable storage is reserved for features requiring durable user context.
+P3.2 uses this existing store for explicit durable user-context authorization. P3.3 reuses those credentials for create operations and does not introduce another durable credential store. Installation tokens for update/delete remain short-lived provider output and are not persisted in audit/cache/confirmation state.
 
 ### Credential generation — P3.2
 
@@ -171,7 +176,12 @@ Capabilities map centrally to GitHub App permissions/token context. High-power p
 
 Services still respect actual user/repository authority and GitHub branch protection/rules.
 
-P3.2 durable user context is not itself repository write authority.
+P3.2 durable user context is not itself repository write authority. P3.3 selects credential context per operation:
+
+- create uses the explicit durable user authorization required for GitHub user/organization create endpoints;
+- update/delete request `administration: write` through the installation token provider and scope the token request to exactly the selected GitHub repository ID.
+
+Permission strings remain in the centralized capability mapping, never Telegram handlers.
 
 ## 9. Confirmation security
 
@@ -212,7 +222,21 @@ Consequences:
 
 Home consumes outstanding GitHub disconnect confirmations to invalidate old message buttons.
 
-Later Tier 2/3 repository operations must add their own target/resource/ref/SHA/name preconditions. Tier 3 repository deletion additionally requires exact repository name before final confirmation.
+### P3.3 repository-administration confirmations
+
+Operation-specific rules reuse the same persisted confirmation primitive:
+
+- create is Tier 1;
+- update/visibility/archive/default-branch changes are Tier 2;
+- repository deletion is Tier 3;
+- delete requires the exact current `owner/name` to be typed before the pending delete confirmation is issued;
+- target fingerprint/payload binds the intended request and current repository snapshot/preconditions;
+- confirm is user/operation-bound, expiring, atomic, and single-use;
+- stale, expired, reused, cancelled, wrong-operation, wrong-target, and wrong-name paths fail closed;
+- edit/back/cancel is not cosmetic: the operation-specific cancellation service consumes the pending confirmation before navigation;
+- a previously rendered Telegram confirm button therefore loses authority immediately after a successful cancellation.
+
+Tests verify one-time cancellation for create/update/delete and negative delete cases including expired, reused, wrong-name, and permission failure.
 
 ## 10. P3.2 exact disconnect scope
 
@@ -239,24 +263,46 @@ For repository reads, stale cache is revalidated against GitHub.
 
 For P3.2 credentials/confirmations, credential generation and target fingerprints are the relevant durable stale-state preconditions.
 
-## 12. Archive/ZIP security
+For P3.3 update/delete:
+
+- cache selection is resolved inside the current user/installation context;
+- current GitHub repository state is refreshed before sensitive execution;
+- confirmation fingerprint/request preconditions are compared against current state;
+- stale repository state stops the write rather than silently targeting a renamed/reconfigured resource.
+
+## 12. Uncertain-write reconciliation — P3.3
+
+Write-like GitHub methods remain no-retry by default. A timeout/transient response can occur after GitHub applied a mutation, so automatically replaying create/update/delete can duplicate or misreport side effects.
+
+P3.3 therefore uses operation-specific reconciliation:
+
+- create: inspect current remote repository state for a repository matching the intended creation before deciding outcome;
+- update: re-fetch and compare requested fields against remote state;
+- delete: re-fetch to determine whether the target still exists;
+- if reconciliation proves the requested state, record a reconciled applied outcome;
+- if reconciliation disproves it safely, record failure where justified;
+- if the remote outcome cannot be established, retain an explicit `UNCERTAIN` result instead of claiming success/failure.
+
+Reconciliation is not permission bypass and must use the correct current credential context. It never justifies blind replay.
+
+## 13. Archive/ZIP security
 
 Uploaded archives are untrusted. Before extraction enforce upload size, member inspection, traversal/absolute/device/special/link policy, depth/count/uncompressed-size limits, duplicate normalized paths, isolated workspace, and cleanup.
 
 Never execute uploaded code or automatically source `.env`/shell files. Scan/flag secret-like content where feasible without claiming certainty.
 
-## 13. Secret-like file safeguards
+## 14. Secret-like file safeguards
 
 Warn/block candidates include `.env` except reviewed safe examples, private keys, credential/token files, unexpected local DBs, and auth/session caches. Scanner is a safety layer, not proof that an upload is secret-free.
 
-## 14. Repository path safety
+## 15. Repository path safety
 
 - repository-relative POSIX paths;
 - reject leading slash, drive paths, NUL, traversal;
 - short UI IDs resolve server-side rather than becoming paths directly;
 - `.github/workflows/*` requires explicit Workflows capability.
 
-## 15. Repository callback/cache safety
+## 16. Repository callback/cache safety
 
 `repositories_cache` is navigation state, not authorization.
 
@@ -274,7 +320,9 @@ Mandatory rules:
 - never infer write/admin authority from cache;
 - never store credentials/OAuth/PKCE/private-key/raw-error material.
 
-## 16. Command-generation safety
+P3.3 uses repository cache only to resolve navigation context. Update/delete authority is rebuilt from current user/install binding, fresh GitHub repository state, persisted confirmation, and current scoped token capability.
+
+## 17. Command-generation safety
 
 Clone/setup/run generates commands only.
 
@@ -285,22 +333,24 @@ Clone/setup/run generates commands only.
 - trusted templates + detected metadata;
 - uncertainty labelled.
 
-## 17. SSRF/network restrictions
+## 18. SSRF/network restrictions
 
 Core GitHub clients target approved GitHub endpoints. No generic fetch-URL-from-Telegram capability.
 
 Canonical REST transport allows repository-relative API paths or HTTPS `api.github.com`; rejects scheme-relative, credential-bearing, external-host, non-HTTPS, fragment-bearing, and noncanonical targets before network I/O. Redirects are not automatically followed.
 
-## 18. GitHub API writes
+## 19. GitHub API writes
 
 - use preconditions/current SHA where supported;
 - serialize conflicting same-path operations;
 - batch coherent multi-file changes;
-- never blindly retry destructive/non-idempotent writes after uncertain result; reconcile first.
+- never blindly retry destructive/non-idempotent writes after uncertain result; reconcile first;
+- distinguish a reconciled applied write from an ordinary direct response in application result/audit state;
+- if uncertainty remains after reconciliation, expose safe uncertainty instead of lying about success/failure.
 
 GET/HEAD bounded retry remains separate from write safety.
 
-## 19. GitHub Actions safety
+## 20. GitHub Actions safety
 
 - Actions read separate from Actions write;
 - dispatch shows workflow/ref/inputs and requires confirmation;
@@ -308,35 +358,42 @@ GET/HEAD bounded retry remains separate from write safety.
 - never display Actions secrets;
 - workflow YAML edits require Workflows write plus normal file-review safeguards.
 
-## 20. Database security
+## 21. Database security
 
 - parameterized ORM/query use only;
 - unique constraints for identity/delivery bindings where needed;
 - transactions for consume/apply transitions;
 - migrations reviewed/tested;
 - backups/access control documented before production launch;
-- repository cache contains no credentials.
+- repository cache contains no credentials;
+- audit rows contain safe identifiers/metadata only and are not a credential sink.
 
 Migration verification:
 
 - `0003` repository cache remains in PostgreSQL round trip;
-- P3.2 `0004_user_auth` adds credential-generation/confirmation lifecycle and passes PostgreSQL 17 upgrade -> downgrade -> upgrade in CI `33515291600`.
+- `0004_user_auth` adds credential-generation/confirmation lifecycle;
+- P3.3 `0005_audit_log` adds durable administration audit rows;
+- PostgreSQL 17 upgrade -> downgrade -> upgrade including `0005_audit_log` passed in implementation CI `33890407945`.
 
-## 21. Logging/redaction
+## 22. Logging/redaction
 
-Redact authorization, access/refresh token, client/webhook secret, private key, OAuth code/state, PKCE verifier, credential key, Telegram bot token, and similarly named sensitive fields.
+Redact authorization, access/refresh token, installation token, client/webhook secret, private key, OAuth code/state, PKCE verifier, credential key, Telegram bot token, and similarly named sensitive fields.
 
 Authentication/gateway errors must not echo raw GitHub response bodies. Do not log full private webhook bodies by default.
 
-## 22. Audit log
+Repository-administration audit details must never serialize credential objects or raw upstream auth/error bodies.
 
-Audit user-triggered GitHub writes with operation ID, Telegram user ID, GitHub account/installation identity, repository/resource, timestamp, result/status, and safe GitHub identifiers.
+## 23. Audit log
+
+Audit user-triggered GitHub writes with operation ID, Telegram/GitDock user identity, GitHub account/installation context where safe, repository/resource, timestamp, result/status, GitHub request ID when safe, and reconciliation outcome where relevant.
 
 Do not place secrets or full sensitive file contents in audit rows.
 
-P3.2 local credential cleanup is sensitive local state management but is not a substitute for later GitHub-write audit requirements.
+P3.3 `AuditLog` records repository create/update/delete success/failure/reconciled/uncertain context while keeping credential material out of `details`.
 
-## 23. Error handling
+Successful update refreshes repository cache metadata. Confirmed successful/reconciled delete removes the deleted repository from local cache so navigation state does not imply the resource still exists.
+
+## 24. Error handling
 
 Telegram receives stable local errors, not raw tracebacks or auth bodies.
 
@@ -344,7 +401,9 @@ Gateway categories remain authentication, permission, not-found, conflict, valid
 
 P3.2 additionally distinguishes safe reauthorization-required, changed/stale authorization, stale confirmation, and invalid/consumed confirmation states. Copy must never claim deletion when preconditions fail.
 
-## 24. Dependency/supply-chain baseline
+P3.3 adds explicit safe repository-admin outcome states including applied/stale/invalid/uncertain. An uncertain write is never rendered as definite failure if reconciliation cannot prove that assertion.
+
+## 25. Dependency/supply-chain baseline
 
 - exact direct runtime pins in `requirements.txt`;
 - exact dev/test pins in `requirements-dev.txt`;
@@ -354,18 +413,36 @@ P3.2 additionally distinguishes safe reauthorization-required, changed/stale aut
 - `pip-audit` and secret scan in CI;
 - no dynamic package install from Telegram input.
 
-P3.2 adds no runtime dependency drift. CI `33515291600` reports no known runtime vulnerabilities, no secret findings, and no PEP 751 lock drift.
+P3.3 adds no runtime dependency drift. Implementation CI `33890407945` reports no known runtime vulnerabilities, no secret findings, and no PEP 751 lock drift on Python 3.12/3.13.
 
-## 25. Known non-blocking maintenance warnings
+## 26. Known non-blocking maintenance warnings
 
-Green P3.2 CI still reports:
+Green P3.3 implementation CI still reports:
 
 - Starlette/FastAPI `TestClient` deprecation warning around current `httpx` integration/future `httpx2` direction;
+- Starlette test-client usage surfaces AnyIO's deprecated `anyio.abc.BlockingPortal` alias;
 - Alembic warning because `alembic.ini` lacks explicit `path_separator` for `prepend_sys_path`.
 
 Tracked maintenance debt; not hidden test failures.
 
-## 26. Deployment baseline
+## 27. P3.3 verification facts
+
+Implementation head before documentation synchronization: `4e71d7f1c962e61584d6532d03c913703dc5295a`.
+
+CI `33890407945` verified:
+
+- Ruff format/lint green on Python 3.12 and 3.13;
+- mypy clean on 72 source files;
+- **117 tests passed** on both supported Python versions;
+- compile green;
+- `pip-audit` no known runtime vulnerabilities;
+- `detect-secrets` no findings;
+- PEP 751 locks reproduce byte-for-byte;
+- PostgreSQL 17 migration upgrade -> downgrade -> upgrade including `0005_audit_log`.
+
+P3.3 remains merge/governance pending until the documentation-head CI, non-draft PR, unchanged-head merge, post-merge `main` CI, and governance closeout finish.
+
+## 28. Deployment baseline
 
 Before public production use:
 

@@ -30,6 +30,7 @@ class GitHubCapability(StrEnum):
     ACTIONS_WRITE = "actions.write"
     WORKFLOWS_WRITE = "workflows.write"
     REPOSITORY_ADMIN = "repository.admin"
+    REPOSITORY_CREATE_USER = "repository.create.user"
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +81,9 @@ CAPABILITY_REQUIREMENTS: Final[MappingProxyType[GitHubCapability, CapabilityRequ
             ),
             GitHubCapability.REPOSITORY_ADMIN: _requirement(
                 TokenContext.INSTALLATION, administration=PermissionLevel.WRITE
+            ),
+            GitHubCapability.REPOSITORY_CREATE_USER: _requirement(
+                TokenContext.USER, administration=PermissionLevel.WRITE
             ),
         }
     )

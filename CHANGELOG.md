@@ -29,6 +29,12 @@ The project follows an `Unreleased` section during active development. Versionin
 - P3.2 legacy-installation local disconnect support for P2.3 bindings that predate durable user-token persistence.
 - P3.2 integration coverage for standalone OAuth state/PKCE -> GitHub identity -> encrypted durable credentials without reinstalling the GitHub App.
 - P3.2 service/UI/security coverage expanding the suite from 83 to **97 tests**.
+- P3.3 typed repository-administration gateway/service for personal and authorized organization creation, repository settings updates, archive/unarchive, visibility changes, default-branch changes, and deletion.
+- P3.3 durable `audit_log` persistence plus Alembic migration `0005_audit_log` for repository-administration write outcomes.
+- P3.3 remote-state reconciliation for uncertain create/update/delete outcomes so write-like GitHub calls are not blindly retried or mislabeled.
+- P3.3 Arabic Telegram repository-creation wizard and repository-settings UX with centralized renderers, keyboards, callbacks, FSM states, and thin router handlers.
+- P3.3 one-time server-side confirmation cancellation so edit/back/cancel consumes pending authority and old Telegram buttons cannot execute later.
+- P3.3 organization-create, reconciliation, confirmation-cancellation, gateway/service, deletion-negative-path, and Telegram UI coverage expanding the suite from 97 to **117 tests**.
 
 ### Changed
 
@@ -44,7 +50,11 @@ The project follows an `Unreleased` section during active development. Versionin
 - Connected Home exposes `👤 حساب GitHub` as a real account-management entry point.
 - Returning Home invalidates outstanding local-disconnect confirmations so old Telegram messages cannot retain active destructive authorization.
 - GitHub installation binding and durable GitHub user authorization remain explicitly separate states in service/UI semantics.
-- Runtime dependencies remain unchanged by P3.1/P3.2; existing PEP 751 locks remain byte-for-byte verified on Python 3.12 and 3.13.
+- P3.3 runtime composition reuses the established confirmation service, durable user-token provider, repository read/cache service, and GitHub REST transport instead of creating parallel auth or persistence stacks.
+- P3.3 personal/organization repository creation uses durable GitHub user OAuth context; repository update/delete uses a repository-scoped installation token requesting `administration: write` only for the selected repository.
+- P3.3 sensitive write previews and Telegram buttons are transport/UI only; execution remains bound to persisted server-side confirmation and refreshed repository preconditions.
+- P3.3 write-like GitHub operations remain no-retry by default; uncertain outcomes reconcile remote state before GitDock reports final applied/failed/uncertain state.
+- Runtime dependencies remain unchanged by P3.1/P3.2/P3.3; existing PEP 751 locks remain byte-for-byte verified on Python 3.12 and 3.13.
 
 ### Fixed
 
@@ -59,6 +69,8 @@ The project follows an `Unreleased` section during active development. Versionin
 - P3.1 navigation tests model aiogram async child methods correctly rather than failing on non-awaitable mock attributes.
 - P3.2 initial Alembic migration failure caused by revision identifier `0004_user_authorization_lifecycle` exceeding Alembic's default `alembic_version.version_num` length. The revision was correctly shortened to `0004_user_auth` instead of widening Alembic's internal version table for an unnecessarily long label.
 - P3.2 Ruff formatting, one E501 lint finding, and one mypy variable-shadowing inference issue were corrected at their source while preserving intended auth behavior.
+- P3.3 branch CI formatting/Unicode/unused-context findings were corrected at source without weakening format, lint, type, security, or test gates.
+- P3.3 update-message router no longer keeps unused navigation variables after token-aware confirmation cancellation made them unnecessary.
 
 ### Security
 
@@ -76,7 +88,11 @@ The project follows an `Unreleased` section during active development. Versionin
 - P3.2 local-disconnect confirmation is DB-backed, one-time, expiring, and bound to GitDock user + operation + account identity + credential generation + current installation IDs.
 - Reauthorization or installation-set change makes an older disconnect confirmation stale; stale, cancelled, reused, or invalid confirmation removes nothing.
 - Local disconnect clears only GitDock-local credentials/bindings/cache/pending state and explicitly **does not uninstall or revoke the GitHub App remotely**.
-- P3.2 introduces no repository write/admin capability and does not expand the GitHub App to a broad permission model.
+- P3.3 creation/update/deletion all require persisted server-side confirmation; update is Tier 2 and delete is Tier 3 with exact typed `owner/name` validation.
+- P3.3 confirmation tokens are opaque, user/operation-bound, expiring, single-use, and revocable by cancel/back/edit; reused/expired/cancelled/stale confirmation fails closed.
+- P3.3 repository update/delete installation credentials are scoped to the selected repository and `administration: write`; personal/organization creation uses the narrower durable user-context path required by GitHub's create endpoints.
+- P3.3 audit records intentionally omit credentials/tokens/raw upstream auth bodies while preserving safe operation/status/repository/request metadata.
+- P3.3 uncertain writes are reconciled instead of blindly replayed, preventing duplicate create/update/delete side effects from automatic retry.
 
 ### Verification
 
@@ -133,10 +149,21 @@ P3.2:
 - `pip-audit` reported no known runtime vulnerabilities;
 - no secret-scan findings and no PEP 751 lock drift.
 
+P3.3 implementation verification (merge/governance still pending):
+
+- complete implementation head before documentation synchronization `4e71d7f1c962e61584d6532d03c913703dc5295a` — CI `33890407945` green;
+- Python 3.12 and Python 3.13 each passed Ruff format/lint, mypy, **117 tests**, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff;
+- mypy reported no issues in 72 source files;
+- PostgreSQL 17 Alembic upgrade -> downgrade -> upgrade including `0005_audit_log` passed;
+- `pip-audit` reported no known runtime vulnerabilities;
+- no secret-scan findings and no PEP 751 lock drift;
+- documentation-synchronized head CI, non-draft PR CI, squash merge, post-merge `main` CI, and governance closeout remain pending and must be recorded after they actually occur.
+
 ### Known maintenance warnings
 
-- Green P3.2 verification continues to report a Starlette/FastAPI `TestClient` deprecation warning for the current `httpx` integration/future `httpx2` direction.
-- Green P3.2 verification continues to report Alembic's `path_separator` deprecation warning because `alembic.ini` does not explicitly set `path_separator` for `prepend_sys_path`.
+- Green P3.3 implementation verification continues to report a Starlette/FastAPI `TestClient` deprecation warning for the current `httpx` integration/future `httpx2` direction.
+- Starlette tests also surface AnyIO's deprecated `anyio.abc.BlockingPortal` alias.
+- Green P3.3 verification continues to report Alembic's `path_separator` deprecation warning because `alembic.ini` does not explicitly set `path_separator` for `prepend_sys_path`.
 
 These warnings are recorded rather than hidden; they do not currently fail the build.
 
