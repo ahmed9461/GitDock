@@ -209,11 +209,7 @@ def parse_repository_admin_cancel(data: str) -> tuple[str, str, str] | None:
     operation = _ADMIN_CANCEL_OPERATION_BY_CODE.get(parts[0])
     destination = _ADMIN_CANCEL_DESTINATION_BY_CODE.get(parts[1])
     token = parts[2]
-    if (
-        operation is None
-        or destination is None
-        or _CONFIRMATION_TOKEN_RE.fullmatch(token) is None
-    ):
+    if operation is None or destination is None or _CONFIRMATION_TOKEN_RE.fullmatch(token) is None:
         return None
     return operation, destination, token
 
