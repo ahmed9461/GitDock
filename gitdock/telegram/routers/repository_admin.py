@@ -494,9 +494,7 @@ async def _update_from_message(
     if context is None:
         await state.clear()
         await message.answer(
-            render_invalid_repository_admin_input(
-                "انتهت بيانات التعديل. افتح الإعدادات من جديد."
-            ),
+            render_invalid_repository_admin_input("انتهت بيانات التعديل. افتح الإعدادات من جديد."),
             reply_markup=simple_back_home_keyboard(),
         )
         return
@@ -593,9 +591,7 @@ def _admin_available(services: RuntimeServices | None) -> bool:
 
 def _valid_repository_name(value: str) -> bool:
     return (
-        bool(value)
-        and len(value) <= 100
-        and all(char not in value for char in ("/", "\\", "\x00"))
+        bool(value) and len(value) <= 100 and all(char not in value for char in ("/", "\\", "\x00"))
     )
 
 
