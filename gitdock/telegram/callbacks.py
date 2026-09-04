@@ -18,6 +18,13 @@ ACCOUNT_REFRESH = f"{PREFIX}:account:refresh"
 ACCOUNT_AUTHORIZE = f"{PREFIX}:account:authorize"
 ACCOUNT_DISCONNECT_BEGIN = f"{PREFIX}:account:disconnect:begin"
 SEARCH_BEGIN = f"{PREFIX}:search:begin"
+REPOSITORY_CREATE_BEGIN = f"{PREFIX}:repo:create:begin"
+REPOSITORY_CREATE_SKIP_DESCRIPTION = f"{PREFIX}:repo:create:skip"
+REPOSITORY_CREATE_PRIVATE = f"{PREFIX}:repo:create:private"
+REPOSITORY_CREATE_PUBLIC = f"{PREFIX}:repo:create:public"
+REPOSITORY_CREATE_EDIT = f"{PREFIX}:repo:create:edit"
+REPOSITORY_CREATE_BACK_NAME = f"{PREFIX}:repo:create:back:name"
+REPOSITORY_CREATE_BACK_DESCRIPTION = f"{PREFIX}:repo:create:back:description"
 PLACEHOLDER_PREFIX = f"{PREFIX}:later:"
 
 _SESSION_RE = re.compile(r"^[A-Za-z0-9_-]{6,16}$")
@@ -29,6 +36,7 @@ _LANGUAGE_CODES = {
     SearchLanguage.KOTLIN: "kt",
 }
 _LANGUAGE_BY_CODE = {value: key for key, value in _LANGUAGE_CODES.items()}
+_REPOSITORY_SETTING_ACTIONS = {"name", "desc", "visibility", "archive", "branch", "delete"}
 
 
 def repository_list(repository_filter: RepositoryFilter, page: int) -> str:
@@ -78,6 +86,99 @@ def parse_repository_open(data: str) -> tuple[int, RepositoryFilter, int] | None
     if page <= 0 or value <= 0:
         return None
     return value, repository_filter, page
+
+
+def repository_settings(
+    github_repository_id: int,
+    repository_filter: RepositoryFilter,
+    page: int,
+) -> str:
+    if github_repository_id <= 0 or page <= 0:
+        raise ValueError("repository ID and page must be positive")
+    return f"{PREFIX}:repo:settings:{repository_filter.value}:{page}:{_base36(github_repository_id)}"
+
+
+def parse_repository_settings(data: str) -> tuple[int, RepositoryFilter, int] | None:
+    prefix = f"{PREFIX}:repo:settings:"
+    if not data.startswith(prefix):
+        return None
+    parts = data[len(prefix) :].split(":")
+    if len(parts) != 3:
+        return None
+    filter_raw, page_raw, encoded = parts
+    try:
+        repository_filter = RepositoryFilter(filter_raw)
+        page = int(page_raw)
+        repository_id = int(encoded, 36)
+    except ValueError:
+        return None
+    if page <= 0 or repository_id <= 0:
+        return None
+    return repository_id, repository_filter, page
+
+
+def repository_setting_action(
+    github_repository_id: int,
+    action: str,
+    repository_filter: RepositoryFilter,
+    page: int,
+) -> str:
+    if github_repository_id <= 0 or page <= 0 or action not in _REPOSITORY_SETTING_ACTIONS:
+        raise ValueError("repository setting action is invalid")
+    return (
+        f"{PREFIX}:repo:set:{action}:{repository_filter.value}:{page}:"
+        f"{_base36(github_repository_id)}"
+    )
+
+
+def parse_repository_setting_action(
+    data: str,
+) -> tuple[int, str, RepositoryFilter, int] | None:
+    prefix = f"{PREFIX}:repo:set:"
+    if not data.startswith(prefix):
+        return None
+    parts = data[len(prefix) :].split(":")
+    if len(parts) != 4:
+        return None
+    action, filter_raw, page_raw, encoded = parts
+    if action not in _REPOSITORY_SETTING_ACTIONS:
+        return None
+    try:
+        repository_filter = RepositoryFilter(filter_raw)
+        page = int(page_raw)
+        repository_id = int(encoded, 36)
+    except ValueError:
+        return None
+    if page <= 0 or repository_id <= 0:
+        return None
+    return repository_id, action, repository_filter, page
+
+
+def repository_create_confirm(token: str) -> str:
+    _require_confirmation_token(token)
+    return f"{PREFIX}:repo:create:confirm:{token}"
+
+
+def parse_repository_create_confirm(data: str) -> str | None:
+    return _parse_token_suffix(data, f"{PREFIX}:repo:create:confirm:")
+
+
+def repository_update_confirm(token: str) -> str:
+    _require_confirmation_token(token)
+    return f"{PREFIX}:repo:update:confirm:{token}"
+
+
+def parse_repository_update_confirm(data: str) -> str | None:
+    return _parse_token_suffix(data, f"{PREFIX}:repo:update:confirm:")
+
+
+def repository_delete_confirm(token: str) -> str:
+    _require_confirmation_token(token)
+    return f"{PREFIX}:repo:delete:confirm:{token}"
+
+
+def parse_repository_delete_confirm(data: str) -> str | None:
+    return _parse_token_suffix(data, f"{PREFIX}:repo:delete:confirm:")
 
 
 def repository_filters(repository_filter: RepositoryFilter, page: int) -> str:
@@ -265,7 +366,10 @@ def placeholder(area: str) -> str:
 
 
 def _parse_confirmation_callback(data: str, action: str) -> str | None:
-    prefix = f"{PREFIX}:account:disconnect:{action}:"
+    return _parse_token_suffix(data, f"{PREFIX}:account:disconnect:{action}:")
+
+
+def _parse_token_suffix(data: str, prefix: str) -> str | None:
     if not data.startswith(prefix):
         return None
     token = data[len(prefix) :]
