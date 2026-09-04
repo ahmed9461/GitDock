@@ -15,6 +15,7 @@ from gitdock.telegram import callbacks
 from gitdock.telegram.keyboards.repositories import home_keyboard, repository_detail_keyboard
 from gitdock.telegram.keyboards.repository_admin import (
     create_confirmation_keyboard,
+    delete_confirmation_keyboard,
     repository_settings_keyboard,
     update_confirmation_keyboard,
 )
@@ -60,6 +61,9 @@ def test_repository_admin_callbacks_round_trip_under_telegram_limit() -> None:
         callbacks.repository_create_confirm(token),
         callbacks.repository_update_confirm(token),
         callbacks.repository_delete_confirm(token),
+        callbacks.repository_admin_cancel("create", "edit", token),
+        callbacks.repository_admin_cancel("update", "settings", token),
+        callbacks.repository_admin_cancel("delete", "home", token),
     ]
 
     assert len(settings.encode("utf-8")) <= 64
@@ -79,6 +83,13 @@ def test_repository_admin_callbacks_round_trip_under_telegram_limit() -> None:
     assert callbacks.parse_repository_create_confirm(confirmations[0]) == token
     assert callbacks.parse_repository_update_confirm(confirmations[1]) == token
     assert callbacks.parse_repository_delete_confirm(confirmations[2]) == token
+    assert callbacks.parse_repository_admin_cancel(confirmations[3]) == ("create", "edit", token)
+    assert callbacks.parse_repository_admin_cancel(confirmations[4]) == (
+        "update",
+        "settings",
+        token,
+    )
+    assert callbacks.parse_repository_admin_cancel(confirmations[5]) == ("delete", "home", token)
 
 
 def test_home_and_repository_dashboard_expose_real_p33_actions() -> None:
@@ -118,12 +129,8 @@ def test_repository_settings_keep_delete_isolated_and_confirmations_explicit() -
     )
     token = "AbCdEfGhIjKlMnOp"
     create = create_confirmation_keyboard(token)
-    update = update_confirmation_keyboard(
-        token,
-        repository.github_repository_id,
-        back_filter=RepositoryFilter.ALL,
-        back_page=1,
-    )
+    update = update_confirmation_keyboard(token)
+    delete = delete_confirmation_keyboard(token)
 
     delete_rows = [
         row
@@ -133,7 +140,20 @@ def test_repository_settings_keep_delete_isolated_and_confirmations_explicit() -
     assert len(delete_rows) == 1
     assert len(delete_rows[0]) == 1
     assert create.inline_keyboard[0][0].callback_data == callbacks.repository_create_confirm(token)
+    assert create.inline_keyboard[1][0].callback_data == callbacks.repository_admin_cancel(
+        "create", "edit", token
+    )
+    assert create.inline_keyboard[2][0].callback_data == callbacks.repository_admin_cancel(
+        "create", "home", token
+    )
     assert update.inline_keyboard[0][0].callback_data == callbacks.repository_update_confirm(token)
+    assert update.inline_keyboard[1][0].callback_data == callbacks.repository_admin_cancel(
+        "update", "settings", token
+    )
+    assert delete.inline_keyboard[0][0].callback_data == callbacks.repository_delete_confirm(token)
+    assert delete.inline_keyboard[1][0].callback_data == callbacks.repository_admin_cancel(
+        "delete", "settings", token
+    )
 
 
 def test_repository_admin_renderers_show_preview_settings_and_uncertain_state() -> None:
