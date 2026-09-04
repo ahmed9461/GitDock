@@ -1,6 +1,6 @@
 # GitDock — Telegram UI/UX Specification
 
-Status: authoritative v1 interaction contract, updated through P3.2 user-authorization UI
+Status: authoritative v1 interaction contract, updated through P3.3 repository-administration UI
 
 ## 1. Experience goal
 
@@ -24,7 +24,7 @@ Arabic is the primary UI language. Technical values such as repository names, br
 - Destructive/sensitive actions are isolated from harmless navigation.
 - Always show target/consequence before write or sensitive local cleanup.
 - Use consistent icons from `docs/CONSTANTS.md`.
-- Never render access/refresh tokens, OAuth code/state, PKCE verifier, private key, client secret, or raw upstream auth body.
+- Never render access/refresh/installation tokens, OAuth code/state, PKCE verifier, private key, client secret, or raw upstream auth body.
 
 ## 3. Navigation contract
 
@@ -40,7 +40,7 @@ During active wizards:
 [❌ إلغاء] [⬅️ رجوع]
 ```
 
-Home/Cancel/Back must remain predictable. Home cancels transient search/input state and, since P3.2, invalidates outstanding GitHub local-disconnect confirmations.
+Home/Cancel/Back must remain predictable. Home cancels transient search/input state and invalidates pending local-disconnect authority where applicable. In P3.3, once a repository write preview has issued a persisted confirmation, edit/back/cancel consumes that specific confirmation before navigation so an old Telegram confirm button cannot remain active.
 
 ## 4. Home screen
 
@@ -67,7 +67,7 @@ Current connected keyboard contract:
 [🔄 تحديث]
 ```
 
-Some entries remain placeholders until their roadmap milestone; `👤 حساب GitHub` is real in P3.2.
+`👤 حساب GitHub` is real since P3.2. `➕ مستودع جديد` is real in P3.3. Other entries remain placeholders until their roadmap milestone.
 
 Disconnected example:
 
@@ -85,7 +85,7 @@ Disconnected example:
 [🔄 تحديث]
 ```
 
-Public search remains available independently of connection state.
+Public search remains available independently of connection state. Repository creation requires durable GitHub user authorization and does not appear as executable authority merely because a callback exists.
 
 ## 5. GitHub account screen — P3.2
 
@@ -253,9 +253,9 @@ Keyboard target contract:
 [🏠 الرئيسية]      [⬅️ رجوع]
 ```
 
-Unimplemented entries remain placeholders until their milestone.
+`⚙️ إعدادات المستودع` is real in P3.3. Unimplemented entries remain placeholders until their milestone.
 
-## 8. Create repository wizard — P3.3 target
+## 8. Create repository wizard — P3.3 verified
 
 Step 1:
 
@@ -308,9 +308,17 @@ Step 4 preview:
 [❌ إلغاء]
 ```
 
-Creation is never performed before preview/confirmation. P3.2 user authorization alone does not mean repository creation is implemented.
+Rules:
 
-## 9. Repository settings — P3.3 target
+- creation is never performed before preview + persisted Tier 1 confirmation;
+- personal create uses current durable GitHub user authorization;
+- organization create is supported at the service/gateway boundary when an organization is explicitly requested and authorized; the current Telegram v1 wizard defaults to the linked personal account unless a future UI exposes organization choice;
+- `✏️ تعديل البيانات` consumes the issued confirmation before returning to input;
+- `❌ إلغاء` consumes the issued confirmation before leaving the preview;
+- reused/expired/cancelled confirmation never creates a repository;
+- the callback token is transport only; server-side state remains authoritative.
+
+## 9. Repository settings — P3.3 verified
 
 ```text
 ⚙️ إعدادات GitDock
@@ -321,15 +329,67 @@ Creation is never performed before preview/confirmation. P3.2 user authorization
 الحالة: نشط
 ```
 
+Current keyboard:
+
 ```text
 [✏️ الاسم]       [📝 الوصف]
-[👁️ الظهور]      [📦 أرشفة]
+[🌐 جعله عامًا / 🔒 جعله خاصًا] [📦 أرشفة / 📤 إلغاء الأرشفة]
 [🌿 الفرع الافتراضي]
 [🗑 حذف المستودع]
 [🏠 الرئيسية] [⬅️ رجوع]
 ```
 
-Delete button is always isolated.
+Rules:
+
+- delete button is always isolated;
+- name/description/default branch collect typed input then show preview;
+- visibility and archive/unarchive still pass through a persisted Tier 2 preview/confirmation rather than executing from the settings tap;
+- update preview contains the repository target and requested change;
+- `✅ تطبيق التغيير` is the only final write action and consumes server-side confirmation;
+- Back/Cancel after preview consumes pending confirmation before navigation;
+- stale repository state or stale confirmation performs no write and requires reopening/refreshing the settings context.
+
+### P3.3 Tier 2 update preview
+
+```text
+⚠️ مراجعة تغيير المستودع
+
+المستودع: owner/repo
+التغيير: ...
+
+لن يتم تطبيق التغيير حتى التأكيد.
+```
+
+```text
+[✅ تطبيق التغيير]
+[⬅️ رجوع] [❌ إلغاء]
+```
+
+### P3.3 Tier 3 deletion
+
+Deletion has two explicit gates:
+
+1. user must type the exact current full repository name `owner/repo`;
+2. GitDock then renders an isolated Tier 3 delete preview backed by a persisted confirmation.
+
+Wrong name does not issue a valid delete confirmation and does not write anything.
+
+Final preview pattern:
+
+```text
+🗑 حذف المستودع نهائيًا
+
+المستودع: owner/repo
+
+هذا حذف دائم على GitHub.
+```
+
+```text
+[🗑 تأكيد الحذف نهائيًا]
+[⬅️ رجوع] [❌ إلغاء]
+```
+
+The confirmation expires, is single-use, and is invalidated by successful Back/Cancel. Before execution GitDock refreshes repository state and fails closed if the target changed.
 
 ## 10. File browser — target
 
@@ -649,7 +709,7 @@ For noticeable operations:
 
 Then edit in place to result/error where practical. Do not spam loading messages for tiny requests.
 
-For authorization refresh, use concise status/error copy; do not expose transport/token details.
+For authorization refresh or repository administration, use concise status/error copy; do not expose transport/token details.
 
 ## 21. Empty states
 
@@ -708,14 +768,30 @@ P3.2 stale local confirmation:
 افتح حساب GitHub وحدّث الحالة قبل المحاولة من جديد.
 ```
 
-Invalid/reused local confirmation:
+Invalid/reused confirmation:
 
 ```text
 ℹ️ انتهى أو استُخدم هذا التأكيد.
-لم يتم حذف أي شيء.
+لم يتم تنفيذ أي تغيير.
 ```
 
-Never show stack traces, secret-bearing raw auth errors, or token/private-key data.
+P3.3 stale repository administration:
+
+```text
+⚠️ تغيرت حالة المستودع منذ فتح شاشة التأكيد.
+لم يتم تطبيق التغيير.
+افتح إعدادات المستودع وحدّث الحالة ثم راجع العملية من جديد.
+```
+
+P3.3 uncertain remote write:
+
+```text
+⚠️ تعذر تأكيد النتيجة النهائية من GitHub.
+لم يقم GitDock بإعادة تنفيذ العملية تلقائيًا.
+حدّث حالة المستودع قبل أي محاولة جديدة.
+```
+
+Never show stack traces, secret-bearing raw auth errors, token/private-key data, or claim a definite result when reconciliation remains uncertain.
 
 ## 23. Danger confirmation patterns
 
@@ -733,13 +809,15 @@ Never show stack traces, secret-bearing raw auth errors, or token/private-key da
 ```
 
 ```text
-[⚠️ تأكيد التغيير]
+[✅ تطبيق التغيير]
 [❌ إلغاء]
 ```
 
+P3.3 Tier 2 confirmations are persisted server-side, expire, are single-use, and are invalidated by successful Back/Cancel.
+
 ### Tier 3 repository deletion
 
-First require exact full repository name, then final isolated delete button. Confirmation expires and cannot be reused.
+First require exact full repository name, then final isolated delete button. Confirmation expires and cannot be reused. Before executing, GitDock refreshes current repository state; stale target/preconditions fail closed.
 
 ### Sensitive local account cleanup
 
@@ -752,9 +830,11 @@ P3.2 local disconnect uses the dedicated account confirmation from section 5. It
 - High-impact/sensitive operation state must also be persisted server-side with expiry/preconditions.
 - Back restores previous meaningful state.
 - Cancel invalidates pending confirmation/session and returns safely.
-- Home invalidates transient search/input state and pending GitHub local-disconnect confirmations.
+- Home invalidates transient search/input state and pending GitHub local-disconnect confirmations as defined by the active flow.
+- After a P3.3 create/update/delete preview exists, edit/back/cancel consumes the specific pending write confirmation before navigation.
 - Repeated callbacks on completed/consumed operations are idempotent or return clear expired/already-used copy.
 - Callback payload never serves as sole proof of current authorization.
+- Repository write callbacks carry compact IDs/tokens, not durable credentials or full authorization state.
 
 ## 25. Copy style
 
@@ -765,3 +845,12 @@ P3.2 local disconnect uses the dedicated account confirmation from section 5. It
 - Visually isolate repository/branch/path/login values from prose.
 - Avoid excessive emojis; icons communicate category/status rather than decoration.
 - When an operation is local-only, say “محلي” and never imply a remote GitHub effect that did not happen.
+- When a remote write outcome remains uncertain, say it is uncertain and never imply that retry is safe by default.
+
+## 26. P3.3 verification
+
+Implementation head before documentation synchronization: `4e71d7f1c962e61584d6532d03c913703dc5295a`.
+
+CI `33890407945` verified the P3.3 UI/service integration as part of the **117-test** suite on Python 3.12 and 3.13, including repository-admin callback/keyboards/renderers, confirmation cancellation semantics, create/update/delete service paths, and stale/negative behavior. PostgreSQL 17 migration and all configured quality/security/lock gates also passed.
+
+P3.3 remains merge/governance pending until the documentation-head CI, non-draft PR, unchanged-head merge, post-merge `main` CI, and governance closeout complete.
