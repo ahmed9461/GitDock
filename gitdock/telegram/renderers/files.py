@@ -67,10 +67,7 @@ def render_ref_prompt(current_ref: str) -> str:
 
 def render_create_name_prompt(directory_path: str) -> str:
     location = directory_path or "/"
-    return (  # noqa: RUF001 - intended Arabic UI copy
-        f"\u2795 ملف جديد\n\nالمجلد: {location}\n\n"
-        "أرسل اسم الملف فقط، مثال: README.md"
-    )
+    return f"\u2795 ملف جديد\n\n\u0627لمجلد: {location}\n\nأرسل اسم الملف فقط، مثال: README.md"
 
 
 def render_create_content_prompt(path: str) -> str:
@@ -122,7 +119,7 @@ def render_write_preview(plan: FileWritePlan) -> str:
 
 def render_diff(plan: FileWritePlan) -> str:
     if plan.diff is None or not plan.diff.preview:
-        return "👁️ Diff\n\nلا توجد معاينة نصية متاحة لهذا التغيير."  # noqa: RUF001
+        return "👁️ Diff\n\nل\u0627 توجد معاينة نصية متاحة لهذا التغيير."
     return f"👁️ Diff — {plan.path}\n\n{plan.diff.preview}"
 
 
