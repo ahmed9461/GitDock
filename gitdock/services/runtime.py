@@ -15,12 +15,14 @@ from gitdock.github.client import GitHubRestClient
 from gitdock.github.connection import GitHubConnectionService
 from gitdock.github.credentials import GitHubUserCredentialStore
 from gitdock.github.repositories import GitHubRepositoryGateway
+from gitdock.github.repository_admin import GitHubRepositoryAdminGateway
 from gitdock.github.search import GitHubRepositorySearchGateway
 from gitdock.github.token_provider import InstallationTokenProvider
 from gitdock.security.crypto import CredentialCipher
 from gitdock.services.confirmations import ConfirmationService
 from gitdock.services.identity import OwnerIdentityService
 from gitdock.services.repositories import RepositoryReadService
+from gitdock.services.repository_admin import RepositoryAdminService
 from gitdock.services.search import RepositorySearchService
 from gitdock.services.user_authorization import GitHubUserAuthorizationService
 
@@ -33,6 +35,7 @@ class RuntimeServices:
     github_connection: GitHubConnectionService | None
     user_authorization: GitHubUserAuthorizationService | None
     http_client: httpx.AsyncClient | None
+    repository_admin: RepositoryAdminService | None = None
 
     async def close(self) -> None:
         if self.http_client is not None:
@@ -79,6 +82,14 @@ def create_runtime_services(
         token_provider,
         repository_gateway,
     )
+    repository_admin = RepositoryAdminService(
+        session_factory,
+        user_authorization,
+        token_provider,
+        repository_gateway,
+        GitHubRepositoryAdminGateway(rest_client),
+        confirmations,
+    )
     state_service = GitHubAuthorizationStateService(cipher)
     connection = GitHubConnectionService(
         session_factory,
@@ -95,4 +106,5 @@ def create_runtime_services(
         github_connection=connection,
         user_authorization=user_authorization,
         http_client=http_client,
+        repository_admin=repository_admin,
     )
