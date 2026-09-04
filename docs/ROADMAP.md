@@ -183,9 +183,16 @@ Verification chain:
 
 P3.1 is Tier 0 read-only and introduces no repository write/admin permission.
 
-### P3.2 User-context authorization — implementation verified, merge pending
+### P3.2 User-context authorization ✅
 
-Pre-merge implementation head before documentation synchronization: `5068b58ec41fb5ac417408d3a535bbb5d66207fc`, branch CI `33515291600` green with **97 tests** on Python 3.12/3.13 plus PostgreSQL 17 migration round trip and all configured quality/security/lock gates.
+Verification chain:
+
+- implementation head `5068b58ec41fb5ac417408d3a535bbb5d66207fc` — CI `33515291600` green with **97 tests**;
+- documentation-synchronized head `492183bfba311827a965153eff61747bfabf76ed` — CI `33517270731` green;
+- PR #12 CI `33527318485` green on unchanged head;
+- squash merge `8a5d692dd875b8959b27b1b0c53bbc5b5359c7f8`;
+- post-feature `main` CI `33527484948` green;
+- governance closeout PR #13 merge `aeb003cec79d1952dc80a520c03a4eee819872bc`.
 
 - [x] authenticated GitHub `/user` identity resolution for durable user context.
 - [x] standalone GitHub App user authorization for durable user-context features that genuinely require it.
@@ -212,27 +219,43 @@ Pre-merge implementation head before documentation synchronization: `5068b58ec41
 - [x] migration `0004_user_auth` passes PostgreSQL upgrade/downgrade/re-upgrade.
 - [x] no runtime dependency or PEP 751 lock drift.
 - [x] no new repository write/admin feature or broad permission introduced by P3.2.
+- [x] documentation/PR/merge/main/governance closeout completed.
+
+### P3.3 Repository create/settings — implementation verified; merge/governance pending
+
+Implementation head before documentation synchronization: `4e71d7f1c962e61584d6532d03c913703dc5295a`, branch CI `33890407945` green with **117 tests** on Python 3.12/3.13 plus PostgreSQL 17 migration round trip and all configured quality/security/lock gates.
+
+- [x] create personal repository using durable GitHub user context.
+- [x] optional organization repository creation when authorized.
+- [x] edit supported repository name/description/default branch settings.
+- [x] archive/unarchive.
+- [x] visibility-change Tier 2 flow.
+- [x] delete Tier 3 exact-name confirmation.
+- [x] audit repository administration writes through migration `0005_audit_log`.
+- [x] update/delete use repository-scoped installation tokens with `administration: write`.
+- [x] create/update/delete confirmations are persisted, expiring, user-bound, single-use, and stale-safe.
+- [x] cancel/back/edit consumes pending confirmation so old Telegram buttons cannot retain write authority.
+- [x] uncertain create/update/delete outcomes reconcile remote state before GitDock claims success/failure.
+- [x] Arabic Telegram creation wizard and repository-settings UX are wired through centralized callbacks/keyboards/renderers/FSM/router layers.
+- [x] no blind retry for write-like GitHub operations.
+- [x] no runtime dependency or PEP 751 lock drift.
 - [~] documentation-synchronized final-head CI, non-draft PR, squash merge, post-merge `main` CI, and governance closeout.
-
-P3.2 is not marked ✅ until the final merge/main/governance verification chain is complete.
-
-### P3.3 Repository create/settings
-
-- [ ] create personal repository.
-- [ ] optional organization repository creation when authorized.
-- [ ] edit name/description/settings supported by scope.
-- [ ] archive/unarchive.
-- [ ] visibility-change Tier 2 flow.
-- [ ] delete Tier 3 exact-name confirmation.
-- [ ] audit writes.
 
 Acceptance:
 
 - [x] P3.1 search remains useful without GitDock owning/installing the repository and preserves installed-vs-public provenance;
 - [x] P3.2 provides verified durable user context and stale-safe local disconnect semantics before repository-administration work begins;
-- [ ] repository creation uses correct user context/permission;
-- [ ] dangerous settings never execute from one tap;
-- [ ] deletion tests cover expired/reused/wrong-name/permission-failure cases.
+- [x] repository creation uses correct durable user context/permission;
+- [x] organization creation has a verified gateway/service path rather than an untested stub;
+- [x] dangerous settings never execute from one tap;
+- [x] deletion tests cover expired/reused/wrong-name/permission-failure cases;
+- [x] stale repository preconditions fail closed;
+- [x] uncertain write outcomes are reconciled before final outcome reporting;
+- [x] cancellation invalidates persisted authority rather than merely navigating away;
+- [x] implementation-head CI is green on Python 3.12, Python 3.13, PostgreSQL 17, audit, secrets, and lock checks;
+- [~] merge/governance verification chain remains pending.
+
+P3.3 is not marked ✅ until the final merge/main/governance verification chain is complete.
 
 ---
 
