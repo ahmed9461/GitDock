@@ -91,7 +91,9 @@ def create_repository_admin_router(services: RuntimeServices | None = None) -> R
         if name is None:
             await state.clear()
             await message.answer(
-                render_invalid_repository_admin_input("انتهت بيانات الإنشاء. ابدأ العملية من جديد."),
+                render_invalid_repository_admin_input(
+                    "انتهت بيانات الإنشاء. ابدأ العملية من جديد."
+                ),
                 reply_markup=simple_back_home_keyboard(),
             )
             return
@@ -299,7 +301,9 @@ def create_repository_admin_router(services: RuntimeServices | None = None) -> R
             return
         value = message.text.strip()
         if not _valid_repository_name(value):
-            await message.answer(render_invalid_repository_admin_input("اسم المستودع الجديد غير صالح."))
+            await message.answer(
+                render_invalid_repository_admin_input("اسم المستودع الجديد غير صالح.")
+            )
             return
         await _update_from_message(message, state, services, RepositoryUpdateRequest(name=value))
 
@@ -309,7 +313,9 @@ def create_repository_admin_router(services: RuntimeServices | None = None) -> R
             return
         value = message.text.strip()
         if len(value) > 350:
-            await message.answer(render_invalid_repository_admin_input("الوصف يجب ألا يتجاوز 350 حرفًا."))
+            await message.answer(
+                render_invalid_repository_admin_input("الوصف يجب ألا يتجاوز 350 حرفًا.")
+            )
             return
         await _update_from_message(
             message,
@@ -341,7 +347,9 @@ def create_repository_admin_router(services: RuntimeServices | None = None) -> R
         if context is None:
             await state.clear()
             await message.answer(
-                render_invalid_repository_admin_input("انتهت بيانات الحذف. افتح الإعدادات من جديد."),
+                render_invalid_repository_admin_input(
+                    "انتهت بيانات الحذف. افتح الإعدادات من جديد."
+                ),
                 reply_markup=simple_back_home_keyboard(),
             )
             return
@@ -362,7 +370,9 @@ def create_repository_admin_router(services: RuntimeServices | None = None) -> R
             return
         if plan is None:
             await message.answer(
-                render_invalid_repository_admin_input("الاسم الكامل لا يطابق المستودع. اكتب الاسم كما ظهر تمامًا."),
+                render_invalid_repository_admin_input(
+                    "الاسم الكامل لا يطابق المستودع. اكتب الاسم كما ظهر تمامًا."
+                ),
                 reply_markup=settings_input_keyboard(
                     repository_id,
                     back_filter=back_filter,
@@ -484,7 +494,9 @@ async def _update_from_message(
     if context is None:
         await state.clear()
         await message.answer(
-            render_invalid_repository_admin_input("انتهت بيانات التعديل. افتح الإعدادات من جديد."),
+            render_invalid_repository_admin_input(
+                "انتهت بيانات التعديل. افتح الإعدادات من جديد."
+            ),
             reply_markup=simple_back_home_keyboard(),
         )
         return
@@ -580,7 +592,11 @@ def _admin_available(services: RuntimeServices | None) -> bool:
 
 
 def _valid_repository_name(value: str) -> bool:
-    return bool(value) and len(value) <= 100 and all(char not in value for char in ("/", "\\", "\x00"))
+    return (
+        bool(value)
+        and len(value) <= 100
+        and all(char not in value for char in ("/", "\\", "\x00"))
+    )
 
 
 def _state_text(data: dict[str, object], key: str) -> str | None:
