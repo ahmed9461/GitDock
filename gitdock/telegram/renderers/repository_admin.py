@@ -123,6 +123,10 @@ def render_repository_admin_result(result: RepositoryAdminResult, operation: str
     return "⚠️ التأكيد غير صالح أو منتهي أو تم استخدامه سابقًا.\nلم ينفذ GitDock أي تغيير."
 
 
+def render_repository_admin_cancelled() -> str:
+    return "❌ تم إلغاء العملية.\n\nتم إبطال التأكيد ولم ينفذ GitDock أي تغيير على GitHub."
+
+
 def render_invalid_repository_admin_input(message: str) -> str:
     return f"⚠️ {message}\n\nلم يتم تنفيذ أي تغيير على GitHub."
 
