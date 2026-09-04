@@ -1,6 +1,6 @@
 # GitDock — Current Status / Handoff
 
-Last updated: 2026-09-01
+Last updated: 2026-09-04
 
 ## Project state
 
@@ -16,111 +16,139 @@ Last updated: 2026-09-01
 
 **Current phase:** P3 — Search & repository administration
 
-**Current implementation item:** **P3.3 — repository create/settings**.
+**Current implementation item:** **P3.3 — repository create/settings — implementation verified; merge/governance closeout pending**.
 
-P3.2 feature delivery is merged and post-merge verified. This closeout branch records the final immutable delivery facts before P3.3 starts.
+P3.3 must not be promoted to the verified-complete list until the documentation-synchronized feature head is green, the non-draft PR is green on an unchanged head, the feature is merged, post-merge `main` CI is green, and the normal governance closeout is completed.
 
-## P3.2 final verification chain
+## P3.3 implementation verification
 
-- complete implementation head before documentation synchronization: `5068b58ec41fb5ac417408d3a535bbb5d66207fc` — branch CI `33515291600` green;
-- final documentation-synchronized feature head: `492183bfba311827a965153eff61747bfabf76ed` — branch CI `33517270731` green;
-- non-draft PR #12 — PR CI `33527318485` green and `mergeable=true` on unchanged head `492183bfba311827a965153eff61747bfabf76ed`;
-- PR #12 squash merge commit: `8a5d692dd875b8959b27b1b0c53bbc5b5359c7f8`;
-- post-feature-merge `main` CI `33527484948` — green on Python 3.12, Python 3.13, and PostgreSQL 17.
+Implementation head before documentation synchronization:
 
-The verified P3.2 suite contains **97 tests**. Both Python jobs pass Ruff format/lint, mypy, pytest, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff. PostgreSQL 17 passes Alembic upgrade -> downgrade -> upgrade including migration `0004_user_auth`. `pip-audit` reports no known runtime vulnerabilities; there are no secret-scan findings and no runtime-lock drift.
+- commit: `4e71d7f1c962e61584d6532d03c913703dc5295a`;
+- branch CI: `33890407945` — green;
+- Python 3.12 and Python 3.13 both passed Ruff format, Ruff lint, mypy, pytest, compile, `pip-audit`, `detect-secrets`, and PEP 751 runtime-lock regeneration/diff;
+- pytest collected **117 tests** and all 117 passed;
+- mypy reported no issues in 72 source files;
+- `pip-audit` reported no known runtime vulnerabilities;
+- no secret-scan findings;
+- no PEP 751 runtime-lock drift;
+- PostgreSQL 17 passed Alembic upgrade -> downgrade -> upgrade including migration `0005_audit_log`.
 
-## P3.2 delivered behavior
+Known non-blocking warnings remain visible rather than suppressed:
 
-### Durable GitHub user authorization
+- Starlette/FastAPI `TestClient` deprecation toward `httpx2`;
+- AnyIO `BlockingPortal` alias deprecation surfaced through Starlette tests;
+- Alembic `prepend_sys_path` warning because `alembic.ini` does not yet set `path_separator` explicitly.
 
-- GitHub user identity is established through authenticated `GET /user` rather than inferred from Telegram or installation metadata.
-- Standalone durable user authorization reuses the P2.1 restart-safe one-time OAuth state and PKCE S256 flow; it does not require reinstalling the GitHub App.
-- Successful OAuth completion persists the GitHub user account plus encrypted access/refresh credentials only for durable user-context use cases.
-- Access-token and refresh-token expiry metadata remain separate from ciphertext.
-- Existing versioned credential encryption/key-rotation support is reused; no second auth or crypto stack was introduced.
+## P3.3 delivered behavior
 
-### Expiry-aware rotating refresh
+### Repository creation
 
-- Safely valid durable user access tokens are reused.
-- Near-expiry access credentials refresh through the stored refresh token.
-- GitHub's rotated access/refresh pair is persisted only if the current account still matches the `credential_generation` observed before network I/O.
-- Reauthorization/disconnect concurrent with refresh therefore fails closed instead of allowing stale refresh work to overwrite newer authorization state.
-- Persisting or clearing credentials advances `credential_generation`.
+- Personal repository creation uses durable GitHub user OAuth context rather than an installation token.
+- Organization repository creation is supported when the caller explicitly supplies an organization and the current durable user authorization can perform the request.
+- Create uses a server-side persisted Tier 1 confirmation before the GitHub write.
+- Telegram exposes an Arabic creation wizard for repository name, optional description, visibility, preview, confirm, edit, and cancel.
 
-### Durable local disconnect confirmation
+### Repository settings
 
-- P3.2 introduces DB-backed `pending_confirmations` for restart-safe one-time sensitive confirmations.
-- Confirmation tokens are opaque, short-lived, user/operation-bound, single-use, and represented server-side by a digest rather than secret callback material.
-- GitHub local-disconnect confirmation fingerprints active account identity, credential generation, and current installation IDs.
-- Reauthorization or installation-set change makes an older confirmation stale; stale/expired/reused/cancelled confirmation removes nothing.
-- Returning Home invalidates pending GitHub disconnect confirmations so old Telegram message buttons cannot remain active destructive authority.
-- Legacy P2.3 installation-only state can also be disconnected safely.
+Supported update fields in the current P3.3 scope:
 
-### Exact disconnect scope
+- repository name;
+- description;
+- public/private visibility;
+- archive/unarchive;
+- default branch.
 
-`🔌 قطع الربط المحلي` removes **GitDock-local** authorization/binding state only:
+Update/delete repository selection is resolved from current GitHub-backed repository context. The service re-fetches current repository state before sensitive execution and fails closed on stale preconditions.
 
-- encrypted GitHub user credentials are cleared;
-- local installation bindings are removed;
-- local `repositories_cache` rows are removed;
-- relevant unconsumed local OAuth/confirmation state is invalidated.
+Repository update/delete writes use a repository-scoped installation token requesting `administration: write` for the selected GitHub repository only.
 
-It **does not uninstall or revoke the GitHub App on GitHub**. User-facing confirmation copy must preserve this distinction.
+### Risk and confirmation model
+
+- create: Tier 1 persisted confirmation;
+- repository update: Tier 2 persisted confirmation;
+- repository delete: Tier 3 persisted confirmation plus exact typed `owner/name` match;
+- confirmation tokens are opaque, short-lived, user/operation-bound, single-use, and server-side authoritative;
+- Telegram callbacks carry only compact transport data; a Telegram button is never sufficient authority by itself;
+- confirmation cancellation is persisted and one-time: cancel/edit/back consumes the pending confirmation so an old Telegram button cannot execute later;
+- stale, expired, reused, cancelled, wrong-target, and wrong-name paths fail closed.
+
+### Uncertain write reconciliation
+
+GitDock does not blindly retry repository administration writes whose outcome may be uncertain.
+
+- create reconciles against current remote state before deciding the final result;
+- update reconciles the refreshed repository state against the requested mutation;
+- delete reconciles by checking whether the target repository still exists;
+- a reconciled-applied write is represented separately from an ordinary direct success;
+- an outcome that remains genuinely uncertain is surfaced as uncertain rather than falsely recorded as success or failure.
+
+### Audit and persistence
+
+- migration `0005_audit_log` introduces durable repository-administration audit records;
+- create/update/delete success, failure, reconciliation outcome, user/repository context, and safe request metadata are auditable;
+- credentials/tokens are not written to audit details;
+- successful update refreshes repository cache state;
+- successful/reconciled delete removes the deleted repository from local cache.
 
 ### Telegram UI
 
-- Connected Home exposes `👤 حساب GitHub`.
-- Account screen separates durable user authorization from installation count.
-- User can activate/re-authorize durable user context without reinstalling the App.
-- Refresh is available for authorized user context.
-- Local disconnect is isolated from harmless navigation and requires persisted confirmation.
-- Callback payloads remain compact and within Telegram's 64-byte limit.
-- Telegram handlers remain thin; OAuth, refresh, encryption, persistence, and confirmation rules stay in services/auth boundaries.
+- connected Home exposes repository creation;
+- repository detail exposes repository settings;
+- repository administration has centralized renderers, keyboards, callbacks, and FSM states;
+- callbacks use compact repository IDs/tokens and remain within Telegram callback-data limits;
+- delete is visually isolated and requires exact-name typed confirmation;
+- update/create previews do not execute a write by themselves;
+- stale/expired confirmation callbacks fail closed;
+- Back/Cancel/Home behavior is explicit and destructive confirmations are invalidated rather than merely hidden.
 
-## P3.2 non-goals
+## P3.3 verified test coverage
 
-P3.2 intentionally does **not** implement repository creation, rename/settings, archive/unarchive, visibility change, repository deletion, broad new GitHub App permissions, or remote GitHub App uninstall/revoke behavior.
+The 117-test suite includes P3.3 coverage for:
 
-Those repository administration flows are P3.3 and must reuse the verified P3.2 user-context lifecycle plus the existing central capability/permission model.
+- canonical personal create, organization create, update, and delete gateway endpoints;
+- no blind write retry behavior;
+- personal creation user-context authorization;
+- repository-scoped administration installation tokens for update/delete;
+- create/update/delete single-use confirmation behavior;
+- stale repository snapshot rejection;
+- delete exact-name requirement;
+- delete expired confirmation;
+- delete reused confirmation;
+- delete wrong-name rejection;
+- delete permission failure;
+- organization creation path;
+- uncertain create/update/delete reconciliation;
+- audit behavior;
+- confirmation cancellation one-time semantics;
+- Telegram callback parsing/size, keyboards, renderers, and repository administration UI behavior.
 
 ## Durable invariants
 
 - GitHub remains source of truth.
 - GitHub App remains the primary credential model; do not introduce a broad permanent PAT.
-- Installation binding and durable user OAuth credential state are separate concepts.
+- Installation binding and durable user OAuth credential state remain separate concepts.
 - Raw setup/install `installation_id` remains untrusted until dual App/user-context verification.
 - OAuth state remains high-entropy, short-lived, user/flow-bound, restart-safe, one-time use, and persisted only as a digest.
 - PKCE verifier and durable GitHub user credentials remain encrypted with versioned keys.
-- No access/refresh token, OAuth code/state, PKCE verifier, private key, or raw upstream auth body may enter Telegram copy, callback payloads, repository cache, or normal logs.
+- No access/refresh token, OAuth code/state, PKCE verifier, private key, installation token, or raw upstream auth body may enter Telegram copy, callback payloads, repository cache, audit details, or normal logs.
 - P3.1 public search remains independent of installation/user authorization and must not regress.
 - Sensitive execution depends on persisted server-side confirmation state and current preconditions; Telegram buttons are transport only.
 - Do not blindly retry uncertain/destructive GitHub writes; reconcile remote state first.
+- Repository delete remains Tier 3 and requires exact repository-name entry.
 
-## Known non-blocking maintenance warnings
+## Previous verified phase
 
-The verified P3.2 suite still reports:
+P3.2 was fully merged and post-merge verified before P3.3 began. Its final feature merge was `8a5d692dd875b8959b27b1b0c53bbc5b5359c7f8`; its verified suite contained 97 tests and established durable user authorization, encrypted rotating credentials, `credential_generation`, and DB-backed `pending_confirmations` that P3.3 now reuses.
 
-- Starlette/FastAPI `TestClient` deprecation warning for the current `httpx` integration/future `httpx2` direction;
-- Alembic warning because `alembic.ini` does not explicitly set `path_separator` for `prepend_sys_path`.
+## Exact next task — finish P3.3 governance chain
 
-They are recorded maintenance debt, not hidden test failures.
+1. synchronize `ROADMAP.md`, `CHANGELOG.md`, and truth-bearing architecture/security/UI/test documentation with the verified implementation;
+2. run CI on the documentation-synchronized feature head and require all Python 3.12/3.13/PostgreSQL gates green;
+3. open a non-draft P3.3 PR to `main`;
+4. require PR CI green on the unchanged feature head and confirm mergeability;
+5. squash-merge with expected-head protection;
+6. require post-feature-merge `main` CI green;
+7. perform the normal governance closeout so repository control docs point to P4.1 as the next implementation item.
 
-## Exact next task — P3.3
-
-Implement repository create/settings administration on a new feature branch from the post-closeout `main` head.
-
-P3.3 scope remains:
-
-1. create personal repository;
-2. optional organization repository creation where genuinely authorized;
-3. edit supported repository name/description/settings;
-4. archive/unarchive;
-5. visibility-change Tier 2 confirmation;
-6. delete Tier 3 exact-name confirmation;
-7. audit every GitHub write;
-8. use correct user/install token context and central capability/permission mapping;
-9. never execute dangerous settings from one tap;
-10. reconcile uncertain write outcomes before claiming success/failure.
-
-Before calling P3.3 complete, require synchronized control docs, green final-head CI, non-draft PR, unchanged-head merge, post-merge `main` CI, and the normal governance closeout.
+Do not call P3.3 ✅ before that chain is complete.
