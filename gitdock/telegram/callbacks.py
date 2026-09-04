@@ -22,7 +22,6 @@ REPOSITORY_CREATE_BEGIN = f"{PREFIX}:repo:create:begin"
 REPOSITORY_CREATE_SKIP_DESCRIPTION = f"{PREFIX}:repo:create:skip"
 REPOSITORY_CREATE_PRIVATE = f"{PREFIX}:repo:create:private"
 REPOSITORY_CREATE_PUBLIC = f"{PREFIX}:repo:create:public"
-REPOSITORY_CREATE_EDIT = f"{PREFIX}:repo:create:edit"
 REPOSITORY_CREATE_BACK_NAME = f"{PREFIX}:repo:create:back:name"
 REPOSITORY_CREATE_BACK_DESCRIPTION = f"{PREFIX}:repo:create:back:description"
 PLACEHOLDER_PREFIX = f"{PREFIX}:later:"
@@ -37,6 +36,14 @@ _LANGUAGE_CODES = {
 }
 _LANGUAGE_BY_CODE = {value: key for key, value in _LANGUAGE_CODES.items()}
 _REPOSITORY_SETTING_ACTIONS = {"name", "desc", "visibility", "archive", "branch", "delete"}
+_ADMIN_CANCEL_OPERATION_CODES = {"create": "c", "update": "u", "delete": "d"}
+_ADMIN_CANCEL_OPERATION_BY_CODE = {
+    value: key for key, value in _ADMIN_CANCEL_OPERATION_CODES.items()
+}
+_ADMIN_CANCEL_DESTINATION_CODES = {"home": "h", "edit": "e", "settings": "s"}
+_ADMIN_CANCEL_DESTINATION_BY_CODE = {
+    value: key for key, value in _ADMIN_CANCEL_DESTINATION_CODES.items()
+}
 
 
 def repository_list(repository_filter: RepositoryFilter, page: int) -> str:
@@ -181,6 +188,34 @@ def repository_delete_confirm(token: str) -> str:
 
 def parse_repository_delete_confirm(data: str) -> str | None:
     return _parse_token_suffix(data, f"{PREFIX}:repo:delete:confirm:")
+
+
+def repository_admin_cancel(operation: str, destination: str, token: str) -> str:
+    _require_confirmation_token(token)
+    operation_code = _ADMIN_CANCEL_OPERATION_CODES.get(operation)
+    destination_code = _ADMIN_CANCEL_DESTINATION_CODES.get(destination)
+    if operation_code is None or destination_code is None:
+        raise ValueError("repository cancellation callback is invalid")
+    return f"{PREFIX}:repo:cancel:{operation_code}:{destination_code}:{token}"
+
+
+def parse_repository_admin_cancel(data: str) -> tuple[str, str, str] | None:
+    prefix = f"{PREFIX}:repo:cancel:"
+    if not data.startswith(prefix):
+        return None
+    parts = data[len(prefix) :].split(":")
+    if len(parts) != 3:
+        return None
+    operation = _ADMIN_CANCEL_OPERATION_BY_CODE.get(parts[0])
+    destination = _ADMIN_CANCEL_DESTINATION_BY_CODE.get(parts[1])
+    token = parts[2]
+    if (
+        operation is None
+        or destination is None
+        or _CONFIRMATION_TOKEN_RE.fullmatch(token) is None
+    ):
+        return None
+    return operation, destination, token
 
 
 def repository_filters(repository_filter: RepositoryFilter, page: int) -> str:
