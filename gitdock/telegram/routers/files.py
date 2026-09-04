@@ -215,11 +215,15 @@ def create_file_browser_router(services: RuntimeServices | None = None) -> Route
         if action == "ref":
             await state.update_data({_REF_RETURN: "directory"})
             await state.set_state(FileBrowserFlow.ref_input)
-            await _edit_callback(callback, render_ref_prompt(ref or "main"), wizard_keyboard(session_id))
+            await _edit_callback(
+                callback, render_ref_prompt(ref or "main"), wizard_keyboard(session_id)
+            )
             return
         if action == "create":
             await state.set_state(FileBrowserFlow.create_name)
-            await _edit_callback(callback, render_create_name_prompt(path), wizard_keyboard(session_id))
+            await _edit_callback(
+                callback, render_create_name_prompt(path), wizard_keyboard(session_id)
+            )
             return
         await state.set_state(FileBrowserFlow.upload_document)
         await _edit_callback(callback, render_document_prompt(), wizard_keyboard(session_id))
@@ -353,7 +357,9 @@ def create_file_browser_router(services: RuntimeServices | None = None) -> Route
             return
         await state.update_data({_PENDING_PATH: path})
         await state.set_state(FileBrowserFlow.create_content)
-        await message.answer(render_create_content_prompt(path), reply_markup=wizard_keyboard(session_id))
+        await message.answer(
+            render_create_content_prompt(path), reply_markup=wizard_keyboard(session_id)
+        )
 
     @router.message(FileBrowserFlow.create_content, F.text)
     async def create_content(message: Message, state: FSMContext) -> None:
@@ -364,7 +370,9 @@ def create_file_browser_router(services: RuntimeServices | None = None) -> Route
         if path is None:
             await state.clear()
             return
-        await _begin_message_write(message, state, services, data, "create", path, message.text.encode())
+        await _begin_message_write(
+            message, state, services, data, "create", path, message.text.encode()
+        )
 
     @router.message(FileBrowserFlow.edit_content, F.text)
     async def edit_content(message: Message, state: FSMContext) -> None:
@@ -375,7 +383,9 @@ def create_file_browser_router(services: RuntimeServices | None = None) -> Route
         if path is None:
             await state.clear()
             return
-        await _begin_message_write(message, state, services, data, "update", path, message.text.encode())
+        await _begin_message_write(
+            message, state, services, data, "update", path, message.text.encode()
+        )
 
     @router.message(FileBrowserFlow.upload_document, F.document)
     async def upload_document(message: Message, state: FSMContext) -> None:
@@ -462,9 +472,7 @@ def create_file_browser_router(services: RuntimeServices | None = None) -> Route
         preview = _state_text(data, _WRITE_DIFF)
         await callback.answer()
         if isinstance(callback.message, Message):
-            await callback.message.answer(
-                f"👁️ Diff\n\n{preview or 'لا توجد معاينة نصية متاحة.'}"
-            )
+            await callback.message.answer(f"👁️ Diff\n\n{preview or 'لا توجد معاينة نصية متاحة.'}")
 
     @router.callback_query(F.data.startswith(f"{file_callbacks.FILE_PREFIX}:n:"))
     async def write_cancel(callback: CallbackQuery, state: FSMContext) -> None:
@@ -486,7 +494,9 @@ def create_file_browser_router(services: RuntimeServices | None = None) -> Route
         await state.clear()
         await _edit_callback(
             callback,
-            render_file_cancelled() if cancelled else render_write_outcome(_invalid_outcome(operation)),
+            render_file_cancelled()
+            if cancelled
+            else render_write_outcome(_invalid_outcome(operation)),
             simple_back_home_keyboard(),
         )
 
@@ -532,7 +542,9 @@ async def _show_directory_callback(
 ) -> None:
     user_id = await _resolve_user(callback.from_user, services)
     try:
-        view = await _browse(services, user_id, _required_repository_id(await state.get_data()), path, ref)
+        view = await _browse(
+            services, user_id, _required_repository_id(await state.get_data()), path, ref
+        )
     except FileSelectionError:
         await _edit_callback(callback, render_stale_selection(), simple_back_home_keyboard())
         return
@@ -867,9 +879,7 @@ async def _save_directory(state: FSMContext, view: DirectoryView, page: int) -> 
         {
             _REF: view.ref,
             _DIRECTORY_PATH: view.path,
-            _ENTRIES: [
-                {"path": entry.path, "kind": entry.kind.value} for entry in view.entries
-            ],
+            _ENTRIES: [{"path": entry.path, "kind": entry.kind.value} for entry in view.entries],
             _VIEW_KIND: "directory",
             _PAGE: page,
             _CURRENT_FILE: None,
