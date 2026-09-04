@@ -543,7 +543,7 @@ async def _update_from_message(
             reply_markup=simple_back_home_keyboard(),
         )
         return
-    repository_id, back_filter, back_page = context
+    repository_id, _, _ = context
     user_id = await _resolve_message_user(message, services)
     if user_id is None:
         return
