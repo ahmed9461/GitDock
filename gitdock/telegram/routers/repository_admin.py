@@ -37,6 +37,7 @@ from gitdock.telegram.renderers.repository_admin import (
     render_create_visibility_prompt,
     render_delete_preview,
     render_invalid_repository_admin_input,
+    render_repository_admin_cancelled,
     render_repository_admin_result,
     render_repository_settings,
     render_setting_input,
@@ -181,10 +182,64 @@ def create_repository_admin_router(services: RuntimeServices | None = None) -> R
             create_confirmation_keyboard(plan.token),
         )
 
-    @router.callback_query(F.data == callbacks.REPOSITORY_CREATE_EDIT)
-    async def create_edit(callback: CallbackQuery, state: FSMContext) -> None:
-        await state.set_state(RepositoryCreateFlow.name)
-        await _edit_callback(callback, render_create_name_prompt(), create_name_keyboard())
+    @router.callback_query(F.data.startswith(f"{callbacks.PREFIX}:repo:cancel:"))
+    async def repository_confirmation_cancel(callback: CallbackQuery, state: FSMContext) -> None:
+        if services is None or services.repository_admin_confirmations is None:
+            await callback.answer("إلغاء التأكيد غير متاح", show_alert=True)
+            return
+        if callback.data is None:
+            await callback.answer()
+            return
+        parsed = callbacks.parse_repository_admin_cancel(callback.data)
+        if parsed is None:
+            await callback.answer("زر الإلغاء غير صالح", show_alert=True)
+            return
+        operation, destination, token = parsed
+        if not _valid_cancel_destination(operation, destination):
+            await callback.answer("وجهة الإلغاء غير صالحة", show_alert=True)
+            return
+        user_id = await _resolve_user(callback.from_user, services)
+        cancellation = services.repository_admin_confirmations
+        if operation == "create":
+            cancelled = await cancellation.cancel_create(user_id=user_id, token=token)
+        elif operation == "update":
+            cancelled = await cancellation.cancel_update(user_id=user_id, token=token)
+        else:
+            cancelled = await cancellation.cancel_delete(user_id=user_id, token=token)
+        if not cancelled:
+            await state.clear()
+            await _edit_callback(
+                callback,
+                render_invalid_repository_admin_input(
+                    "التأكيد غير صالح أو منتهي أو تم استخدامه سابقًا."
+                ),
+                simple_back_home_keyboard(),
+            )
+            return
+        if operation == "create" and destination == "edit":
+            await state.clear()
+            await state.set_state(RepositoryCreateFlow.name)
+            await _edit_callback(callback, render_create_name_prompt(), create_name_keyboard())
+            return
+        if destination == "settings" and services.repository_read is not None:
+            context = _admin_context(await state.get_data())
+            await state.clear()
+            if context is not None:
+                repository_id, back_filter, back_page = context
+                await _show_settings(
+                    callback,
+                    services,
+                    repository_id,
+                    back_filter,
+                    back_page,
+                )
+                return
+        await state.clear()
+        await _edit_callback(
+            callback,
+            render_repository_admin_cancelled(),
+            simple_back_home_keyboard(),
+        )
 
     @router.callback_query(F.data.startswith(f"{callbacks.PREFIX}:repo:create:confirm:"))
     async def create_confirm(callback: CallbackQuery, state: FSMContext) -> None:
@@ -383,12 +438,7 @@ def create_repository_admin_router(services: RuntimeServices | None = None) -> R
         await state.set_state(None)
         await message.answer(
             render_delete_preview(plan),
-            reply_markup=delete_confirmation_keyboard(
-                plan.token,
-                repository_id,
-                back_filter=back_filter,
-                back_page=back_page,
-            ),
+            reply_markup=delete_confirmation_keyboard(plan.token),
         )
 
     @router.callback_query(F.data.startswith(f"{callbacks.PREFIX}:repo:update:confirm:"))
@@ -473,12 +523,7 @@ async def _begin_update_preview(
     await _edit_callback(
         callback,
         render_update_preview(plan),
-        update_confirmation_keyboard(
-            plan.token,
-            repository_id,
-            back_filter=back_filter,
-            back_page=back_page,
-        ),
+        update_confirmation_keyboard(plan.token),
     )
 
 
@@ -520,12 +565,7 @@ async def _update_from_message(
     await state.set_state(None)
     await message.answer(
         render_update_preview(plan),
-        reply_markup=update_confirmation_keyboard(
-            plan.token,
-            repository_id,
-            back_filter=back_filter,
-            back_page=back_page,
-        ),
+        reply_markup=update_confirmation_keyboard(plan.token),
     )
 
 
@@ -593,6 +633,14 @@ def _valid_repository_name(value: str) -> bool:
     return (
         bool(value) and len(value) <= 100 and all(char not in value for char in ("/", "\\", "\x00"))
     )
+
+
+def _valid_cancel_destination(operation: str, destination: str) -> bool:
+    if operation == "create":
+        return destination in {"edit", "home"}
+    if operation in {"update", "delete"}:
+        return destination in {"settings", "home"}
+    return False
 
 
 def _state_text(data: dict[str, object], key: str) -> str | None:
