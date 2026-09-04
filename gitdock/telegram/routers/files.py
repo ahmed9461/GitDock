@@ -8,7 +8,7 @@ from typing import Any
 
 from aiogram import F, Router
 from aiogram.fsm.context import FSMContext
-from aiogram.types import BufferedInputFile, CallbackQuery, Message
+from aiogram.types import BufferedInputFile, CallbackQuery, InlineKeyboardMarkup, Message
 from aiogram.types import User as TelegramUser
 
 from gitdock.core.constants import FILE_BROWSE_SESSION_ID_BYTES, FILE_SINGLE_UPLOAD_MAX_BYTES
@@ -833,8 +833,11 @@ async def _document_bytes(message: Message) -> bytes | None:
         return None
     if document.file_size is not None and document.file_size > FILE_SINGLE_UPLOAD_MAX_BYTES:
         return None
+    bot = message.bot
+    if bot is None:
+        return None
     buffer = BytesIO()
-    await message.bot.download(document, destination=buffer)
+    await bot.download(document, destination=buffer)
     content = buffer.getvalue()
     return content if len(content) <= FILE_SINGLE_UPLOAD_MAX_BYTES else None
 
@@ -945,7 +948,11 @@ async def _resolve_message_user(message: Message, services: RuntimeServices) -> 
     return await _resolve_user(message.from_user, services)
 
 
-async def _edit_callback(callback: CallbackQuery, text: str, reply_markup) -> None:
+async def _edit_callback(
+    callback: CallbackQuery,
+    text: str,
+    reply_markup: InlineKeyboardMarkup,
+) -> None:
     await callback.answer()
     if isinstance(callback.message, Message):
         await callback.message.edit_text(text, reply_markup=reply_markup)
