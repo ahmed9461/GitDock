@@ -104,9 +104,9 @@ def test_home_and_repository_dashboard_expose_real_p33_actions() -> None:
     }
     assert callbacks.REPOSITORY_CREATE_BEGIN in home_callbacks
     assert callbacks.placeholder("repo-create") not in home_callbacks
-    assert callbacks.repository_settings(repository.github_repository_id, RepositoryFilter.ALL, 1) in (
-        detail_callbacks
-    )
+    assert callbacks.repository_settings(
+        repository.github_repository_id, RepositoryFilter.ALL, 1
+    ) in (detail_callbacks)
 
 
 def test_repository_settings_keep_delete_isolated_and_confirmations_explicit() -> None:
