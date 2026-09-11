@@ -55,6 +55,7 @@ All notable project changes are recorded here. This repository is pre-v1; entrie
 - No normal v1 force-push, branch force-update, or branch-delete UI was introduced.
 - P4.2 callbacks use compact repository/page/index/token context rather than long GitHub data.
 - Ruff `RUF001` is ignored only for the three intended P4.2 Telegram UI files so Arabic/emoji copy remains readable while the rule stays active elsewhere.
+- P4.2 governance is complete and P4.3 is now the active roadmap item.
 
 #### P4.1/P3 safety
 
@@ -95,10 +96,16 @@ All notable project changes are recorded here. This repository is pre-v1; entrie
 
 ### Verification
 
-#### P4.2 implementation head
+#### P4.2 final feature-delivery chain
 
-- Head: `5a4f7aa4eb557e69665a7311f32c8060e38b1518`.
-- GitHub Actions run: `34647181024` — green.
+- implementation head `5a4f7aa4eb557e69665a7311f32c8060e38b1518` — CI `34647181024` green;
+- documentation-synchronized feature head `73e48dfced65d72d0d27e9defc4c3e107527107f` — push CI `34647866083` green;
+- non-draft PR #18 CI `34648080794` green on the unchanged mergeable head;
+- protected squash merge `b4e7dcd9de5db1e958e831508443d3fa1445213d`;
+- post-feature `main` CI `34648224733` green.
+
+Verified contract:
+
 - Python 3.12 and 3.13 quality jobs green.
 - **165 tests passed** on both versions.
 - mypy: **94 source files**, no issues.
@@ -109,15 +116,14 @@ All notable project changes are recorded here. This repository is pre-v1; entrie
 - PEP 751 runtime locks reproduce byte-for-byte.
 - PostgreSQL 17 Alembic upgrade → downgrade → upgrade green through `0006_file_write_sessions`.
 
-P4.2 is not governance-complete until the documentation-synchronized head is green, a non-draft PR is green/mergeable on the unchanged head, protected merge succeeds, post-feature `main` CI is green, and final project-memory/current-status handoff records the merge chain.
-
 #### P4.1 final reference
 
 - implementation head `614f013b35644fcdd05e880c9a37ff30fd503fdf` — CI `34639736010`;
 - docs head `185d99d33e863e0909e7e0459d9fcf7fe5df1244` — CI `34641130457`;
 - PR #16 CI `34641248664`;
 - squash merge `32ef6ec55772f01fcce4ba8c6db1d836aadb45c6`;
-- post-feature main CI `34641411838`.
+- post-feature main CI `34641411838`;
+- governance closeout `d113872e703b005f4c3c8e2b1da8fc2597e8ecd7`.
 
 #### P3.3 final reference
 
