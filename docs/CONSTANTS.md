@@ -45,8 +45,8 @@ Status: authoritative executable/policy constants through P5.1 implementation. C
 
 | Constant | Value | Purpose |
 |---|---:|---|
-| `GITHUB_WEBHOOK_MAX_BODY_BYTES` | `25 * 1024 * 1024` (25 MiB) | hard raw request/persistence ceiling aligned with GitHub webhook payload ceiling used by P5.1 |
-| `GITHUB_WEBHOOK_RETENTION_SECONDS` | `7 * 24 * 60 * 60` (7 days) | raw accepted-delivery retention target before processed pruning |
+| `GITHUB_WEBHOOK_MAX_BODY_BYTES` | `25_000_000` bytes | hard raw request/persistence ceiling |
+| `GITHUB_WEBHOOK_RETENTION_SECONDS` | `7 * 24 * 60 * 60` (7 days) | raw accepted-delivery retention before processed pruning |
 | `GITHUB_WEBHOOK_PROCESSING_LEASE_SECONDS` | `5 * 60` (5 min) | abandoned `processing` work becomes eligible for recovery |
 | `GITHUB_WEBHOOK_RETRY_DELAY_SECONDS` | `60` | default failed-work retry delay |
 
