@@ -31,7 +31,9 @@ class GitHubWebhookDelivery(Base):
     status: Mapped[str] = mapped_column(
         String(32), nullable=False, default="pending", server_default="pending"
     )
-    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    attempt_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     processing_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
