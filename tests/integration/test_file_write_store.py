@@ -81,11 +81,14 @@ async def test_new_same_path_stage_invalidates_older_write_authority() -> None:
         risk_tier=2,
     )
 
-    assert await store.consume(
-        user_id=user_id,
-        token=first_token,
-        operation="file.update",
-    ) is None
+    assert (
+        await store.consume(
+            user_id=user_id,
+            token=first_token,
+            operation="file.update",
+        )
+        is None
+    )
 
     latest = await store.consume(
         user_id=user_id,
@@ -96,11 +99,7 @@ async def test_new_same_path_stage_invalidates_older_write_authority() -> None:
     assert latest.content == b"second\n"
 
     async with sessions() as session:
-        rows = (
-            await session.scalars(
-                select(FileWriteSession).order_by(FileWriteSession.id)
-            )
-        ).all()
+        rows = (await session.scalars(select(FileWriteSession).order_by(FileWriteSession.id))).all()
         assert len(rows) == 2
         assert rows[0].consumed_at is not None
         assert rows[0].content_bytes is None
