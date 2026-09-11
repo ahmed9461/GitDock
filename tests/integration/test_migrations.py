@@ -19,11 +19,18 @@ def test_alembic_upgrade_and_downgrade(tmp_path: Path, monkeypatch: pytest.Monke
 
     engine = create_engine(sync_url)
     tables = set(inspect(engine).get_table_names())
-    assert {"users", "telegram_accounts", "github_accounts", "github_installations"} <= tables
+    assert {
+        "users",
+        "telegram_accounts",
+        "github_accounts",
+        "github_installations",
+        "github_webhook_deliveries",
+    } <= tables
     engine.dispose()
 
     command.downgrade(config, "base")
     engine = create_engine(sync_url)
     tables_after = set(inspect(engine).get_table_names())
     assert "users" not in tables_after
+    assert "github_webhook_deliveries" not in tables_after
     engine.dispose()
