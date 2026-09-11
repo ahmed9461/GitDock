@@ -28,7 +28,7 @@ Latest verified implementation head: `e55c6e99001bb657ed2064459e92caca1f2e3481`,
 - `pip-audit`: no known runtime vulnerabilities.
 - secret scan: no findings.
 - PEP 751 locks reproduced byte-for-byte.
-- PostgreSQL migration round-trip passed through `0007_github_webhook_inbox`.
+- PostgreSQL migration round-trip passed through revision `0007_webhook_inbox` in `0007_github_webhook_deliveries.py`.
 
 Known warning-only debt:
 
@@ -115,7 +115,7 @@ Known warning-only debt:
 - [x] missing/empty/overlong/unsafe delivery IDs rejected.
 - [x] bounded valid `X-GitHub-Event` accepted.
 - [x] missing/empty/overlong/unsafe event names rejected.
-- [x] payload ceiling is 25 MiB.
+- [x] payload ceiling is exactly `25_000_000` bytes.
 - [x] oversized body is rejected without durable persistence.
 
 ### Durable acceptance/idempotency
@@ -149,7 +149,7 @@ Known warning-only debt:
 
 ### Schema/contracts
 
-- [x] `0007_github_webhook_inbox` creates durable inbox table and work/retention indexes.
+- [x] `0007_github_webhook_deliveries.py` / revision `0007_webhook_inbox` creates durable inbox table and work/retention indexes.
 - [x] migration upgrade/downgrade/re-upgrade covered on SQLite and PostgreSQL CI.
 - [x] HTTP contract coverage verifies status/body secrecy and signature failure behavior.
 - [x] unit/integration/contract suites run on Python 3.12 and 3.13.
@@ -175,9 +175,51 @@ Known warning-only debt:
 - [ ] Telegram event renderers/deep actions.
 - [ ] duplicate GitHub delivery produces no duplicate Telegram message.
 
-## P6–P10 — future
+## P6 — Issues/PRs — future
 
-Issues/PRs, Actions/releases, safe ZIP/project synchronization, production hardening, and post-v1 expansion remain unchecked roadmap work.
+- [ ] issue list/search/detail/comments.
+- [ ] issue create/comment/close/reopen.
+- [ ] labels/assignees where supported.
+- [ ] PR list/detail/files/diff/reviews.
+- [ ] PR comment/review.
+- [ ] merge preview with current head/check state.
+- [ ] stale-head protection for merge.
+- [ ] audited PR writes.
+
+## P7 — Actions/releases — future
+
+- [ ] workflows/runs/jobs/steps.
+- [ ] log truncation/document fallback.
+- [ ] artifact metadata/download.
+- [ ] dispatch with workflow/ref/inputs review.
+- [ ] rerun/cancel where authorized.
+- [ ] release list/latest/assets.
+- [ ] never expose Actions secrets.
+
+## P8 — ZIP/project synchronization — future
+
+- [ ] archive traversal/absolute/link/device rejection.
+- [ ] file-count/depth/uncompressed-size limits.
+- [ ] duplicate normalized-path detection.
+- [ ] secret-like warnings.
+- [ ] base commit snapshot.
+- [ ] added/modified/deleted/unchanged plan.
+- [ ] stale base rejection/replan.
+- [ ] review branch by default.
+- [ ] coherent tree/commit apply.
+- [ ] optional PR.
+- [ ] workspace cleanup.
+- [ ] no silent default-branch mass overwrite.
+
+## P9 — production hardening — future
+
+- [ ] backup/restore drill.
+- [ ] systemd/reverse proxy/HTTPS runbook.
+- [ ] log/data retention.
+- [ ] credential-key rotation runbook.
+- [ ] end-to-end live checklist.
+- [ ] rate-limit/replay/restart tests.
+- [ ] full security/dependency review.
 
 ## Matrix rule
 
