@@ -14,6 +14,7 @@ from gitdock.db.session import create_engine, create_session_factory
 from gitdock.http.routes.github import router as github_router
 from gitdock.http.routes.health import router as health_router
 from gitdock.http.routes.telegram import router as telegram_router
+from gitdock.http.routes.webhooks import router as webhook_router
 from gitdock.services.runtime import create_runtime_services
 from gitdock.telegram.bot import create_bot, create_dispatcher
 
@@ -47,4 +48,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health_router)
     app.include_router(telegram_router)
     app.include_router(github_router)
+    app.include_router(webhook_router)
     return app
