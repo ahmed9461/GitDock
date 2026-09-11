@@ -56,7 +56,11 @@ def test_webhook_signature_accepts_hex_case_without_weakening_comparison() -> No
     secret = "unit-test-webhook-key"
     body = b"raw-body"
     signature = _signature(secret, body)
-    assert verify_webhook_signature(secret=secret, body=body, signature=signature.upper().replace("SHA256=", "sha256="))
+    assert verify_webhook_signature(
+        secret=secret,
+        body=body,
+        signature=signature.upper().replace("SHA256=", "sha256="),
+    )
 
 
 def test_webhook_signature_requires_non_empty_secret() -> None:
