@@ -91,7 +91,7 @@ async def test_git_tools_gateway_reads_branches_commits_and_compare() -> None:
     assert comparison.ahead_by == 1
     assert requests[1].url.params["sha"] == "main"
     assert all(request.headers["Authorization"] == "Bearer ghs_read" for request in requests)
-    assert requests[-1].url.path.endswith("/compare/main...feature%2Fx")
+    assert requests[-1].url.raw_path.endswith(b"/compare/main...feature%2Fx")
 
 
 @pytest.mark.asyncio
