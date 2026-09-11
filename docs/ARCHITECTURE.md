@@ -73,9 +73,9 @@ gitdock/
 │   └── constants.py
 ├── http/routes/
 │   ├── github.py
-│   ├── github_webhook.py
 │   ├── health.py
-│   └── telegram.py
+│   ├── telegram.py
+│   └── webhooks.py
 ├── telegram/
 ├── github/
 │   ├── auth*.py
@@ -99,16 +99,10 @@ gitdock/
 │   └── webhooks.py
 ├── db/
 │   ├── migrations/versions/
-│   │   └── 0007_github_webhook_inbox.py
+│   │   └── 0007_github_webhook_deliveries.py
 │   └── models/
 │       └── webhook.py
 └── workers/
-
-tests/
-├── unit/
-├── integration/
-├── contract/
-└── fixtures/
 ```
 
 Exact filenames may evolve; layer boundaries are intentional.
@@ -119,7 +113,7 @@ Exact filenames may evolve; layer boundaries are intentional.
 
 HTTP routes and Telegram routers collect transport input, enforce ingress-specific validation, call services, and render bounded output. They do not own durable authority/workflow logic or raw DB queries.
 
-For P5.1, `github_webhook.py` owns only the HTTP boundary: bounded raw-body read, signature gate ordering, bounded header extraction, service call, and safe status response.
+For P5.1, `gitdock/http/routes/webhooks.py` owns only the HTTP boundary: bounded raw-body read, signature gate ordering, bounded header extraction, service call, and safe status response.
 
 ### Application services
 
@@ -137,7 +131,7 @@ P5.1 service responsibilities:
 
 ### Domain / pure helpers
 
-Pure validation/inference belongs in domain or narrow helper modules. `gitdock.github.webhooks` contains side-effect-free signature/metadata validation so it is directly testable.
+Pure validation/inference belongs in domain or narrow helper modules. `gitdock/github/webhooks.py` contains side-effect-free signature/metadata validation so it is directly testable.
 
 ### GitHub transport/auth
 
@@ -153,18 +147,9 @@ Pure validation/inference belongs in domain or narrow helper modules. `gitdock.g
 
 ## 7. Persistence model
 
-Persisted concepts now include:
+Persisted concepts now include users/Telegram identities, GitHub accounts/installations/encrypted durable credentials, OAuth state, repository cache, pending confirmations, audit log, file-write staging, and the GitHub webhook delivery inbox.
 
-- users/Telegram identities;
-- GitHub accounts/installations/encrypted durable credentials;
-- OAuth state;
-- repository cache;
-- pending confirmations;
-- audit log;
-- file-write staging;
-- **GitHub webhook delivery inbox**.
-
-P5.1 migration `0007_github_webhook_inbox` introduces `github_webhook_deliveries` with unique delivery identity, payload digest/size/raw bytes, processing/retry state, and retention timestamps.
+P5.1 migration file `0007_github_webhook_deliveries.py` (revision `0007_webhook_inbox`) introduces `github_webhook_deliveries` with unique delivery identity, payload digest/size/raw bytes, processing/retry state, and retention timestamps.
 
 GitHub remains source of truth for repository resources. The webhook inbox is source of truth only for GitDock's accepted-delivery processing lifecycle.
 
@@ -178,7 +163,7 @@ No normal v1 force-push/force branch-update UI exists.
 
 1. FastAPI receives `POST /github/webhook`.
 2. If webhook secret is not configured, endpoint is unavailable rather than accepting unverifiable work.
-3. Body is consumed as raw bytes with a 25 MiB ceiling; over-limit input is rejected before persistence.
+3. Body is consumed as raw bytes with a `25_000_000` byte ceiling; over-limit input is rejected before persistence.
 4. `X-Hub-Signature-256` is verified using HMAC-SHA256 over those exact raw bytes with constant-time comparison.
 5. Only after successful authentication are `X-GitHub-Delivery` and `X-GitHub-Event` treated as trusted transport metadata and syntax/length validated.
 6. Service hashes the raw body and checks durable delivery identity.
@@ -222,9 +207,15 @@ durable authenticated delivery
 
 Event-specific normalization must consume the persisted authenticated raw payload, not re-trust arbitrary external input. Duplicate delivery identity must never create duplicate downstream work.
 
-## 12. Clone/setup/run inference
+## 12. Existing P3/P4 architectural invariants
 
-P4.3 remains command generation only. Repository/README/script content is untrusted and never automatically executed. Evidence collection is bounded and output is credential-free.
+- `repositories_cache` remains navigation/context state, never authorization proof.
+- Durable user credentials are encrypted and guarded against stale refresh/disconnect writes.
+- `pending_confirmations` carries one-time server-side authority for sensitive actions.
+- One-file writes bind current branch/file preconditions in restart-safe staging and scrub temporary bytes.
+- Branch create binds repository/target/base/base SHA, revalidates target absence and exact base SHA, then issues one create-ref and reconciles uncertainty.
+- Clone/setup/run is command generation only; bounded repository evidence is untrusted input and never automatically executed.
+- Ordinary feature code uses canonical GitHub transport/auth boundaries instead of parallel raw HTTP stacks.
 
 ## 13. Error/retry model
 
@@ -264,7 +255,7 @@ Domain/pure helpers do not import Telegram or concrete DB/network clients.
 - P4.1: 148 tests; mypy 87 source files.
 - P4.2: 165 tests; mypy 94 source files.
 - P4.3: 182 tests; mypy 100 source files.
-- P5.1 implementation head `e55c6e99001bb657ed2064459e92caca1f2e3481`, CI `34652564335`: **213 tests**, mypy **104 source files**, Ruff **176 files**, compile/audit/secrets/PEP 751/PostgreSQL round-trip all green through `0007_github_webhook_inbox`.
+- P5.1 implementation head `e55c6e99001bb657ed2064459e92caca1f2e3481`, CI `34652564335`: **213 tests**, mypy **104 source files**, Ruff **176 files**, compile/audit/secrets/PEP 751/PostgreSQL round-trip all green through revision `0007_webhook_inbox`.
 
 P5.1 is not formally complete until documentation-head CI, non-draft PR CI, protected squash merge, post-feature `main` CI, and governance closeout complete.
 
