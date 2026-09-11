@@ -1,6 +1,6 @@
 # GitDock — Test Matrix
 
-Last updated: 2026-09-11
+Last updated: 2026-09-12
 
 Purpose: acceptance and regression matrix for GitDock. A checked item means direct automated coverage or an explicitly verified CI gate exists. Unchecked items remain future roadmap work.
 
@@ -20,15 +20,15 @@ Every implementation-bearing branch/PR must pass:
 - [x] PEP 751 runtime-lock regeneration/diff for each supported Python version.
 - [x] PostgreSQL 17 Alembic upgrade → downgrade → upgrade.
 
-P4.2 implementation head `5a4f7aa4eb557e69665a7311f32c8060e38b1518`, CI `34647181024`:
+Latest verified implementation head: `e55c6e99001bb657ed2064459e92caca1f2e3481`, CI `34652564335`:
 
-- **165 tests passed** on Python 3.12 and 3.13.
-- mypy clean on **94 source files**.
-- Ruff reported **157 files already formatted** and lint clean.
+- **213 tests passed** on Python 3.12 and 3.13.
+- mypy clean on **104 source files**.
+- Ruff reported **176 files already formatted** and lint clean.
 - `pip-audit`: no known runtime vulnerabilities.
 - secret scan: no findings.
 - PEP 751 locks reproduced byte-for-byte.
-- PostgreSQL migration round-trip passed through `0006_file_write_sessions`.
+- PostgreSQL migration round-trip passed through `0007_github_webhook_inbox`.
 
 Known warning-only debt:
 
@@ -46,226 +46,138 @@ Known warning-only debt:
 - [x] async DB foundation and migration smoke coverage.
 - [x] redaction tests.
 
-## P2.1 — GitHub App auth
+## P2 — GitHub App auth/gateway/read core
 
-- [x] App JWT creation/claims.
-- [x] installation-token lifecycle/cache.
-- [x] OAuth state entropy/digest/expiry/one-time consumption.
-- [x] PKCE S256.
-- [x] encrypted durable credential abstraction.
-- [x] setup/install identity validation under App and authenticated-user contexts.
-- [x] suspended/conflicting installation rejection.
-- [x] capability → permission mapping.
+- [x] App JWT, installation-token lifecycle, OAuth state, PKCE S256, encrypted durable credential abstraction.
+- [x] installation identity validation under App and authenticated-user contexts.
+- [x] canonical GitHub API headers/version/User-Agent and safe error/rate metadata.
+- [x] hostile pagination/redirect/host rejection and loop/page guards.
+- [x] GET/HEAD bounded retry; write-like methods no retry by default.
+- [x] installed repository list/detail/cache isolation and current-GitHub re-fetch where required.
 
-## P2.2 — GitHub gateway
+## P3 — search and repository administration
 
-- [x] canonical GitHub API headers/version/User-Agent.
-- [x] typed response/page/rate metadata.
-- [x] safe status/error mapping without raw-body echo.
-- [x] canonical-host pagination.
-- [x] external/credential-bearing/non-HTTPS/protocol-relative/fragment target rejection.
-- [x] pagination loop/page-limit guards.
-- [x] GET/HEAD bounded transient retry.
-- [x] write-like methods no retry by default.
-- [x] redirects are not automatically followed.
-- [x] P4.1 Contents endpoint contracts.
-- [x] P4.2 branch/commit/compare/create-ref endpoint contracts.
-- [x] P4.2 create-ref transient failure produces one POST only.
-- [x] compare refs containing slash are percent-encoded on the raw HTTP path.
-
-## P2.3 — installed repository read
-
-- [x] connected/disconnected Home.
-- [x] installed repository list/filter/page.
-- [x] compact stable repository callbacks.
-- [x] invalid/stale callback fails closed.
-- [x] cache scoped to user/installation.
-- [x] repository detail re-fetch from GitHub.
-- [x] repository cache never acts as authorization proof.
-
-## P3.1 — public repository search
-
-- [x] public search without installation.
-- [x] query validation.
-- [x] sorting/filtering/pagination.
-- [x] opaque active search-session callbacks.
-- [x] stale search session rejection.
-- [x] public results isolated from installed repository authorization/cache state.
-- [x] detail re-fetch.
-- [x] Home/start clears transient search FSM state.
-
-## P3.2 — durable GitHub user authorization
-
-- [x] authenticated `/user` identity resolution.
-- [x] standalone OAuth authorization without reinstalling App.
-- [x] encrypted access/refresh persistence.
-- [x] expiry-aware refresh/rotation.
-- [x] `credential_generation` stale-concurrency protection.
-- [x] restart-safe pending confirmation storage.
-- [x] local disconnect preview/confirm.
-- [x] stale/expired/reused/cancelled confirmation does nothing.
-- [x] local disconnect removes local state only and never claims remote App uninstall.
-
-## P3.3 — repository administration
-
-- [x] personal create.
-- [x] organization-create gateway/service path.
-- [x] rename/description/visibility/archive/default-branch update.
-- [x] Tier 2 settings confirmation.
-- [x] Tier 3 exact-name delete confirmation.
-- [x] update/delete repository-scoped `administration: write`.
-- [x] edit/back/cancel consumes authority.
-- [x] stale/reused/expired/wrong-target confirmation rejection.
-- [x] uncertain create/update/delete reconciliation.
-- [x] no blind replay of repository-admin writes.
-- [x] safe audit rows without credentials/raw auth bodies.
+- [x] public search without installation, query/filter/sort/page validation, opaque active sessions, stale-session rejection.
+- [x] durable encrypted user OAuth context, refresh/rotation, credential-generation concurrency guard.
+- [x] restart-safe pending confirmations and safe local disconnect.
+- [x] repository personal/org create, settings/rename/visibility/archive/default branch, Tier 3 delete.
+- [x] scoped permissions, refreshed preconditions, cancellation/stale safety, uncertain-result reconciliation, safe audit rows.
 
 ## P4.1 — file browser and stale-safe one-file writes
 
-Read path:
-
-- [x] directory listing/pagination.
-- [x] parent navigation.
-- [x] branch/tag/SHA selection for reads.
-- [x] UTF-8 preview pagination.
-- [x] binary/large/missing-inline-content fallback.
-- [x] bounded download.
-- [x] long paths remain server-side; callbacks stay compact.
-
-Write path:
-
-- [x] create text file.
-- [x] upload/create-or-replace document.
-- [x] edit/replace existing file.
-- [x] delete file.
-- [x] preview/diff before execution.
-- [x] durable staged write survives process restart long enough for review.
-- [x] staged content digest/Git blob integrity validation.
-- [x] stage TTL and content scrubbing.
-- [x] same-target staging supersedes older authority.
-- [x] create requires target absence.
-- [x] update/delete require exact file SHA.
-- [x] exact branch-head SHA precondition.
-- [x] archived repository write rejection.
-- [x] normal writes use repository-scoped `contents: write`.
-- [x] workflow paths additionally require `workflows: write`.
-- [x] write request issued once.
-- [x] uncertain outcome reconciles remote file state instead of replay.
+- [x] directory listing, parent navigation, branch/tag/SHA reads.
+- [x] UTF-8 preview, binary/large fallback, bounded download.
+- [x] create/upload/edit/replace/delete and review/diff.
+- [x] durable staging with TTL/content digest/Git blob validation and content scrubbing.
+- [x] target absence/file SHA/branch-head exact preconditions.
+- [x] repository-scoped `contents: write`; workflow files additionally require `workflows: write`.
+- [x] one write request; uncertain result reconciles instead of replay.
 - [x] audit excludes body bytes/credentials.
 
-## P4.2 — branch/commit tools — verified implementation
+## P4.2 — branch/commit tools
 
-### Branch reads/search
-
-- [x] list branches from GitHub.
-- [x] branch parser validates required shape/SHA.
-- [x] search/filter branches case-insensitively.
-- [x] compact branch/commit callback context round-trips under Telegram callback limit.
-
-### Branch create
-
-- [x] create branch from explicit known base ref/SHA.
-- [x] base ref resolves to concrete commit SHA before preview.
-- [x] no external write occurs during preview/planning.
-- [x] persisted one-time confirmation binds repository + target branch + base ref + base SHA.
-- [x] branch create is Tier 1.
-- [x] duplicate target branch rejected before write.
-- [x] missing base ref rejected before write.
-- [x] moved base SHA after preview returns stale without write.
-- [x] target absence rechecked at confirm time.
+- [x] branch list/search, recent commits/detail, compare refs.
+- [x] branch-create preview binds target/base/base SHA in persisted confirmation.
+- [x] target absence and exact base SHA rechecked at confirmation time.
 - [x] repository-scoped `contents: write` requested only at execution.
-- [x] create-ref request body uses exact `refs/heads/<branch>` + expected SHA.
-- [x] create-ref write is issued once; transport does not retry POST.
-- [x] uncertain create reconciles by reading target branch rather than replaying POST.
-- [x] exact target SHA after uncertain response proves applied.
-- [x] unresolved target state remains `UNCERTAIN`.
-- [x] cancel consumes confirmation and reuse does nothing.
-- [x] audit records safe branch/base/SHA/result/request metadata only.
-- [x] no force-push/force-update/branch-delete action exists in normal v1 UI.
+- [x] one create-ref POST; uncertain outcome reconciles by reading target ref.
+- [x] no normal v1 force-push/force-update/branch-delete action.
 
-### Commits/compare
+## P4.3 — clone/setup/run assistant
 
-- [x] recent commits from default ref.
-- [x] recent commits from explicit branch/tag/SHA ref.
-- [x] commit detail for requested SHA/ref.
-- [x] commit summary/detail response parsing.
-- [x] compare refs through canonical gateway.
-- [x] compare refs with slash are raw-path encoded.
-- [x] large comparison summary is bounded to 10 file rows while returned total file count remains visible.
-- [x] canonical GitHub commit link rendering.
+- [x] fresh clone commands.
+- [x] update-existing-clone commands.
+- [x] project stack inference from bounded repository evidence.
+- [x] Windows PowerShell, Linux, macOS commands.
+- [x] shell-aware path/ref quoting.
+- [x] confidence/source labeling.
+- [x] no credential/token insertion.
+- [x] no automatic execution of repository/README/script instructions.
+- [x] malicious Node script bodies are never copied into generated commands.
+- [x] public unauthenticated evidence reads and installed/private authorized reads.
+- [x] stale public-search sessions fail closed.
 
-### P4.2 regression notes
+## P5.1 — secure webhook ingestion — implementation verified
 
-- [x] Arabic/emoji UI retains strict linting globally; only the three intended P4.2 Telegram UI files ignore Ruff `RUF001` ambiguous-Unicode warnings.
-- [x] contract test uses `httpx.URL.raw_path` for encoded path assertion because `.path` is decoded by httpx; production behavior remains percent-encoded.
+### Signature/authentication boundary
 
-## P4.3 — clone/setup/run assistant — future
+- [x] HMAC-SHA256 verification over exact raw HTTP body.
+- [x] changed body invalidates an otherwise valid signature.
+- [x] missing signature rejected.
+- [x] malformed signature rejected.
+- [x] forged signature rejected.
+- [x] constant-time standard-library digest comparison used.
+- [x] authentication occurs before delivery/event metadata is trusted.
 
-- [ ] fresh clone commands.
-- [ ] update-existing-clone commands.
-- [ ] project stack inference from repository evidence.
-- [ ] Windows PowerShell commands.
-- [ ] Linux commands.
-- [ ] macOS commands.
-- [ ] quote paths safely per OS.
-- [ ] label confidence/source of inference.
-- [ ] never insert credentials/tokens.
-- [ ] never execute repository/README/script instructions automatically.
+### Metadata/body limits
 
-## P5 — webhook/notification engine — future
+- [x] bounded valid `X-GitHub-Delivery` accepted.
+- [x] missing/empty/overlong/unsafe delivery IDs rejected.
+- [x] bounded valid `X-GitHub-Event` accepted.
+- [x] missing/empty/overlong/unsafe event names rejected.
+- [x] payload ceiling is 25 MiB.
+- [x] oversized body is rejected without durable persistence.
 
-- [ ] raw-body HMAC-SHA256 verification.
-- [ ] delivery ID uniqueness/idempotency.
-- [ ] forged signature rejection.
-- [ ] durable event inbox/retry state.
-- [ ] event normalization.
-- [ ] repository/event notification preferences.
-- [ ] duplicate delivery produces no duplicate Telegram message.
+### Durable acceptance/idempotency
 
-## P6 — Issues/PRs — future
+- [x] valid signed endpoint request returns 202 only after durable insert.
+- [x] accepted inbox item survives a fresh service instance/restart boundary.
+- [x] delivery ID has DB uniqueness protection.
+- [x] exact duplicate delivery/event/body is idempotent and does not create a second inbox row.
+- [x] same delivery ID with different content returns conflict instead of silently deduplicating.
+- [x] duplicate route response contains status only and does not echo private payload data.
 
-- [ ] issue list/search/detail/comments.
-- [ ] issue create/comment/close/reopen.
-- [ ] PR list/detail/files/diff/reviews.
-- [ ] PR comment/review.
-- [ ] merge preview with current head/check state.
-- [ ] stale-head protection for merge.
-- [ ] audited PR writes.
+### Worker/retry/restart state
 
-## P7 — Actions/releases — future
+- [x] pending delivery can be claimed as processing.
+- [x] attempt count increments when claimed.
+- [x] processing delivery can be marked processed.
+- [x] processing delivery can be marked failed with bounded safe error code.
+- [x] failed delivery becomes claimable after retry delay.
+- [x] stale processing lease becomes claimable again after crash/abandonment.
+- [x] service snapshots normalize timezone behavior across SQLite/PostgreSQL.
+- [x] processed raw payload is pruneable after retention expiry.
 
-- [ ] workflows/runs/jobs/steps.
-- [ ] log truncation/document fallback.
-- [ ] artifact metadata/download.
-- [ ] dispatch with workflow/ref/inputs review.
-- [ ] rerun/cancel where authorized.
-- [ ] release list/latest/assets.
-- [ ] never expose Actions secrets.
+### HTTP/runtime/config integration
 
-## P8 — ZIP/project synchronization — future
+- [x] route is part of existing FastAPI ingress.
+- [x] route reuses `GITDOCK_GITHUB_WEBHOOK_SECRET`.
+- [x] route returns 503 when webhook secret is not configured.
+- [x] response does not expose webhook secret/signature/raw body.
+- [x] ingestion service composes from existing DB session factory; no parallel persistence stack.
+- [x] event-specific normalization and Telegram notification are not performed in P5.1.
 
-- [ ] archive traversal/absolute/link/device rejection.
-- [ ] file-count/depth/uncompressed-size limits.
-- [ ] duplicate normalized-path detection.
-- [ ] secret-like warnings.
-- [ ] base commit snapshot.
-- [ ] added/modified/deleted/unchanged plan.
-- [ ] stale base rejection/replan.
-- [ ] review branch by default.
-- [ ] coherent tree/commit apply.
-- [ ] optional PR.
-- [ ] workspace cleanup.
-- [ ] no silent default-branch mass overwrite.
+### Schema/contracts
 
-## P9 — production hardening — future
+- [x] `0007_github_webhook_inbox` creates durable inbox table and work/retention indexes.
+- [x] migration upgrade/downgrade/re-upgrade covered on SQLite and PostgreSQL CI.
+- [x] HTTP contract coverage verifies status/body secrecy and signature failure behavior.
+- [x] unit/integration/contract suites run on Python 3.12 and 3.13.
 
-- [ ] backup/restore drill.
-- [ ] systemd/reverse proxy/HTTPS runbook.
-- [ ] log/data retention.
-- [ ] credential-key rotation runbook.
-- [ ] end-to-end live checklist.
-- [ ] rate-limit/replay/restart tests.
-- [ ] full security/dependency review.
+## P5.2 — event normalization — future
+
+- [ ] push.
+- [ ] issues.
+- [ ] issue_comment.
+- [ ] pull_request.
+- [ ] pull_request_review.
+- [ ] pull_request_review_comment.
+- [ ] workflow_run.
+- [ ] release.
+- [ ] star.
+- [ ] fork.
+- [ ] installation/install-repository changes.
+
+## P5.3 — notification UX/preferences — future
+
+- [ ] repository/event preference storage.
+- [ ] mute repository.
+- [ ] Telegram event renderers/deep actions.
+- [ ] duplicate GitHub delivery produces no duplicate Telegram message.
+
+## P6–P10 — future
+
+Issues/PRs, Actions/releases, safe ZIP/project synchronization, production hardening, and post-v1 expansion remain unchecked roadmap work.
 
 ## Matrix rule
 
