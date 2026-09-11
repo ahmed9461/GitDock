@@ -19,9 +19,43 @@ Last updated: 2026-09-12
 
 **Current phase:** P4 — Repository contents, Git tools & run-command assistant.
 
-**Current implementation item:** **P4.3 — Clone/setup/run assistant.**
+**Current implementation item:** **P4.3 — Clone/setup/run assistant (implementation verified; delivery closeout pending).**
 
-P4.2 is fully delivered and governance-verified. Do not reopen it unless a real regression is found. New implementation work should now target P4.3 only.
+P4.3 code and direct acceptance coverage are implemented on `feat/p4-3-run-assistant`. Push CI is green. The remaining delivery steps are documentation-head CI, non-draft PR CI/mergeability, protected squash merge, post-merge `main` CI, and final governance closeout. Do not start P5 implementation until those steps are complete.
+
+## P4.3 implementation verification
+
+- verified implementation head `fba538e3c6071365361def7d5970ff7b19b5819c` — CI `34650497474` green;
+- Python 3.12 and 3.13 quality jobs green;
+- Ruff format/lint green on **167 files**;
+- mypy clean on **100 source files**;
+- **182 tests passed** on both Python versions;
+- compileall green;
+- `pip-audit` reported no known runtime vulnerabilities;
+- `detect-secrets` reported no findings;
+- PEP 751 runtime locks reproduce byte-for-byte;
+- PostgreSQL 17 Alembic upgrade → downgrade → upgrade remains green through `0006_file_write_sessions`.
+
+Known maintenance warnings remain unchanged: Starlette/FastAPI TestClient deprecation toward httpx2, AnyIO `BlockingPortal` alias deprecation through Starlette, and Alembic `prepend_sys_path`/`path_separator` warning. They are not test failures.
+
+## P4.3 delivered behavior
+
+- Repository dashboard and public-search detail expose a real `📥 تشغيل/تنزيل` / download-command assistant entry point.
+- User chooses Windows PowerShell, Linux, or macOS before command generation.
+- Fresh clone and update-existing-clone commands are generated separately.
+- Stack inference supports Python, Node.js, Docker, Gradle, and Maven from bounded repository evidence.
+- Setup/run suggestions show inference confidence and evidence sources.
+- Public repositories can be inspected without an Authorization header; installed/private repositories continue through the existing installation read context.
+- P4.3 reuses the canonical `GitHubRestClient`/Contents gateway instead of introducing a parallel HTTP stack.
+- Generated commands never contain GitHub tokens or credentials.
+- GitDock never executes generated commands automatically.
+- README text is treated as untrusted evidence and is never copied/executed as shell instructions.
+- Node package script bodies are never copied into generated shell text; GitDock emits only the bounded script invocation form such as `npm run <safe-name>`.
+- Python entry-point/script names used for generated commands are constrained to safe identifiers.
+- Branch/ref/path shell arguments use target-OS-aware quoting where applicable.
+- Evidence collection is bounded by known root files and file-size/read limits rather than arbitrary repository crawling.
+- Stale public-search callbacks remain fail-closed through the existing active search-session contract.
+- The rendered result explicitly warns that setup/run commands can execute hooks, build logic, or scripts contained in the repository when the user runs them locally.
 
 ## P4.2 final delivery chain
 
@@ -31,36 +65,7 @@ P4.2 is fully delivered and governance-verified. Do not reopen it unless a real 
 - protected squash merge `b4e7dcd9de5db1e958e831508443d3fa1445213d`;
 - post-feature `main` CI `34648224733` green.
 
-The verified P4.2 contract remains:
-
-- Python 3.12 and 3.13;
-- Ruff format/lint;
-- mypy clean on **94 source files**;
-- **165 tests passed** on both Python versions;
-- compileall;
-- `pip-audit` with no known runtime vulnerabilities;
-- `detect-secrets` with no findings;
-- PEP 751 lock regeneration/diff byte-for-byte;
-- PostgreSQL 17 Alembic upgrade → downgrade → upgrade through `0006_file_write_sessions`.
-
-Known maintenance warnings remain unchanged: Starlette/FastAPI TestClient deprecation toward httpx2, AnyIO `BlockingPortal` alias deprecation through Starlette, and Alembic `prepend_sys_path`/`path_separator` warning. They are not test failures.
-
-## P4.2 delivered behavior
-
-- Real repository-dashboard `🌿 الفروع` and `📝 Commits` actions in Telegram.
-- Branch listing from current GitHub state with case-insensitive local filtering/search over the fetched branch set.
-- Recent commits from the default branch or an explicitly entered branch/tag/SHA ref.
-- Commit detail with SHA, author, authored time, first-line message, parent count, changed-file count, additions/deletions, and canonical GitHub link.
-- Ref comparison through GitHub Compare API with ahead/behind/commit/file summary and a bounded first-10-files Telegram rendering for large comparisons.
-- Branch creation from an explicit current base ref/SHA using preview → persisted one-time confirmation → revalidation → scoped write token → single create-ref request → reconciliation/audit.
-- Confirm-time base SHA revalidation rejects a moved base as `STALE` before any write.
-- Target branch absence is checked before preview and again before write; duplicate targets are never replaced/force-updated.
-- Missing base ref fails before write.
-- Branch creation is Tier 1 and uses a repository-scoped installation token requesting `contents: write` + metadata read only for the selected repository.
-- Create-ref POST is never blindly retried. Uncertain outcomes are reconciled by re-reading the target branch; only exact expected SHA proves applied.
-- Audit records safe branch/base/SHA/result/request metadata only; no credentials.
-- Telegram callbacks remain compact and transport-only.
-- No normal v1 force-push, branch force-update, or branch-delete UI exists.
+The verified P4.2 contract remains **165 tests** on Python 3.12/3.13 with mypy clean on **94 source files** and all quality/security/migration gates green.
 
 ## Durable invariants carried forward
 
@@ -76,22 +81,15 @@ Known maintenance warnings remain unchanged: Starlette/FastAPI TestClient deprec
 - Branch creation remains preview → persisted confirmation → base/target revalidation → scoped token → single create-ref → reconcile → audit.
 - No normal v1 force-push/force-update UI.
 - Repository/README/script text is untrusted input and is never automatically executed.
+- Clone/setup/run is command generation only; GitDock does not provide arbitrary shell execution.
 
-## Active task — P4.3 Clone/setup/run assistant
+## Active closeout — P4.3 Clone/setup/run assistant
 
-Implement command **generation only**, not arbitrary execution.
+Implementation and push verification are complete. Finish only these delivery steps next:
 
-Required scope:
-
-- fresh clone commands;
-- update-existing-clone commands;
-- detect Python/Node/Docker/Gradle/Maven baseline from repository evidence;
-- Windows PowerShell commands;
-- Linux commands;
-- macOS commands;
-- explicit confidence/source explanation for inferred setup/run commands;
-- safe quoting for paths/refs where applicable;
-- never insert GitHub tokens or credentials into generated commands;
-- never automatically execute repository/README/script instructions.
-
-Before coding P4.3, inspect existing repository/search/detail UI and tests, then update this file if implementation is split into a narrower active subtask.
+1. synchronize `ROADMAP.md`, `PROJECT_MEMORY.md`, and `CHANGELOG.md` with the verified P4.3 contract;
+2. verify the documentation-synchronized feature head in CI;
+3. open a non-draft PR to `main` and require green PR CI + mergeability;
+4. squash merge without bypassing protections;
+5. verify post-merge `main` CI;
+6. perform governance closeout and only then mark P4 complete / P5.1 active.
