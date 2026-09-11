@@ -20,7 +20,11 @@ from gitdock.core.constants import (
     GITHUB_WEBHOOK_RETRY_DELAY_SECONDS,
 )
 from gitdock.db.models.webhook import GitHubWebhookDelivery
-from gitdock.github.webhooks import validate_delivery_id, validate_event_name, verify_webhook_signature
+from gitdock.github.webhooks import (
+    validate_delivery_id,
+    validate_event_name,
+    verify_webhook_signature,
+)
 
 Clock = Callable[[], datetime]
 _ERROR_CODE_RE = re.compile(r"^[A-Za-z0-9_.:-]{1,128}$")
