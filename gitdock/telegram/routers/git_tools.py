@@ -1,4 +1,5 @@
 """Telegram router for P4.2 branch/commit tools."""
+
 from __future__ import annotations
 
 from aiogram import F, Router
@@ -94,7 +95,9 @@ def create_git_tools_router(services: RuntimeServices | None) -> Router:
         except (GitHubGatewayError, ValueError):
             await callback.answer("تعذر تحميل تفاصيل الـCommit", show_alert=True)
             return
-        await _edit(callback, render_commit(view.commit), commit_detail_keyboard(view.commit.html_url))
+        await _edit(
+            callback, render_commit(view.commit), commit_detail_keyboard(view.commit.html_url)
+        )
 
     @router.callback_query(F.data == git_callbacks.BRANCH_SEARCH_BEGIN)
     async def search_begin(callback: CallbackQuery, state: FSMContext) -> None:
@@ -125,8 +128,11 @@ def create_git_tools_router(services: RuntimeServices | None) -> Router:
         await message.answer(
             render_branches(view, query=query),
             reply_markup=branches_keyboard(
-                view.branches, page=1, repository_id=repository_id,
-                back_filter=back_filter, back_page=back_page,
+                view.branches,
+                page=1,
+                repository_id=repository_id,
+                back_filter=back_filter,
+                back_page=back_page,
             ),
         )
 
@@ -153,14 +159,19 @@ def create_git_tools_router(services: RuntimeServices | None) -> Router:
         except (GitHubGatewayError, ValueError):
             await message.answer("تعذر العثور على هذا ref في GitHub.")
             return
-        await state.update_data(git_commit_ref=view.ref, git_commits=[item.sha for item in view.commits])
+        await state.update_data(
+            git_commit_ref=view.ref, git_commits=[item.sha for item in view.commits]
+        )
         await state.set_state(None)
         back_filter, back_page = _navigation(data)
         await message.answer(
             render_commits(view),
             reply_markup=commits_keyboard(
-                view.commits, page=1, repository_id=repository_id,
-                back_filter=back_filter, back_page=back_page,
+                view.commits,
+                page=1,
+                repository_id=repository_id,
+                back_filter=back_filter,
+                back_page=back_page,
             ),
         )
 
@@ -201,13 +212,18 @@ def create_git_tools_router(services: RuntimeServices | None) -> Router:
                 base_ref=base_ref,
             )
         except ValueError as exc:
-            await message.answer("الفرع موجود بالفعل." if "exists" in str(exc) else "اسم الفرع أو الـbase غير صالح.")
+            await message.answer(
+                "الفرع موجود بالفعل." if "exists" in str(exc) else "اسم الفرع أو الـbase غير صالح."
+            )
             return
         except GitHubGatewayError:
             await message.answer("تعذر التحقق من الـbase أو صلاحيات GitHub.")
             return
         await state.set_state(None)
-        await message.answer(render_branch_plan(plan), reply_markup=branch_confirmation_keyboard(plan.confirmation_token))
+        await message.answer(
+            render_branch_plan(plan),
+            reply_markup=branch_confirmation_keyboard(plan.confirmation_token),
+        )
 
     @router.callback_query(F.data.startswith(f"{git_callbacks.ROOT}:bc:y:"))
     async def create_confirm(callback: CallbackQuery) -> None:
@@ -237,7 +253,9 @@ def create_git_tools_router(services: RuntimeServices | None) -> Router:
         await services.git_tools.cancel_create_branch(
             user_id=await _user_id(callback, services), token=token
         )
-        await _edit(callback, "تم إلغاء إنشاء الفرع. لم يتم إجراء أي تغيير على GitHub.", result_keyboard())
+        await _edit(
+            callback, "تم إلغاء إنشاء الفرع. لم يتم إجراء أي تغيير على GitHub.", result_keyboard()
+        )
 
     @router.callback_query(F.data == git_callbacks.COMPARE_BEGIN)
     async def compare_begin(callback: CallbackQuery, state: FSMContext) -> None:
@@ -271,7 +289,9 @@ def create_git_tools_router(services: RuntimeServices | None) -> Router:
         try:
             view = await services.git_tools.compare(
                 user_id=await _message_user_id(message, services),
-                github_repository_id=repository_id, base=base, head=head,
+                github_repository_id=repository_id,
+                base=base,
+                head=head,
             )
         except (GitHubGatewayError, ValueError):
             await message.answer("تعذر مقارنة هذه المراجع في GitHub.")
@@ -282,7 +302,9 @@ def create_git_tools_router(services: RuntimeServices | None) -> Router:
     return router
 
 
-async def _show_branches(callback: CallbackQuery, state: FSMContext, services: RuntimeServices, page: int) -> None:
+async def _show_branches(
+    callback: CallbackQuery, state: FSMContext, services: RuntimeServices, page: int
+) -> None:
     data = await state.get_data()
     repository_id = _positive(data.get("git_repository_id"))
     if repository_id is None or services.git_tools is None:
@@ -291,20 +313,34 @@ async def _show_branches(callback: CallbackQuery, state: FSMContext, services: R
     query = data.get("git_branch_query")
     try:
         view = await services.git_tools.list_branches(
-            user_id=await _user_id(callback, services), github_repository_id=repository_id,
+            user_id=await _user_id(callback, services),
+            github_repository_id=repository_id,
             query=query if isinstance(query, str) else None,
         )
     except (GitHubGatewayError, ValueError):
         await callback.answer("تعذر تحميل الفروع من GitHub", show_alert=True)
         return
     back_filter, back_page = _navigation(data)
-    await _edit(callback, render_branches(view, query=query if isinstance(query, str) else None), branches_keyboard(
-        view.branches, page=page, repository_id=repository_id,
-        back_filter=back_filter, back_page=back_page,
-    ))
+    await _edit(
+        callback,
+        render_branches(view, query=query if isinstance(query, str) else None),
+        branches_keyboard(
+            view.branches,
+            page=page,
+            repository_id=repository_id,
+            back_filter=back_filter,
+            back_page=back_page,
+        ),
+    )
 
 
-async def _show_commits(callback: CallbackQuery, state: FSMContext, services: RuntimeServices, page: int, ref: str | None) -> None:
+async def _show_commits(
+    callback: CallbackQuery,
+    state: FSMContext,
+    services: RuntimeServices,
+    page: int,
+    ref: str | None,
+) -> None:
     data = await state.get_data()
     repository_id = _positive(data.get("git_repository_id"))
     if repository_id is None or services.git_tools is None:
@@ -312,17 +348,28 @@ async def _show_commits(callback: CallbackQuery, state: FSMContext, services: Ru
         return
     try:
         view = await services.git_tools.recent_commits(
-            user_id=await _user_id(callback, services), github_repository_id=repository_id, ref=ref
+            user_id=await _user_id(callback, services),
+            github_repository_id=repository_id,
+            ref=ref,
         )
     except (GitHubGatewayError, ValueError):
         await callback.answer("تعذر تحميل الـCommits من GitHub", show_alert=True)
         return
-    await state.update_data(git_commit_ref=view.ref, git_commits=[item.sha for item in view.commits])
+    await state.update_data(
+        git_commit_ref=view.ref, git_commits=[item.sha for item in view.commits]
+    )
     back_filter, back_page = _navigation(data)
-    await _edit(callback, render_commits(view), commits_keyboard(
-        view.commits, page=page, repository_id=repository_id,
-        back_filter=back_filter, back_page=back_page,
-    ))
+    await _edit(
+        callback,
+        render_commits(view),
+        commits_keyboard(
+            view.commits,
+            page=page,
+            repository_id=repository_id,
+            back_filter=back_filter,
+            back_page=back_page,
+        ),
+    )
 
 
 def _parse_open(callback: CallbackQuery, kind: str) -> tuple[int, RepositoryFilter, int] | None:
@@ -331,8 +378,14 @@ def _parse_open(callback: CallbackQuery, kind: str) -> tuple[int, RepositoryFilt
     return git_callbacks.parse_repo_open(callback.data, kind)
 
 
-def _context(repository_id: int, repository_filter: RepositoryFilter, page: int) -> dict[str, object]:
-    return {"git_repository_id": repository_id, "git_back_filter": repository_filter.value, "git_back_page": page}
+def _context(
+    repository_id: int, repository_filter: RepositoryFilter, page: int
+) -> dict[str, object]:
+    return {
+        "git_repository_id": repository_id,
+        "git_back_filter": repository_filter.value,
+        "git_back_page": page,
+    }
 
 
 async def _user_id(callback: CallbackQuery, services: RuntimeServices) -> int:

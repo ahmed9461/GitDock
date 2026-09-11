@@ -79,8 +79,7 @@ class FakeGitGateway:
     ) -> tuple[BranchSnapshot, ...]:
         assert token.get_secret_value().startswith("ghs_read")
         return tuple(
-            BranchSnapshot(branch, sha, branch == "main")
-            for branch, sha in self.branches.items()
+            BranchSnapshot(branch, sha, branch == "main") for branch, sha in self.branches.items()
         )
 
     async def get_branch(
@@ -93,9 +92,7 @@ class FakeGitGateway:
     ) -> BranchSnapshot:
         sha = self.branches.get(branch)
         if sha is None:
-            raise GitHubNotFoundError(
-                GitHubErrorKind.NOT_FOUND, "missing", status_code=404
-            )
+            raise GitHubNotFoundError(GitHubErrorKind.NOT_FOUND, "missing", status_code=404)
         return BranchSnapshot(branch, sha, branch == "main")
 
     async def recent_commits(
@@ -127,9 +124,7 @@ class FakeGitGateway:
     ) -> CommitDetail:
         sha = self.branches.get(ref, ref)
         if len(sha) != 40:
-            raise GitHubNotFoundError(
-                GitHubErrorKind.NOT_FOUND, "missing", status_code=404
-            )
+            raise GitHubNotFoundError(GitHubErrorKind.NOT_FOUND, "missing", status_code=404)
         return CommitDetail(
             sha,
             "commit",
@@ -255,12 +250,8 @@ async def _build_service():
 @pytest.mark.asyncio
 async def test_reads_branches_commits_and_compare() -> None:
     engine, _, service, _, _, user_id = await _build_service()
-    branches = await service.list_branches(
-        user_id=user_id, github_repository_id=_REPOSITORY_ID
-    )
-    commits = await service.recent_commits(
-        user_id=user_id, github_repository_id=_REPOSITORY_ID
-    )
+    branches = await service.list_branches(user_id=user_id, github_repository_id=_REPOSITORY_ID)
+    commits = await service.recent_commits(user_id=user_id, github_repository_id=_REPOSITORY_ID)
     compare = await service.compare(
         user_id=user_id,
         github_repository_id=_REPOSITORY_ID,
@@ -284,9 +275,7 @@ async def test_branch_create_is_preview_confirm_and_scoped_write() -> None:
         base_ref="main",
     )
     assert git.create_calls == 0
-    outcome = await service.confirm_create_branch(
-        user_id=user_id, token=plan.confirmation_token
-    )
+    outcome = await service.confirm_create_branch(user_id=user_id, token=plan.confirmation_token)
     assert outcome.state is BranchCreateState.APPLIED
     assert git.create_calls == 1
     assert {"contents": "write", "metadata": "read"} in tokens.calls
@@ -309,9 +298,7 @@ async def test_branch_create_rejects_stale_base_without_write() -> None:
         base_ref="main",
     )
     git.branches["main"] = "e" * 40
-    outcome = await service.confirm_create_branch(
-        user_id=user_id, token=plan.confirmation_token
-    )
+    outcome = await service.confirm_create_branch(user_id=user_id, token=plan.confirmation_token)
     assert outcome.state is BranchCreateState.STALE
     assert git.create_calls == 0
     await engine.dispose()
@@ -328,9 +315,7 @@ async def test_uncertain_create_reconciles_existing_target_without_replay() -> N
         branch="feature/new",
         base_ref="main",
     )
-    outcome = await service.confirm_create_branch(
-        user_id=user_id, token=plan.confirmation_token
-    )
+    outcome = await service.confirm_create_branch(user_id=user_id, token=plan.confirmation_token)
     assert outcome.state is BranchCreateState.APPLIED
     assert git.create_calls == 1
     await engine.dispose()
@@ -346,12 +331,8 @@ async def test_cancelled_branch_confirmation_is_not_reusable() -> None:
         branch="feature/new",
         base_ref="main",
     )
-    assert await service.cancel_create_branch(
-        user_id=user_id, token=plan.confirmation_token
-    )
-    outcome = await service.confirm_create_branch(
-        user_id=user_id, token=plan.confirmation_token
-    )
+    assert await service.cancel_create_branch(user_id=user_id, token=plan.confirmation_token)
+    outcome = await service.confirm_create_branch(user_id=user_id, token=plan.confirmation_token)
     assert outcome.state is BranchCreateState.INVALID
     assert git.create_calls == 0
     await engine.dispose()

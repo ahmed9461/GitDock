@@ -99,7 +99,9 @@ def parse_confirmation(data: str, answer: str) -> str | None:
     return token
 
 
-def _repo_context(kind: str, repository_id: int, repository_filter: RepositoryFilter, page: int) -> str:
+def _repo_context(
+    kind: str, repository_id: int, repository_filter: RepositoryFilter, page: int
+) -> str:
     if kind not in {"b", "c"} or repository_id <= 0 or page <= 0:
         raise ValueError("invalid Git tools repository context")
     return f"{_ROOT}:{kind}:open:{repository_filter.value}:{page}:{_base36(repository_id)}"

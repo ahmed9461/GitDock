@@ -72,15 +72,11 @@ async def test_git_tools_gateway_reads_branches_commits_and_compare() -> None:
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as http_client:
         gateway = GitHubGitToolsGateway(GitHubRestClient(http_client))
         token = SecretStr("ghs_read")
-        branches = await gateway.list_branches(
-            token, owner_login="ahmed9461", name="GitDock"
-        )
+        branches = await gateway.list_branches(token, owner_login="ahmed9461", name="GitDock")
         commits = await gateway.recent_commits(
             token, owner_login="ahmed9461", name="GitDock", ref="main"
         )
-        commit = await gateway.get_commit(
-            token, owner_login="ahmed9461", name="GitDock", ref=_SHA
-        )
+        commit = await gateway.get_commit(token, owner_login="ahmed9461", name="GitDock", ref=_SHA)
         comparison = await gateway.compare(
             token,
             owner_login="ahmed9461",
@@ -94,9 +90,7 @@ async def test_git_tools_gateway_reads_branches_commits_and_compare() -> None:
     assert commit.changed_files == 1
     assert comparison.ahead_by == 1
     assert requests[1].url.params["sha"] == "main"
-    assert all(
-        request.headers["Authorization"] == "Bearer ghs_read" for request in requests
-    )
+    assert all(request.headers["Authorization"] == "Bearer ghs_read" for request in requests)
     assert requests[-1].url.path.endswith("/compare/main...feature%2Fx")
 
 

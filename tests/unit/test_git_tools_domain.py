@@ -14,9 +14,7 @@ from gitdock.telegram import git_callbacks
 
 
 def test_parse_branch_and_created_ref() -> None:
-    branch = parse_branch(
-        {"name": "feature/x", "protected": False, "commit": {"sha": "a" * 40}}
-    )
+    branch = parse_branch({"name": "feature/x", "protected": False, "commit": {"sha": "a" * 40}})
     assert branch.name == "feature/x"
     assert branch.sha == "a" * 40
     created = parse_created_branch(

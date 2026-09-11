@@ -33,12 +33,7 @@ def render_branches(view: BranchListView, *, query: str | None = None) -> str:
 
 def render_branch(branch: BranchSnapshot) -> str:
     protected = "نعم" if branch.protected else "لا"
-    return (
-        "🌿 تفاصيل الفرع\n\n"
-        f"الاسم: {branch.name}\n"
-        f"SHA: {branch.sha}\n"
-        f"محمي: {protected}"
-    )
+    return f"🌿 تفاصيل الفرع\n\nالاسم: {branch.name}\nSHA: {branch.sha}\nمحمي: {protected}"
 
 
 def render_commits(view: CommitListView) -> str:

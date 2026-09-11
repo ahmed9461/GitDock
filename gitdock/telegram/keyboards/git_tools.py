@@ -23,7 +23,9 @@ def branches_keyboard(
     rows: list[list[InlineKeyboardButton]] = []
     rows.append(
         [
-            InlineKeyboardButton(text="➕ فرع جديد", callback_data=git_callbacks.BRANCH_CREATE_BEGIN),
+            InlineKeyboardButton(
+                text="➕ فرع جديد", callback_data=git_callbacks.BRANCH_CREATE_BEGIN
+            ),
             InlineKeyboardButton(text="🔎 بحث", callback_data=git_callbacks.BRANCH_SEARCH_BEGIN),
         ]
     )
@@ -78,26 +80,18 @@ def commits_keyboard(
     nav: list[InlineKeyboardButton] = []
     if page > 1:
         nav.append(
-            InlineKeyboardButton(
-                text="◀️ السابق", callback_data=git_callbacks.commit_page(page - 1)
-            )
+            InlineKeyboardButton(text="◀️ السابق", callback_data=git_callbacks.commit_page(page - 1))
         )
     if start + _PAGE_SIZE < len(commits):
         nav.append(
-            InlineKeyboardButton(
-                text="التالي ▶️", callback_data=git_callbacks.commit_page(page + 1)
-            )
+            InlineKeyboardButton(text="التالي ▶️", callback_data=git_callbacks.commit_page(page + 1))
         )
     if nav:
         rows.append(nav)
     rows.append(
         [
-            InlineKeyboardButton(
-                text="🌿 تغيير ref", callback_data=git_callbacks.COMMIT_REF_BEGIN
-            ),
-            InlineKeyboardButton(
-                text=NAV_REFRESH, callback_data=git_callbacks.commit_page(page)
-            ),
+            InlineKeyboardButton(text="🌿 تغيير ref", callback_data=git_callbacks.COMMIT_REF_BEGIN),
+            InlineKeyboardButton(text=NAV_REFRESH, callback_data=git_callbacks.commit_page(page)),
         ]
     )
     rows.append(

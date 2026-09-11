@@ -167,7 +167,10 @@ class GitHubGitToolsGateway:
             f"/repos/{owner}/{repo}/git/refs",
             parser=lambda payload: parse_created_branch(payload, expected_branch=branch),
             token=token,
-            json_body={"ref": f"refs/heads/{validate_branch_name(branch)}", "sha": _require_sha(sha)},
+            json_body={
+                "ref": f"refs/heads/{validate_branch_name(branch)}",
+                "sha": _require_sha(sha),
+            },
         )
         created = response.data
         return CreatedBranch(created.name, created.sha, response.request_id)

@@ -235,9 +235,7 @@ class GitToolsService:
                     expected_operation=_CREATE_BRANCH_OPERATION,
                 )
 
-    async def confirm_create_branch(
-        self, *, user_id: int, token: str
-    ) -> BranchCreateOutcome:
+    async def confirm_create_branch(self, *, user_id: int, token: str) -> BranchCreateOutcome:
         async with self._session_factory() as session:
             async with session.begin():
                 consumed = await self._confirmations.consume(
@@ -261,9 +259,7 @@ class GitToolsService:
         ):
             return BranchCreateOutcome(BranchCreateState.INVALID)
 
-        current = await self._resolver.resolve(
-            user_id=user_id, github_repository_id=repository_id
-        )
+        current = await self._resolver.resolve(user_id=user_id, github_repository_id=repository_id)
         latest_base = await self._gateway.get_commit(
             current.read_token,
             owner_login=current.repository.owner_login,
