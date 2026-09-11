@@ -22,6 +22,7 @@ select = ["E", "F", "I", "UP", "B", "ASYNC", "RUF"]
 "gitdock/telegram/keyboards/git_tools.py" = ["RUF001"]
 "gitdock/telegram/renderers/git_tools.py" = ["RUF001"]
 "gitdock/telegram/routers/git_tools.py" = ["RUF001"]
+"gitdock/telegram/renderers/run_assistant.py" = ["RUF001"]
 
 [tool.ruff.format]
 quote-style = "double"
