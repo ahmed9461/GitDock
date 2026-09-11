@@ -32,7 +32,9 @@ def repository_os(
     repository_filter: RepositoryFilter,
     page: int,
 ) -> str:
-    return _repository_callback(_OS_CODES[TargetOS(target_os)], repository_id, repository_filter, page)
+    return _repository_callback(
+        _OS_CODES[TargetOS(target_os)], repository_id, repository_filter, page
+    )
 
 
 def parse_repository(
