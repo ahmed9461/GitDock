@@ -99,9 +99,9 @@ def test_repository_and_public_search_buttons_use_real_p4_3_callbacks() -> None:
         for button in row
         if button.callback_data is not None
     ]
-    assert run_callbacks.repository_open(installed.github_repository_id, RepositoryFilter.ALL, 1) in (
-        installed_values
-    )
+    assert run_callbacks.repository_open(
+        installed.github_repository_id, RepositoryFilter.ALL, 1
+    ) in (installed_values)
 
     public = _public_repository()
     public_keyboard = search_detail_keyboard("AbCd_123", 2, public)
