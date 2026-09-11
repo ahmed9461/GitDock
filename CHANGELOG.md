@@ -129,21 +129,27 @@ All notable project changes are recorded here. This repository is pre-v1; entrie
 
 ### Verification
 
-#### P5.1 implementation head
+#### P5.1 final feature-delivery chain
 
-- head `e55c6e99001bb657ed2064459e92caca1f2e3481`;
-- push CI `34652564335` green;
-- Python 3.12 and 3.13 quality jobs green;
-- **213 tests passed** on both versions;
-- mypy clean on **104 source files**;
-- Ruff format/lint green on **176 files**;
-- compileall green;
-- `pip-audit`: no known runtime vulnerabilities;
-- `detect-secrets`: no findings;
-- PEP 751 runtime locks reproduce byte-for-byte;
+- implementation head `e55c6e99001bb657ed2064459e92caca1f2e3481` — push CI `34652564335` green;
+- documentation-synchronized head `49b7b907665a0086b4207ae0b34724ca3fcaaca3` — push CI `34654662909` green;
+- non-draft PR #22 — PR CI `34654757724` green and mergeable on the unchanged head;
+- protected squash merge `c13c16cf9d2354079294ebf01afbe098635b6247`;
+- post-feature `main` CI `34654852954` green.
+
+Verified P5.1 contract:
+
+- Python 3.12 and 3.13 quality jobs green.
+- **213 tests passed** on both versions.
+- mypy clean on **104 source files**.
+- Ruff format/lint green on **176 files**.
+- compileall green.
+- `pip-audit`: no known runtime vulnerabilities.
+- `detect-secrets`: no findings.
+- PEP 751 runtime locks reproduce byte-for-byte.
 - PostgreSQL 17 Alembic upgrade → downgrade → upgrade green through revision `0007_webhook_inbox`.
 
-P5.1 implementation is verified. Formal delivery remains open until documentation-head CI, non-draft PR CI, protected squash merge, post-feature `main` CI, and governance closeout complete.
+P5.1 feature delivery is complete; this governance closeout activates **P5.2 Event normalization**.
 
 #### P4.3 final feature-delivery chain
 
