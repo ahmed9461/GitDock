@@ -1,6 +1,6 @@
 # GitDock — Canonical Constants
 
-Status: authoritative constants through P3.2. Change intentionally and record meaningful architecture/security changes in `docs/DECISIONS.md`.
+Status: authoritative constants through P4.1 implementation verification. Change intentionally and record meaningful architecture/security changes in `docs/DECISIONS.md`.
 
 ## Product identity
 
@@ -39,6 +39,7 @@ Do not duplicate these literals throughout handlers/services.
 | `GITHUB_AUTH_STATE_TTL_SECONDS` | 600 | restart-safe OAuth/setup state expiry |
 | `CONFIRMATION_TTL_SECONDS` | 300 | DB-backed sensitive confirmation expiry |
 | `CONFIRMATION_TOKEN_BYTES` | 12 | random opaque confirmation-token entropy source bytes |
+| `FILE_WRITE_SESSION_TTL_SECONDS` | 900 | P4.1 durable staged one-file write lifetime |
 
 Do not reuse a UI timeout as a credential/security lifetime unless it is the canonical constant for that lifecycle.
 
@@ -49,8 +50,9 @@ Do not reuse a UI timeout as a credential/security lifetime unless it is the can
 | `DEFAULT_PAGE_SIZE` | 8 | installed repository list pagination |
 | `SEARCH_PAGE_SIZE` | 6 | P3.1 richer public search rows |
 | `CALLBACK_SCHEMA_VERSION` | `v1` | callback compatibility/versioning |
+| `FILE_BROWSE_SESSION_ID_BYTES` | 6 | short opaque P4.1 browse-session context |
 
-Policy/spec values still planned for later milestones include maximum two primary actions per row, long-text pagination targets, archive/file limits, and higher-risk confirmation patterns. Where a value becomes executable code, `gitdock/core/constants.py` is the source that must match this document.
+Policy/spec values still planned for later milestones include maximum two primary actions per row, archive limits, and higher-risk mass-update confirmation patterns. Where a value becomes executable code, `gitdock/core/constants.py` is the source that must match this document.
 
 ### Canonical navigation labels
 
@@ -115,16 +117,21 @@ Search uses compact opaque active-session/result context rather than embedding a
 - `gd:v1:account:disconnect:yes:<opaque-token>`
 - `gd:v1:account:disconnect:no:<opaque-token>`
 
+### P4.1 file browser
+
+P4.1 file callbacks are centralized in `gitdock/telegram/file_callbacks.py`. They carry only compact repository/browse navigation context, short browse session IDs, entry indexes/actions, or opaque write-confirmation tokens. **Repository file paths are not embedded in callback data.**
+
 Rules:
 
 - Never use arbitrary raw repository/path/login values when a compact stable ID/session is available.
 - Repository callbacks use stable GitHub numeric repository ID plus navigation context.
 - Search callbacks use active session/result context and fail closed when session is stale.
 - P3.2 confirmation callbacks may carry only the opaque confirmation token; the DB stores a digest plus target preconditions.
+- P4.1 file callbacks carry short browse/session/index/token context; path/ref/write authority resolves server-side.
 - Callback possession is never authorization proof.
 - Reject unknown/malformed callback schema versions safely.
-- Keep callback data within Telegram's 64-byte limit; tests enforce current repository/search/account shapes.
-- Never place GitHub credentials, OAuth code/state, PKCE verifier, private keys, client secret, or raw auth bodies into callbacks.
+- Keep callback data within Telegram's 64-byte limit; tests enforce current repository/search/account/file shapes.
+- Never place GitHub credentials, OAuth code/state, PKCE verifier, private keys, client secret, raw auth bodies, or staged file bodies into callbacks.
 
 ## P2.3 repository filter values
 
@@ -153,20 +160,26 @@ Do not invent handler-local aliases without deliberate callback compatibility/ve
 
 ## Repository/file operation policy limits
 
-Initial planned policy values; executable implementation must centralize/configure them when the milestone lands.
+P4.1 file-browser values below are executable and centralized in `gitdock/core/constants.py`. ZIP/project-sync limits remain later policy targets.
 
-| Policy | Initial value | Notes |
+| Policy / constant | Value | Status / notes |
 |---|---:|---|
-| text preview max | 256 KiB | larger files use download/limited preview |
-| single upload max | 20 MiB | conservative application limit |
-| ZIP max files | 5000 | zip-bomb guard |
-| ZIP max extracted bytes | 250 MiB | extracted-size guard |
-| ZIP max path depth | 25 | path abuse guard |
-| diff preview max files | 200 | above this use summary/filter review |
-| diff text max/file | 512 KiB | large diff uses metadata/download |
-| temp workspace TTL | 60 minutes | stale sync cleanup |
+| `FILE_TEXT_PREVIEW_MAX_BYTES` | 256 KiB | executable P4.1 text-preview ceiling |
+| `FILE_SINGLE_UPLOAD_MAX_BYTES` | 20 MiB | executable P4.1 single Telegram file boundary |
+| `FILE_PREVIEW_PAGE_CHARS` | 2800 | executable P4.1 preview-page target |
+| `FILE_PATH_MAX_CHARS` | 1024 | executable P4.1 normalized repo-path ceiling |
+| `FILE_REF_MAX_CHARS` | 255 | executable P4.1 branch/tag/SHA input ceiling |
+| `FILE_COMMIT_MESSAGE_MAX_CHARS` | 500 | executable P4.1 commit-message ceiling |
+| `FILE_BROWSE_SESSION_ID_BYTES` | 6 bytes | executable short browse-session entropy source |
+| `FILE_WRITE_SESSION_TTL_SECONDS` | 900 sec | executable staged write lifetime |
+| ZIP max files | 5000 | later zip-bomb guard target |
+| ZIP max extracted bytes | 250 MiB | later extracted-size guard target |
+| ZIP max path depth | 25 | later path-abuse guard target |
+| diff preview max files | 200 | later batch-review target |
+| diff text max/file | 512 KiB | later batch-diff target |
+| temp workspace TTL | 60 minutes | later sync-workspace cleanup target |
 
-These are GitDock policy targets, not claims about GitHub/Telegram hard limits.
+These are GitDock application policy values, not claims about GitHub/Telegram platform hard limits.
 
 ## GitHub HTTP/retry/pagination defaults
 
@@ -212,19 +225,19 @@ Do not map permissions ad hoc in handlers. Centralize capability -> permission/t
 ### Baseline/read capability
 
 - Metadata: read — repository list/detail baseline
-- Contents: read when file browsing enabled
+- Contents: read — verified P4.1 file browsing
 - Issues: read when issue browsing enabled
 - Pull requests: read when PR browsing enabled
 - Actions: read when workflow/run inspection enabled
 
 ### Write capability milestones
 
-- Contents: write — file/branch/content updates
+- Contents: write — verified P4.1 one-file create/update/delete using repository-scoped installation token
 - Issues: write — issue/comment/labels/assignees
 - Pull requests: write — PR interactions/reviews/merges
 - Actions: write — dispatch/retry/cancel where needed
-- Workflows: write — only when editing `.github/workflows/`
-- Administration: write — repository settings/rename/delete where GitHub requires it
+- Workflows: write — verified P4.1 special capability required only when editing `.github/workflows/`
+- Administration: write — verified P3.3 repository settings/rename/delete scope
 
 P3.2 durable user authorization does not by itself enable any of these write permissions.
 
@@ -237,7 +250,7 @@ P3.2 durable user authorization does not by itself enable any of these write per
 | 2 | High impact | merge, direct default-branch update, ZIP sync, rename/archive/visibility | dedicated persisted confirmation |
 | 3 | Destructive | delete repo, transfer, destructive mass delete | exact target verification + final persisted confirm |
 
-P3.2 local disconnect is local-state destructive enough to require persisted confirmation even though it does not delete a GitHub resource.
+P3.2 local disconnect is local-state destructive enough to require persisted confirmation even though it does not delete a GitHub resource. P4.1 one-file writes use persisted staged intent/confirmation even when their operation-specific tier is below repository deletion because stale/replay safety requires durable server-side authority.
 
 ## Audit operation names
 

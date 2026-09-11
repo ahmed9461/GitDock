@@ -2,7 +2,7 @@
 
 Purpose: durable facts that future sessions must remember. This is not a task list.
 
-Last updated: 2026-09-04
+Last updated: 2026-09-11
 
 ## Identity
 
@@ -172,6 +172,35 @@ Durable P3.3 facts:
 - Delete remains visually isolated and exact-name gated.
 - Organization creation is verified at gateway/service level; the current personal create wizard does not silently invent organization selection UI.
 
+### P4.1 — file browser — implementation verified, merge/governance pending
+
+Implementation verification:
+
+- final implementation head `614f013b35644fcdd05e880c9a37ff30fd503fdf` — CI `34639736010` fully green;
+- Python 3.12 and 3.13 each passed Ruff format/lint, mypy, **148 tests**, compile, `pip-audit`, `detect-secrets`, and byte-for-byte PEP 751 lock verification;
+- mypy verified **87 source files**;
+- PostgreSQL 17 Alembic upgrade -> downgrade -> upgrade including `0006_file_write_sessions` passed.
+
+Durable P4.1 facts:
+
+- `GitHubContentsGateway` is the typed GitHub Contents boundary on top of the canonical `GitHubRestClient`; no Telegram/raw-HTTP bypass was introduced.
+- `FileBrowserService` is the application boundary for repository file browsing and one-file writes, with dedicated context/read/write/staging/audit helpers rather than a monolithic handler.
+- Repository browsing uses repository-scoped installation `contents: read` authority.
+- Ordinary one-file writes use repository-scoped `contents: write`. Paths under `.github/workflows/` additionally require centralized `workflows: write`.
+- Paths and refs are validated before network I/O. Path normalization rejects traversal, absolute/drive paths, empty/dot/dot-dot segments, unsafe separators, nulls, and over-limit values; ref validation rejects unsafe Git ref shapes.
+- Telegram file callbacks carry short browse session IDs/indexes/actions or opaque confirmation tokens. Long repository paths are kept in server/FSM context and are not embedded in callback data.
+- Text preview is capped at 256 KiB and paginated at 2800 characters. Binary/large/missing-content states use metadata/fallback UI. Single Telegram file transfer boundary is 20 MiB.
+- `file_write_sessions` is durable staged write intent created by migration `0006_file_write_sessions`.
+- A staged create/update stores enough intent/preconditions to survive restart: user, installation/repository, branch, branch-head SHA, path, expected file SHA where applicable, desired blob/content digest, commit message, risk tier, confirmation nonce/version, expiry, and temporary file bytes.
+- Staged file body bytes may exist in PostgreSQL for up to 15 minutes. They are cleared on consume, cancel, same-target supersession, expiry/prune, and are never copied into audit metadata.
+- A newer staged operation for the same user/repository/branch/path invalidates the older staged authority. A dedicated regression test verifies the older token becomes unusable and staged bytes are scrubbed.
+- Write execution re-resolves repository/install context and verifies current branch head/current file SHA before mutation. Stale state fails closed rather than overwriting newer GitHub content.
+- GitHub PUT/DELETE-like writes are issued once; potentially uncertain outcomes reconcile current remote branch/file state instead of blind replay.
+- File audit contains safe operation/status/repository/branch/path/SHA/reconciliation metadata, never file bodies or credentials.
+- Arabic Telegram P4.1 UX is real: directory pagination/up navigation, ref selection, text preview pagination, create text, upload/create, edit/replace, download, delete, diff/preview, confirm/cancel, stale/invalid/uncertain messaging.
+- Current implementation suite explicitly covers Contents gateway contracts, domain path/ref/diff rules, service read/write/stale/workflow/reconciliation paths, UI callback length/state, and same-path staging supersession.
+- P4.1 is **not phase-complete yet** until documentation-head CI, non-draft PR CI, unchanged-head merge, post-feature `main` CI, and governance closeout are complete.
+
 ## Dependency reproducibility
 
 - `requirements.txt`: exact direct runtime pins.
@@ -180,7 +209,7 @@ Durable P3.3 facts:
   - `pylock.py312-linux.toml`
   - `pylock.py313-linux.toml`
 - CI regenerates and diffs each target lock; drift fails the build.
-- P3.3 introduced no runtime dependency drift.
+- On 2026-09-11 `main` intentionally disabled GitHub Actions dependency caching (`c5d8b10557deda0bb2c268bf28adb9eed0151e64`). Fresh resolution exposed transitive drift only: `anyio` -> `4.15.1` and `multidict` -> `6.8.0`. P4.1 refreshed both PEP 751 locks and CI `34639736010` verified them byte-for-byte; direct runtime pins did not change.
 
 ## GitHub Actions operational memory
 
@@ -188,11 +217,13 @@ The repository was initially private during P1 and the account's included privat
 
 Do not diagnose a zero-step Actions failure as code failure without checking whether a runner step actually started.
 
+GitHub Actions dependency caches are currently intentionally disabled on `main` (commit `c5d8b10557deda0bb2c268bf28adb9eed0151e64`). Expect slower clean installs; do not restore caching merely to make CI faster without an intentional governance change.
+
 Known connector issue: the connector's Draft -> Ready GraphQL path has previously failed because it requested nonexistent `Repository.fullDatabaseId`. Safe prior workaround: close the verified Draft without merging, open a non-draft replacement from the same unchanged branch, and require final-head CI before merge. Never bypass CI merely to work around connector behavior.
 
 ## Known non-blocking maintenance warnings
 
-As of P3.3 verification:
+As of P4.1 implementation verification:
 
 - FastAPI/Starlette `TestClient` emits a deprecation warning about the existing `httpx` integration/future `httpx2` direction.
 - Starlette test-client usage surfaces AnyIO's deprecated `anyio.abc.BlockingPortal` alias.
@@ -202,12 +233,12 @@ These warnings do not fail tests, but must remain recorded maintenance debt.
 
 ## GitHub write strategy
 
-- Simple single-file writes may use Contents API with current-SHA conflict protection.
-- Multi-file/ZIP sync uses a reviewable coherent batch commit, normally on a review branch followed by optional PR.
+- P4.1 simple single-file writes use the Contents API with current branch-head/file-SHA conflict protection and durable staged intent.
+- Multi-file/ZIP sync remains a later reviewable coherent batch commit, normally on a review branch followed by optional PR.
 - Direct default-branch mass replacement is not the default.
-- `.github/workflows/*` requires the appropriate Workflows capability.
+- `.github/workflows/*` requires the Workflows capability in addition to ordinary contents-write authority.
 - Never blindly retry destructive/non-idempotent writes after an uncertain result; reconcile remote state first.
-- P3.3 establishes the concrete repository-admin precedent: select the least-privileged credential context per operation, persist confirmation, refresh preconditions, issue the write once, reconcile uncertainty, then audit.
+- P3.3/P4.1 establish the concrete write precedent: select least-privileged credential context, persist intent/confirmation, refresh preconditions, issue the write once, reconcile uncertainty, then audit.
 
 ## Webhook strategy
 
@@ -226,6 +257,7 @@ These warnings do not fail tests, but must remain recorded maintenance debt.
 - Home/start must invalidate transient input flows where continuing them would surprise the user.
 - High-impact operations require persisted explicit confirmation; repository deletion additionally requires exact current repository name.
 - After a write preview exists, Back/Edit/Cancel must invalidate pending confirmation rather than merely hide the screen.
+- P4.1 file paths are never transported directly in callback data; resolve short session/index/token context server-side.
 - Sensitive local account disconnect also uses persisted explicit confirmation even though it changes GitDock-local state rather than deleting a GitHub repository.
 - Long logs/files use pagination or document delivery.
 
@@ -236,11 +268,12 @@ These warnings do not fail tests, but must remain recorded maintenance debt.
 - Clone/setup/run generates commands and never silently executes repository-controlled instructions.
 - No normal v1 force-push UI.
 - High-impact multi-step operations must not depend only on volatile in-memory FSM state.
-- Audit GitHub writes without secret material.
+- Audit GitHub writes without secret material or staged file bodies.
 - GitHub remains source of truth for GitHub resources.
 - Do not turn pagination/download helpers into arbitrary outbound URL fetchers.
 - A stale Telegram callback must fail closed when server-side authorization/preconditions have changed.
 - An uncertain GitHub write must remain uncertain unless remote reconciliation proves final state.
+- Staged file content is operationally sensitive even though it is temporary; DB access/backups must be treated accordingly.
 
 ## Development governance memory
 
@@ -252,25 +285,19 @@ These warnings do not fail tests, but must remain recorded maintenance debt.
 - `CHANGELOG.md`
 - affected architecture/security/constants/decision/test/UX docs.
 
-P3.3 feature delivery is merged and post-merge verified. This `docs/p3-3-closeout` branch records the final governance facts. After this closeout PR itself is green, squash-merged, and post-closeout `main` CI is green, do not reopen P3.3 implementation work unless a real regression is found.
+P4.1 implementation is green but merge/governance is still pending. Do not mark it ✅ merely from branch implementation CI. The exact current governance chain is synchronized docs → documentation-head CI → non-draft PR CI → unchanged-head squash merge → post-feature `main` CI → docs-only closeout PR → post-closeout `main` CI.
 
 ## Next milestone / handoff
 
-After P3.3 governance closeout merges, the exact next implementation item is **P4.1 — File browser**.
+Current exact task is **finish the P4.1 governance chain**. Only after final P4.1 closeout becomes green does **P4.2 — Branch/commit tools** become the exact implementation item.
 
-P4.1 scope starts with:
+P4.2 planned scope:
 
-- repository directory navigation;
-- text preview/pagination;
-- binary/large-file metadata fallback;
-- branch/ref selection;
-- create file;
-- update/replace file;
-- delete file;
-- stale SHA protection;
-- special permission handling for `.github/workflows/*`.
-
-P4.1 must preserve the existing write-safety precedent: current remote state is authoritative, writes use explicit preview/confirmation where risk requires it, stale SHA/preconditions fail closed, and workflow-file writes require the correct Workflows capability.
+- list/search branches;
+- create branch;
+- recent commits;
+- commit detail/diff summary;
+- compare refs.
 
 ## Do not forget later
 
