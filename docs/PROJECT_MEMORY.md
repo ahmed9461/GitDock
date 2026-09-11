@@ -26,26 +26,57 @@ Last updated: 2026-09-12
 
 ## Verified phase history
 
-- P0 planning/governance ✅
-- P1 foundation/quality gates ✅
-- P2 GitHub App/auth/read core ✅
-- P3 search + repository administration ✅
-- P4 file browser + Git tools + clone/setup/run command generation ✅
+### P1 — foundation ✅
 
-P4 final verified baseline: **182 tests**, mypy **100 source files**, all Python 3.12/3.13 quality/security/migration gates green.
+- Async app skeleton, owner middleware, persistence/migrations, CI/security/reproducibility foundation.
+- Durable invariant: create a fresh aiogram Router for each Dispatcher; never reuse a module-global Router across Dispatcher instances.
 
-## Durable pre-P5 invariants
+### P2 — GitHub App/read core ✅
 
-- GitHub App is primary auth; OAuth + PKCE S256 supplies durable authenticated user context where required.
-- Raw OAuth state is not persisted; sensitive durable credentials are encrypted with versioned keys.
-- Installation identity is trusted only after App/user identity agreement and suspension/conflict checks.
-- `GitHubRestClient` centralizes API version/User-Agent/host validation/safe retries/errors; write-like calls are not blindly retried.
-- `repositories_cache` is navigation state only, never authority.
-- `pending_confirmations` is DB-backed one-time authority for sensitive workflows.
-- Repository admin, file writes, and branch creation revalidate current remote state before writes and reconcile uncertain outcomes instead of replaying blindly.
-- `file_write_sessions` provides restart-safe single-file staging; staged bytes are scrubbed through lifecycle and never enter audit logs.
-- Clone/setup/run generates commands only; it never executes repository instructions automatically.
-- Repository/README/script text is untrusted input.
+- GitHub App is primary auth; RS256 App JWT and short-lived installation tokens.
+- OAuth + PKCE S256 provides durable authenticated user context when needed.
+- Raw OAuth state is not persisted; PKCE verifier/user credentials are encrypted with versioned keys.
+- Installation identity is trusted only after App and authenticated-user identities agree and suspension/conflict checks pass.
+- `GitHubRestClient` is the canonical REST transport with centralized headers/version/User-Agent, canonical HTTPS target checks, safe errors, bounded GET/HEAD retries, and no blind write retries.
+- `repositories_cache` is navigation/context state only, never authorization or source of truth.
+
+### P3 — search and repository administration ✅
+
+- Public search works without installation and is isolated from installed authorization/cache state.
+- Opaque active search sessions bind pagination/detail context; stale sessions fail closed.
+- Durable user OAuth credentials are encrypted, refresh-aware, and guarded by `credential_generation` against stale concurrency.
+- `pending_confirmations` is the general DB-backed one-time confirmation store.
+- Local disconnect removes GitDock-local state only and does not claim remote App uninstall.
+- Repository administration uses operation-specific credentials, refreshed preconditions, reconciliation, cache synchronization, and safe audit metadata.
+
+### P4.1 — file browser + stale-safe single-file writes ✅
+
+- `file_write_sessions` is restart-safe one-file staging.
+- Temporary staged create/update bytes are bounded and scrubbed on consume/cancel/supersede/expiry/prune.
+- Create requires target absence; update/delete require exact file SHA; branch HEAD must match staged snapshot.
+- `.github/workflows/*` additionally requires `workflows: write`.
+- File bodies never enter audit logs.
+- Verified baseline: **148 tests**, mypy **87 source files**.
+
+### P4.2 — branch/commit tools ✅
+
+- Branch creation is Tier 1 with persisted preview, exact base SHA/target absence revalidation, repository-scoped `contents: write`, one create-ref request, reconciliation, and audit.
+- No normal v1 force-push, force branch update, or branch-delete UI.
+- Verified baseline: **165 tests**, mypy **94 source files**.
+
+### P4.3 — clone/setup/run assistant ✅
+
+- Command generation only: GitDock never executes shell commands.
+- Fresh clone and update-existing clone are separated from setup/run suggestions.
+- Targets: Windows PowerShell, Linux, macOS.
+- Evidence-driven baseline detection: Python, Node.js, Docker, Gradle, Maven.
+- Public repositories use unauthenticated read-only Contents access; installed/private repositories reuse installation read context.
+- README/script content is untrusted; Node script bodies are not copied; generated commands are credential-free.
+- Verified baseline: **182 tests**, mypy **100 source files**; all quality/security/migration gates green.
+
+## P4 overall status ✅
+
+P4 repository files, Git tools, and clone/setup/run command generation are delivered and post-merge/governance verified. Do not reopen P4 unless a real regression is found.
 
 ## P5 — Webhooks & notification engine
 
@@ -57,7 +88,7 @@ Implementation head `e55c6e99001bb657ed2064459e92caca1f2e3481`, push CI `3465256
 - Ruff format/lint green on **176 files**;
 - mypy clean on **104 source files**;
 - compile, audit, secret scan, PEP 751 locks, and PostgreSQL 17 migration round-trip green;
-- migration chain now includes `0007_github_webhook_inbox`.
+- migration file `0007_github_webhook_deliveries.py`, Alembic revision `0007_webhook_inbox`.
 
 Durable P5.1 facts:
 
@@ -66,7 +97,7 @@ Durable P5.1 facts:
 - Signature verification uses HMAC-SHA256 over the **exact raw HTTP body** and constant-time digest comparison.
 - Signature verification happens before event metadata is trusted; missing/malformed/forged signatures fail closed.
 - `X-GitHub-Delivery` and `X-GitHub-Event` are bounded/validated after authentication.
-- Webhook payload acceptance is bounded to **25 MiB**.
+- Webhook payload acceptance is bounded to exactly **25,000,000 bytes** by `GITHUB_WEBHOOK_MAX_BODY_BYTES`.
 - Successful HTTP acknowledgement occurs only after durable persistence.
 - `github_webhook_deliveries.delivery_id` is unique and is the durable idempotency key.
 - Exact duplicate ID/event/body is idempotent; no second inbox row/work item is created.
@@ -110,13 +141,33 @@ P5.1 direct regression coverage includes valid/changed-body/forged signatures, s
 - AnyIO deprecated `anyio.abc.BlockingPortal` alias through Starlette tests.
 - Alembic warning because `alembic.ini` lacks explicit `path_separator` for `prepend_sys_path`.
 
+## GitHub write strategy
+
+- One-file writes: durable staging + branch/file SHA protection + one scoped write + reconciliation + audit.
+- Branch create: target/base preview + persisted confirmation + revalidation + scoped write + one create-ref request + reconciliation + audit.
+- Repository administration: operation-specific credentials + persisted confirmation + refreshed preconditions + one write + reconciliation + audit.
+- Multi-file/ZIP sync remains a future coherent batch commit, review branch by default.
+- Never blindly replay uncertain/destructive writes.
+- No normal v1 force-push UI.
+
+## Telegram UX memory
+
+- Telegram is a control panel, not a command console by default.
+- Prefer editing current navigation message where practical.
+- Use compact inline keyboards and consistent Home/Cancel/Back.
+- Long paths and sensitive authority do not belong in callback data.
+- Home/start invalidates transient flows where continuing would surprise the user.
+- Back/Edit/Cancel after sensitive preview invalidates staged/pending authority.
+
 ## Safety memory
 
 - Never expose/commit tokens, keys, client/webhook secrets, OAuth code/state, PKCE verifiers, encryption keys, auth headers, or raw auth response bodies.
 - Do not implement arbitrary shell execution as normal bot capability.
+- Repository/README/script text is untrusted input.
 - No normal v1 force-push/force-update UI.
 - High-impact multi-step operations must not depend only on volatile FSM state.
 - Audit GitHub writes without secret/file-body material.
+- GitHub remains source of truth.
 - Stale callbacks/preconditions fail closed.
 - Uncertain writes remain uncertain unless reconciliation proves final state.
 - Webhook verification must use raw bytes and constant-time cryptographic comparison.
