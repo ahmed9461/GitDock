@@ -1,16 +1,15 @@
 # GitDock — Architecture Specification
 
-Status: verified architecture through P4.2 branch/commit implementation; P4.2 governance/merge chain in progress.
+Status: verified architecture through P5.1 implementation; P5.1 delivery closeout pending.
 
 ## 1. Architectural goals
 
-- Clear separation between Telegram UI, GitHub transport/auth, domain rules, persistence, and background processing.
-- Restart-safe handling for important multi-step operations, confirmations, staged writes, and future webhook work.
-- Testability without real Telegram/GitHub network calls in normal CI.
-- Least-privilege authentication.
-- Owner-only v1 deployment with multi-user-ready service/persistence boundaries.
-- No hidden coupling between button callbacks and raw GitHub API calls.
-- GitHub remains authoritative for GitHub resources; local state exists only for identity/auth, navigation/cache, preferences, audit, confirmation/operation staging, and durable work where justified.
+- Separate Telegram UI, HTTP ingress, GitHub transport/auth, domain rules, persistence, and background work.
+- Make important confirmations, staged writes, and accepted webhook work restart-safe.
+- Keep normal CI independent of real Telegram/GitHub network calls.
+- Use least-privilege authentication and repository-scoped authority.
+- GitHub remains authoritative for GitHub resources; local persistence exists for identity/auth, navigation/cache, preferences, audit, confirmation/staging, and durable work queues.
+- Do not introduce parallel HTTP/persistence stacks when an existing boundary already fits the feature.
 
 ## 2. High-level topology
 
@@ -26,104 +25,83 @@ Telegram Client
 | - health/readiness     |
 +-----------+------------+
             |
-     +------+------+
-     |             |
-     v             v
-aiogram UI     Webhook verifier
-     |             |
-     v             v
-Application      event_inbox DB
-Services            |
-     |               v
-     |          Event Worker
-     |               |
-     +-------+-------+
-             |
-             v
-       GitHub Gateway
-     REST/Auth clients
-             |
-             v
-           GitHub
+     +------+---------------------+
+     |                            |
+     v                            v
+aiogram UI               raw GitHub webhook verifier
+     |                            |
+     v                            v
+Application Services       durable webhook inbox
+     |                            |
+     |                            v
+     |                     future event worker
+     |                            |
+     +-------------+--------------+
+                   |
+                   v
+             GitHub Gateway
+              REST/Auth
+                   |
+                   v
+                 GitHub
 
 Shared persistence: PostgreSQL + Alembic
 ```
 
 ## 3. Runtime modes
 
-### Development
+### Development/test
 
 - Telegram long polling allowed.
-- GitHub webhook testing may use secure tunnel/replay fixtures.
+- GitHub webhook testing may use local TestClient/replay fixtures/secure tunnel as needed.
 - SQLite may be used for portable tests/development.
 
 ### Production
 
 - FastAPI serves Telegram webhook, GitHub webhook, setup/OAuth callbacks, health/readiness.
 - PostgreSQL required.
-- Deployment remains suitable for systemd.
-- HTTPS terminates at a trusted reverse proxy/application deployment layer.
-- Future event worker may initially share deployment but remains a distinct DB-backed component.
+- HTTPS terminates at a trusted reverse proxy/application layer.
+- Event workers may share deployment initially but consume DB-backed work rather than depending on in-process request memory.
 
-## 4. Source layout through P4.2
+## 4. Source layout through P5.1
 
 ```text
 gitdock/
 ├── app.py
 ├── core/
+│   ├── config.py
+│   └── constants.py
 ├── http/routes/
+│   ├── github.py
+│   ├── github_webhook.py
+│   ├── health.py
+│   └── telegram.py
 ├── telegram/
-│   ├── bot.py
-│   ├── callbacks.py
-│   ├── file_callbacks.py
-│   ├── git_callbacks.py
-│   ├── routers/
-│   │   ├── repositories.py
-│   │   ├── repository_admin.py
-│   │   ├── files.py
-│   │   └── git_tools.py
-│   ├── keyboards/
-│   │   ├── repositories.py
-│   │   ├── repository_admin.py
-│   │   ├── files.py
-│   │   └── git_tools.py
-│   ├── renderers/
-│   │   ├── repository_admin.py
-│   │   ├── files.py
-│   │   └── git_tools.py
-│   ├── states/
-│   │   ├── repository_admin.py
-│   │   ├── files.py
-│   │   └── git_tools.py
-│   └── middleware/
 ├── github/
 │   ├── auth*.py
 │   ├── client.py
 │   ├── contents.py
-│   ├── credentials.py
-│   ├── errors.py
-│   ├── pagination.py
-│   ├── permissions.py
+│   ├── git_tools.py
 │   ├── repositories.py
 │   ├── repository_admin.py
-│   ├── git_tools.py
-│   └── token_provider.py
+│   ├── search.py
+│   ├── token_provider.py
+│   └── webhooks.py
 ├── domain/
-│   └── files.py
 ├── services/
 │   ├── confirmations.py
-│   ├── identity.py
-│   ├── repositories.py
-│   ├── repository_admin*.py
 │   ├── file_*.py
 │   ├── git_tools.py
+│   ├── repositories.py
+│   ├── repository_admin*.py
+│   ├── run_assistant.py
 │   ├── runtime.py
-│   └── user_authorization.py
+│   └── webhooks.py
 ├── db/
 │   ├── migrations/versions/
-│   │   ├── 0005_audit_log.py
-│   │   └── 0006_file_write_sessions.py
+│   │   └── 0007_github_webhook_inbox.py
 │   └── models/
+│       └── webhook.py
 └── workers/
 
 tests/
@@ -137,247 +115,170 @@ Exact filenames may evolve; layer boundaries are intentional.
 
 ## 5. Layer responsibilities
 
-### Telegram layer
+### HTTP / Telegram transport
 
-Receives updates, renders Arabic screens, builds keyboards, collects input, and maps user actions to application services.
+HTTP routes and Telegram routers collect transport input, enforce ingress-specific validation, call services, and render bounded output. They do not own durable authority/workflow logic or raw DB queries.
 
-It must not:
-
-- issue raw GitHub HTTP;
-- contain raw DB queries;
-- construct OAuth/token flows;
-- infer write authority from callback possession;
-- own durable confirmation/staging/risk rules.
-
-P3.3 administration, P4.1 files, and P4.2 Git tools follow the same split: callbacks/keyboards/renderers/FSM/routers are presentation/transport; services own authority, revalidation, credential selection, reconciliation, and audit.
+For P5.1, `github_webhook.py` owns only the HTTP boundary: bounded raw-body read, signature gate ordering, bounded header extraction, service call, and safe status response.
 
 ### Application services
 
-Verified service boundaries include:
+Services own durable workflow/business state. Verified boundaries include repository reads/search/admin, durable GitHub user authorization, confirmations, file staging/writes, Git tools, run assistant, and `GitHubWebhookIngestionService`.
 
-- owner identity resolution;
-- `RepositoryReadService` for installed repository navigation/cache sync;
-- public search service;
-- `GitHubUserAuthorizationService` for durable user auth/refresh/local disconnect;
-- `ConfirmationService` for restart-safe one-time confirmations;
-- `RepositoryAdminService` plus reconciliation helpers;
-- P4.1 file browser/read/write/store/audit helpers;
-- `GitToolsService` for P4.2 branch/commit reads and branch-create orchestration;
-- runtime composition wiring clients/providers/services/gateways/DB factories once.
+P5.1 service responsibilities:
 
-### Domain layer
+- durable insert/idempotency/conflict semantics;
+- worker claim state;
+- attempt/retry processing state;
+- processing lease recovery;
+- completion/failure transitions;
+- retention pruning;
+- DB-dialect timestamp normalization.
 
-Pure rules belong here or in narrow pure helpers: risk classification, path/ref/branch validation, text/binary classification, diff/hash planning, future sync planning, state transitions, event normalization, and confirmation requirements.
+### Domain / pure helpers
 
-### GitHub transport/auth boundaries
+Pure validation/inference belongs in domain or narrow helper modules. `gitdock.github.webhooks` contains side-effect-free signature/metadata validation so it is directly testable.
 
-`GitHubRestClient` is the canonical ordinary REST transport. Authentication-specific App/OAuth endpoints remain behind auth clients.
+### GitHub transport/auth
 
-Verified transport invariants:
+`GitHubRestClient` remains the canonical ordinary REST transport. P5.1 webhook verification is inbound cryptographic validation and does not create a second outbound HTTP client.
 
-- centralized GitHub headers/API version/User-Agent;
-- `SecretStr` materialized only at outbound boundary;
-- canonical HTTPS `api.github.com` absolute targets only;
-- hostile pagination target rejection and loop/page guards;
-- redirects not automatically followed;
-- stable safe error categories without raw-body echo;
-- typed rate-limit metadata;
-- bounded GET/HEAD retry;
-- write-like methods no retry by default.
+## 6. Authentication/capability contexts
 
-Feature gateways on this transport include:
-
-- repository read/search;
-- P3.3 repository administration;
-- P4.1 `GitHubContentsGateway`;
-- P4.2 `GitHubGitToolsGateway` for branches, commits, compare, and create-ref.
-
-No feature creates a parallel raw HTTP stack.
-
-## 6. Authentication and capability contexts
-
-### Telegram owner authentication
-
-`GITDOCK_TELEGRAM_OWNER_ID` is the v1 ingress allowlist. Middleware rejects/ignores unauthorized users before sensitive routing.
-
-### GitHub App installation binding
-
-Setup `installation_id` is untrusted candidate data. Binding occurs only after App-context and authenticated-user-context identity match and suspension/conflict checks pass.
-
-### Durable GitHub user authorization — P3.2
-
-OAuth state + PKCE S256, authenticated `GET /user`, encrypted versioned credential storage, expiry metadata, and `credential_generation` remain authoritative. Refresh writes only if current durable generation/account/preconditions still match.
-
-### Repository administration — P3.3
-
-- personal/org create: durable GitHub user OAuth context;
-- repository update/delete: repository-scoped installation token with `administration: write`.
-
-### File browser/write — P4.1
-
-- repository browsing/file reads: repository-scoped installation context with contents read;
-- ordinary one-file writes: repository-scoped installation token with `contents: write`;
-- `.github/workflows/*` writes additionally require `workflows: write`.
-
-### Branch/commit tools — P4.2
-
-- reads resolve the current installed repository through the established repository/file context resolver and canonical REST gateway;
-- branch creation obtains `contents: write` only after persisted confirmation is consumed and current base/target preconditions are revalidated;
-- write token is scoped to the selected GitHub repository ID;
-- cache/callback presence never grants branch-write authority.
+- Telegram owner ID is the v1 UI allowlist.
+- GitHub App installation identity is bound only after App/user identity checks.
+- OAuth + PKCE provides durable user context when required.
+- Repository writes request operation-specific scoped permission only after confirmation/precondition checks.
+- P5.1 inbound webhook authenticity is independent of repository API token authority: it uses the configured GitHub webhook secret against the exact request bytes.
 
 ## 7. Persistence model
 
-Core persisted concepts:
+Persisted concepts now include:
 
-- GitDock users/Telegram identities;
-- GitHub accounts/installations and encrypted durable user credentials;
-- durable OAuth state;
-- minimal `repositories_cache`;
-- `pending_confirmations`;
-- append-oriented `audit_log`;
-- P4.1 `file_write_sessions`;
-- future webhook/event and batch-operation state.
+- users/Telegram identities;
+- GitHub accounts/installations/encrypted durable credentials;
+- OAuth state;
+- repository cache;
+- pending confirmations;
+- audit log;
+- file-write staging;
+- **GitHub webhook delivery inbox**.
 
-P4.2 introduces **no new migration**. Branch creation reuses `pending_confirmations` plus `audit_log`; ordinary branch/commit read state stays transient/server-side.
+P5.1 migration `0007_github_webhook_inbox` introduces `github_webhook_deliveries` with unique delivery identity, payload digest/size/raw bytes, processing/retry state, and retention timestamps.
 
-GitHub remains source of truth for repository resources.
+GitHub remains source of truth for repository resources. The webhook inbox is source of truth only for GitDock's accepted-delivery processing lifecycle.
 
-## 8. Confirmation/staging architecture
+## 8. Existing write/confirmation architecture
 
-A Telegram callback is transport, not durable authorization.
+A Telegram callback is transport, not durable authorization. Repository administration, one-file writes, and branch creation persist reviewed authority/preconditions, revalidate current GitHub state, issue at most the intended write, reconcile ambiguity, and audit safe metadata.
 
-### P3.2 local disconnect
+No normal v1 force-push/force branch-update UI exists.
 
-Persist one-time confirmation bound to current account/generation/installation set. Home/Cancel/Confirm consumes authority. Stale state removes nothing.
+## 9. P5.1 webhook ingestion lifecycle
 
-### P3.3 repository administration
+1. FastAPI receives `POST /github/webhook`.
+2. If webhook secret is not configured, endpoint is unavailable rather than accepting unverifiable work.
+3. Body is consumed as raw bytes with a 25 MiB ceiling; over-limit input is rejected before persistence.
+4. `X-Hub-Signature-256` is verified using HMAC-SHA256 over those exact raw bytes with constant-time comparison.
+5. Only after successful authentication are `X-GitHub-Delivery` and `X-GitHub-Event` treated as trusted transport metadata and syntax/length validated.
+6. Service hashes the raw body and checks durable delivery identity.
+7. Exact duplicate ID/event/body returns duplicate without creating new work.
+8. Same delivery ID with different content raises explicit conflict.
+9. New delivery is committed to `github_webhook_deliveries` as `pending` before HTTP 202 is returned.
+10. Request path ends; event-specific parsing/notification does not run in the HTTP acknowledgement path.
 
-Persist user/operation-bound, expiring, single-use, target-fingerprinted confirmation. Update/delete refresh remote state before mutation; delete additionally requires exact current `owner/name`.
+This keeps acknowledgement bounded and ensures accepted work survives process restart.
 
-### P4.1 one-file writes
+## 10. P5.1 worker-state lifecycle
 
-Validate → read current branch/file → stage reviewed intent → persisted confirmation → consume once → re-resolve/revalidate → scoped token → single Contents API write → reconcile uncertainty → audit/scrub content.
+`pending -> processing -> processed`
 
-### P4.2 branch creation
+or
 
-1. resolve current installed repository context;
-2. validate target branch and base ref;
-3. resolve base ref to a concrete current commit SHA;
-4. verify target branch does not currently exist;
-5. persist a Tier 1 confirmation whose fingerprint binds repository ID + target branch + base ref + base SHA;
-6. render explicit preview showing repository, target branch, base ref, and base SHA;
-7. on confirm, atomically consume the one-time authority;
-8. re-resolve repository context;
-9. re-resolve the base ref and require exact staged base SHA;
-10. re-check target branch absence;
-11. obtain repository-scoped `contents: write` token;
-12. issue one GitHub create-ref POST;
-13. if outcome may be uncertain, re-read target branch instead of replaying POST;
-14. exact target SHA may prove applied; otherwise retain explicit `UNCERTAIN`;
-15. audit safe result metadata.
+`pending -> processing -> failed -> processing ... -> processed`
 
-Duplicate target, missing base, stale base, cancelled/reused/invalid confirmation all produce no new GitHub write.
+Rules:
 
-## 9. P4.2 read lifecycle
+- claiming increments `attempt_count`;
+- claim records `processing_started_at`;
+- `failed` work has `next_attempt_at` and bounded `last_error_code`;
+- stale `processing` rows older than the processing lease become claimable again after a worker crash/restart;
+- processed rows keep raw payload only through a bounded retention window and can then be pruned;
+- no notification is emitted by P5.1 itself.
 
-### Branches
+PostgreSQL workers use row locking with skip-locked semantics to avoid normal concurrent double claims. SQLite remains portable test/dev storage and is not the production concurrency target.
 
-1. resolve current installed repository context;
-2. fetch branch pages through `GitHubGitToolsGateway`;
-3. optionally filter fetched names case-insensitively;
-4. render names/protection/SHA summary in Arabic UI;
-5. keep repository/session authority server-side; compact callback only carries navigation context.
+## 11. P5.2/P5.3 boundary
 
-### Commits
-
-1. select default branch or validated explicit branch/tag/SHA ref;
-2. fetch recent commits through typed gateway;
-3. store short commit SHA list only as transient FSM navigation context;
-4. commit detail re-fetches requested SHA/ref from GitHub;
-5. canonical GitHub commit URL is validated before rendering a link.
-
-### Compare
-
-Base/head refs are validated and percent-encoded as path components before the canonical REST request. Telegram output presents status, ahead/behind, commit count, returned file count, and at most ten file rows to keep the message bounded.
-
-## 10. P4.1 read/write lifecycle
-
-P4.1 remains unchanged: directory/file reads resolve current repository + validated path/ref through Contents gateway. One-file writes bind branch-head/file SHA and reviewed content digests in restart-safe staging before any write.
-
-## 11. GitHub write strategy
-
-- P3.3 repository administration: persisted confirmation + operation-specific credentials + refreshed remote preconditions + one write + reconciliation + audit.
-- P4.1 one-file writes: Contents API + durable staging + branch/file SHA protection + one write + reconciliation + audit.
-- P4.2 branch create: explicit target/base + persisted confirmation + exact base SHA/target absence revalidation + repository-scoped `contents: write` + one create-ref request + reconciliation + audit.
-- P8 multi-file/ZIP synchronization: future coherent reviewable tree/commit operation, normally on review branch + optional PR.
-- Direct default-branch mass replacement is not default.
-- No normal v1 force-push/branch force-update UI.
-
-## 12. Webhook ingestion pipeline
-
-Future P5 pipeline remains: raw bytes → HMAC verification → delivery/event validation → idempotent durable insert → quick ACK → worker normalization/enrichment/preferences → Telegram render → processed/retry state. Duplicate delivery IDs never create duplicate notifications.
-
-## 13. Clone/setup/run inference
-
-P4.3 must generate commands only. It must not execute repository instructions automatically. Detect project metadata, construct commands from trusted templates, quote per OS, and label confidence/source. README/script content is untrusted text.
-
-## 14. Error model / retry semantics
-
-Transport categories include authentication, missing permission, not found/inaccessible, conflict/precondition, validation, rate limited, transient, and unexpected shape/GitHub failure.
-
-Higher layers add domain states:
-
-- repository administration: applied/stale/invalid/uncertain;
-- P4.1 files: applied/stale/invalid/uncertain;
-- P4.2 branch create: `APPLIED`, `INVALID`, `STALE`, `EXISTS`, `UNCERTAIN`.
-
-GET/HEAD may bounded-retry transient failures. Write-like calls are issued once unless higher-level semantics have independently proven replay safety; P3.3/P4.1/P4.2 reconcile uncertain outcomes instead of blindly retrying.
-
-## 15. Observability/audit
-
-Safe correlation may include Telegram update/user ID, GitHub request/delivery ID, operation ID, repository ID/full name, branch/ref/path, commit SHA, and status. Structured logging redacts credentials/auth headers/OAuth/PKCE/private keys and avoids raw upstream auth/error bodies.
-
-P4.2 branch-create audit may include operation, repository, target branch, base ref, base SHA, risk tier, request ID, and status. It never contains token material.
-
-## 16. Dependency direction
+Future pipeline after P5.1:
 
 ```text
-telegram -> services -> domain
-                    -> github gateway/auth
-                    -> persistence
-http setup/oauth -> connection/auth services -> github auth/binding
-webhook ingress -> domain normalization -> services/notification
+durable authenticated delivery
+  -> P5.2 event normalization
+  -> repository/event preference evaluation
+  -> P5.3 Telegram rendering/delivery
+  -> processed/retry state
 ```
 
-Domain must not import Telegram or concrete HTTP clients. Endpoint-specific feature gateways use canonical transport rather than bypass it.
+Event-specific normalization must consume the persisted authenticated raw payload, not re-trust arbitrary external input. Duplicate delivery identity must never create duplicate downstream work.
 
-## 17. Verified progression
+## 12. Clone/setup/run inference
 
-- P2.2: 49-test transport foundation.
-- P2.3: 65-test repository-read implementation.
-- P3.1: 83-test public-search implementation.
-- P3.2: 97-test durable user-authorization implementation.
-- P3.3: 117-test repository-administration implementation.
-- P4.1: 148 tests, mypy 87 source files, all gates green through final feature delivery.
-- P4.2 implementation head `5a4f7aa4eb557e69665a7311f32c8060e38b1518`: CI `34647181024` green with **165 tests** on Python 3.12/3.13, mypy clean on **94 source files**, format/lint/compile/audit/secrets/PEP 751 locks green, and PostgreSQL 17 migration round-trip through `0006_file_write_sessions` green.
+P4.3 remains command generation only. Repository/README/script content is untrusted and never automatically executed. Evidence collection is bounded and output is credential-free.
 
-P4.2 remains in governance closeout until documentation-head CI, non-draft PR CI, protected merge, post-feature `main` CI, and final handoff are complete.
+## 13. Error/retry model
 
-## 18. Known non-blocking maintenance warnings
+Outbound GitHub GET/HEAD may bounded-retry known transient failures; write-like calls are not blindly replayed.
+
+P5.1 inbound errors are intentionally simple:
+
+- unavailable config → 503;
+- body too large → 413;
+- signature failure → 403;
+- authenticated invalid metadata → 400;
+- delivery identity/content conflict → 409;
+- accepted or exact duplicate → 202.
+
+Downstream processing retries are represented durably in the inbox rather than by keeping the HTTP request open.
+
+## 14. Observability/audit
+
+Safe correlation may include Telegram user/update IDs, GitHub request/delivery IDs, repository IDs/names, branch/ref/path/SHA, operation state, and webhook event name/status.
+
+Never log credentials, auth headers, webhook secret/signature values, OAuth/PKCE/private-key material, or unbounded raw private webhook payloads.
+
+## 15. Dependency direction
+
+```text
+telegram -> services -> domain/github/persistence
+http setup/oauth -> connection/auth services -> github auth/binding
+http github webhook -> signature helper -> webhook service -> persistence
+future worker -> webhook service/persistence -> normalization -> notification
+```
+
+Domain/pure helpers do not import Telegram or concrete DB/network clients.
+
+## 16. Verified progression
+
+- P3.3: 117 tests.
+- P4.1: 148 tests; mypy 87 source files.
+- P4.2: 165 tests; mypy 94 source files.
+- P4.3: 182 tests; mypy 100 source files.
+- P5.1 implementation head `e55c6e99001bb657ed2064459e92caca1f2e3481`, CI `34652564335`: **213 tests**, mypy **104 source files**, Ruff **176 files**, compile/audit/secrets/PEP 751/PostgreSQL round-trip all green through `0007_github_webhook_inbox`.
+
+P5.1 is not formally complete until documentation-head CI, non-draft PR CI, protected squash merge, post-feature `main` CI, and governance closeout complete.
+
+## 17. Known non-blocking maintenance warnings
 
 - Starlette/FastAPI `TestClient` deprecation toward future httpx2 integration.
 - AnyIO deprecated `anyio.abc.BlockingPortal` alias through Starlette tests.
 - Alembic warning because `alembic.ini` lacks explicit `path_separator` for `prepend_sys_path`.
 
-## 19. Source references for security/auth assumptions
+## 18. Source references for security/auth assumptions
 
+- GitHub webhook validation: https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries
+- GitHub webhook events/payloads: https://docs.github.com/en/webhooks/webhook-events-and-payloads
 - GitHub App permissions: https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app
 - Installation authentication: https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation
-- Webhook validation: https://docs.github.com/en/webhooks/using-webhooks/validating-webhook-deliveries
 - Repository contents: https://docs.github.com/en/rest/repos/contents
-- Branches: https://docs.github.com/en/rest/branches/branches
-- Commits: https://docs.github.com/en/rest/commits/commits
 - Git refs: https://docs.github.com/en/rest/git/refs
-- Compare: https://docs.github.com/en/rest/commits/commits#compare-two-commits
-- Actions workflows: https://docs.github.com/en/rest/actions/workflows
