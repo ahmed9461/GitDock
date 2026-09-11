@@ -265,17 +265,47 @@ Acceptance:
 
 ## P4 — Repository contents, Git tools & run-command assistant
 
-### P4.1 File browser
+### P4.1 File browser — implementation verified; merge/governance pending
 
-- [ ] directory navigation.
-- [ ] text preview/pagination.
-- [ ] binary/large-file metadata flow.
-- [ ] branch/ref selection.
-- [ ] create file.
-- [ ] update/replace file.
-- [ ] delete file.
-- [ ] stale SHA protection.
-- [ ] workflow-file special permission handling.
+Implementation verification:
+
+- final implementation head `614f013b35644fcdd05e880c9a37ff30fd503fdf` — CI `34639736010` green;
+- Python 3.12/3.13: Ruff format/lint, mypy (**87 source files**), **148 tests**, compile, audit, secret scan, and PEP 751 lock verification green;
+- PostgreSQL 17 migration upgrade/downgrade/re-upgrade through `0006_file_write_sessions` green.
+
+Implementation items:
+
+- [x] directory navigation and pagination.
+- [x] text preview/pagination.
+- [x] binary/large-file metadata fallback.
+- [x] branch/ref selection.
+- [x] create text file and upload document.
+- [x] update/edit and replace file.
+- [x] download bounded file content.
+- [x] delete file.
+- [x] diff/preview before write execution.
+- [x] durable staged write + persisted confirmation state.
+- [x] stale branch-head/current-file-SHA protection.
+- [x] same user/repository/branch/path staging supersedes older pending write authority.
+- [x] workflow-file special permission handling through `workflows: write`.
+- [x] normal writes use repository-scoped `contents: write`; reads use `contents: read`.
+- [x] uncertain write outcomes reconcile GitHub state; no blind write retry.
+- [x] safe audit metadata excludes file bodies and credentials.
+- [x] short session/index/token callbacks keep repository paths out of Telegram callback data.
+- [x] temporary staged file content is scrubbed on consume/cancel/supersede/expiry/prune.
+- [x] direct same-path staging supersession regression coverage.
+- [x] current PEP 751 locks refreshed and byte-for-byte verified after cache-disabled CI exposed transitive drift.
+
+Governance items:
+
+- [~] synchronize control docs and verify documentation-head CI.
+- [ ] open non-draft feature PR to `main`.
+- [ ] require green PR CI and unchanged mergeable head.
+- [ ] squash merge with expected-head protection.
+- [ ] require post-feature `main` CI green.
+- [ ] docs-only governance closeout PR + post-closeout `main` CI.
+
+P4.1 does not become phase-complete ✅ until all governance items above pass.
 
 ### P4.2 Branch/commit tools
 
@@ -298,9 +328,10 @@ Acceptance:
 
 Acceptance:
 
-- owner can browse and safely update files without blind overwrite;
-- repository-controlled README text is never automatically executed;
-- generated commands are clearly separated into clone/update/setup/run.
+- [x] owner can browse and safely update one file at a time without blind overwrite at P4.1 implementation level;
+- [x] repository-controlled file/README text is displayed only and never automatically executed by P4.1;
+- [ ] P4.1 governance chain complete;
+- [ ] generated commands are clearly separated into clone/update/setup/run when P4.3 is implemented.
 
 ---
 

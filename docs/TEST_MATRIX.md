@@ -1,18 +1,18 @@
 # GitDock — Test Matrix
 
-Status: authoritative quality expectations, updated through P3.3 implementation verification.
+Status: authoritative quality expectations, updated through P4.1 implementation verification.
 
-P3.3 implementation reference: branch head before documentation synchronization `4e71d7f1c962e61584d6532d03c913703dc5295a`, GitHub Actions run `33890407945` fully green on Python 3.12, Python 3.13, and PostgreSQL 17. The suite contains **117 tests**. Checkmarks indicate direct current coverage, not merely intended behavior.
+P4.1 implementation reference: final implementation head before documentation synchronization `614f013b35644fcdd05e880c9a37ff30fd503fdf`, GitHub Actions run `34639736010` fully green on Python 3.12, Python 3.13, and PostgreSQL 17. The suite contains **148 tests** and mypy verifies **87 source files**. Checkmarks indicate direct current coverage, not merely intended behavior.
 
 ## 1. Test layers
 
 ### Unit
 
-Fast tests for domain rules, risk/confirmation rules, callback encoding/decoding, renderers/keyboards, input/path validation, permission mapping, safe error translation, credential encryption helpers, repository-administration UI helpers, and later command-generation templates.
+Fast tests for domain rules, risk/confirmation rules, callback encoding/decoding, renderers/keyboards, input/path/ref validation, permission mapping, safe error translation, credential encryption helpers, repository/file administration UI helpers, and later command-generation templates.
 
 ### Integration
 
-Controlled boundary tests for SQLAlchemy + test DB, Alembic, FastAPI routes, aiogram service wiring, DB-backed OAuth/confirmation lifecycle, repository read/admin services/cache/audit, uncertain-write reconciliation, and later webhook/workspace persistence.
+Controlled boundary tests for SQLAlchemy + test DB, Alembic, FastAPI routes, aiogram service wiring, DB-backed OAuth/confirmation lifecycle, repository read/admin/file services/cache/audit, durable staged file-write state, uncertain-write reconciliation, and later webhook/workspace persistence.
 
 ### GitHub contract/mock integration
 
@@ -26,18 +26,18 @@ Manual/controlled tests against dedicated GitHub test resources before productio
 
 Every feature considers, where applicable:
 
-- [x] authorized success for implemented P0-P3.3 paths
+- [x] authorized success for implemented P0-P4.1 paths
 - [x] unauthorized Telegram user baseline
 - [x] invalid user input on implemented forms
 - [x] empty/disconnected state on implemented read/account paths
 - [x] missing installation/repository access on implemented repository paths
-- [x] missing GitHub permission on implemented repository-admin paths
+- [x] missing GitHub permission on implemented repository-admin/file paths
 - [x] not found/inaccessible on implemented gateway paths
-- [x] GitHub validation failure on implemented gateway/admin paths
+- [x] GitHub validation failure on implemented gateway/admin/file paths
 - [x] rate-limit/transient translation in gateway foundation
-- [x] stale callback/session/precondition on implemented search/auth/admin paths
+- [x] stale callback/session/precondition on implemented search/auth/admin/file paths
 - [ ] Telegram edit/send failure injection for every newer UI path
-- [x] audit behavior for P3.3 GitHub writes
+- [x] audit behavior for P3.3/P4.1 GitHub writes
 - [x] secret redaction/security gates
 
 Not every box applies to every read-only helper; exclusions must remain explicit rather than faked green.
@@ -70,6 +70,8 @@ Not every box applies to every read-only helper; exclusions must remain explicit
 - [x] P3.3 repository settings callbacks use compact repository IDs + navigation context rather than full repository names.
 - [x] P3.3 create edit/cancel and update/delete back/cancel consume the persisted write confirmation.
 - [x] repeated P3.3 cancellation is one-time and cannot leave the confirmation executable.
+- [x] P4.1 file callbacks remain within Telegram callback-data limits while long repository paths stay server/FSM-side.
+- [x] P4.1 stale browse-session context fails closed rather than resolving arbitrary path data from callback input.
 - [ ] generic stale callback-version rejection beyond currently implemented parser namespaces.
 
 ## 5. GitHub authentication
@@ -85,6 +87,9 @@ Not every box applies to every read-only helper; exclusions must remain explicit
 - [x] near-expiry token refreshed.
 - [x] repository detail requests repository-scoped installation token.
 - [x] P3.3 update/delete request repository-scoped installation token with `administration: write`.
+- [x] P4.1 browse requests repository-scoped `contents: read` authority.
+- [x] P4.1 ordinary one-file writes request repository-scoped `contents: write` authority.
+- [x] P4.1 `.github/workflows/*` writes require `workflows: write` in addition to the contents-write path.
 - [x] spoofed setup/install candidate identity rejected before DB binding.
 - [x] installation binding persists only after App-context/authenticated-user-context identity match.
 - [x] FastAPI setup/OAuth callback routes have safe success/error paths.
@@ -122,7 +127,7 @@ Not every box applies to every read-only helper; exclusions must remain explicit
 - [x] missing durable user authorization fails before a repository create write.
 - [x] create flow does not substitute a broad PAT or repository installation token for user-context creation.
 
-## 6. Durable confirmation storage
+## 6. Durable confirmation/storage
 
 ### P3.2 local disconnect
 
@@ -147,7 +152,18 @@ Not every box applies to every read-only helper; exclusions must remain explicit
 - [x] reused confirmation rejected.
 - [x] malformed/stale payload fails closed.
 
-## 7. GitHub gateway foundation — P2.2/P3.3 extension
+### P4.1 staged one-file writes
+
+- [x] `file_write_sessions` state is DB-backed and migration `0006_file_write_sessions` is verified.
+- [x] staged intent binds user, repository/installation, branch/path, branch-head SHA, expected file SHA where applicable, desired/content digests, operation, risk tier, nonce/version, expiry, and commit message.
+- [x] staged create/update content survives restart long enough for reviewed confirmation.
+- [x] staged file bytes are cleared when consumed.
+- [x] staged file bytes are cleared when cancelled.
+- [x] expired/pruned staged sessions clear file bytes.
+- [x] a newer same user/repository/branch/path staging consumes the older authority and clears its bytes.
+- [x] the old same-path confirmation token becomes unusable; the newest staging remains consumable.
+
+## 7. GitHub gateway foundation and typed feature gateways
 
 - [x] canonical `Accept`, API version, `User-Agent` headers.
 - [x] optional bearer injection without token leak through result representation.
@@ -163,6 +179,8 @@ Not every box applies to every read-only helper; exclusions must remain explicit
 - [x] P3.3 repository PATCH contract.
 - [x] P3.3 repository DELETE contract including expected empty response.
 - [x] repository-admin contract verifies write methods are not automatically replayed.
+- [x] P4.1 Contents gateway directory/file/ref/write endpoint contracts.
+- [x] P4.1 write contracts preserve no-blind-retry semantics.
 
 Deferred: live mutable GitHub smoke, ETag behavior if introduced, artifact/release redirect policy.
 
@@ -242,28 +260,40 @@ Deferred: live mutable GitHub smoke, ETag behavior if introduced, artifact/relea
 - [x] stale/invalid confirmation copy does not claim a write happened.
 - [x] cancellation callbacks encode operation/destination/token and consume authority server-side.
 
-## 10. File browser/read — P4.1 target
+## 10. File browser/read — P4.1 verified implementation
 
-- [ ] directory listing/nested navigation.
-- [ ] branch/ref switch.
-- [ ] UTF-8 preview.
-- [ ] large text pagination/truncation.
-- [ ] binary fallback.
-- [ ] not-found handling.
-- [ ] traversal/invalid path rejected pre-network.
-- [ ] long path uses short callback context.
+- [x] directory listing/nested navigation.
+- [x] directory pagination and parent navigation.
+- [x] branch/ref switch.
+- [x] UTF-8 preview.
+- [x] text preview pagination.
+- [x] binary fallback.
+- [x] large/missing-content fallback.
+- [x] bounded file download flow.
+- [x] not-found handling.
+- [x] traversal/invalid path rejected pre-network.
+- [x] unsafe/invalid ref rejected.
+- [x] long path uses short callback context rather than raw path callback data.
 
-## 11. Single-file writes — P4.1 target
+## 11. Single-file writes — P4.1 verified implementation
 
-- [ ] create/update/replace/delete.
-- [ ] preview/diff before write.
-- [ ] expected SHA precondition.
-- [ ] stale SHA blocks overwrite.
-- [ ] wrong branch/ref blocked.
-- [ ] workflow path requires Workflows capability.
-- [ ] same-path conflicts serialized/rejected.
-- [ ] audit write.
-- [ ] secrets absent from logs.
+- [x] create text file.
+- [x] upload/create document.
+- [x] text update/edit.
+- [x] document replace.
+- [x] delete.
+- [x] preview/diff before write.
+- [x] branch-head/current file SHA preconditions.
+- [x] stale SHA/head blocks overwrite/delete.
+- [x] wrong/unsafe ref/path blocked.
+- [x] workflow path requires Workflows capability.
+- [x] same-path pending authority serialized by superseding the older staging.
+- [x] same-path supersession regression test verifies old token invalid + staged bytes scrubbed.
+- [x] write-like GitHub call is not blindly replayed.
+- [x] uncertain create/update/delete outcome reconciled against current GitHub state.
+- [x] audit write contains safe metadata only.
+- [x] file body absent from audit/log metadata.
+- [x] credentials/secrets absent from callbacks/audit/logs.
 
 ## 12. Branch/commit tools — P4.2 target
 
@@ -383,20 +413,21 @@ For code changes, required CI gates remain:
 - PEP 751 lock regeneration/diff for Python 3.13 Linux;
 - PostgreSQL 17 Alembic upgrade -> downgrade -> upgrade when schema/migrations exist.
 
-P3.3 implementation result `33890407945` on `4e71d7f1c962e61584d6532d03c913703dc5295a`:
+P4.1 implementation result `34639736010` on `614f013b35644fcdd05e880c9a37ff30fd503fdf`:
 
-- **117 passed** on Python 3.12;
-- **117 passed** on Python 3.13;
+- **148 passed** on Python 3.12;
+- **148 passed** on Python 3.13;
 - Ruff format/lint green on both supported Python versions;
-- mypy clean on 72 source files;
+- mypy clean on **87 source files**;
 - compile green;
 - `pip-audit`: no known runtime vulnerabilities;
 - `detect-secrets`: no findings;
-- no PEP 751 lock drift;
-- PostgreSQL 17 round trip passed including migration `0005_audit_log`;
+- PEP 751 locks match fresh current resolver byte-for-byte on both Python targets;
+- PostgreSQL 17 round trip passed including migration `0006_file_write_sessions`;
+- direct runtime pins unchanged; transitive lock refresh records current `anyio==4.15.1` and `multidict==6.8.0` after cache-disabled CI exposed drift;
 - known non-blocking warnings: Starlette/FastAPI TestClient -> httpx2 direction, AnyIO `BlockingPortal` alias, Alembic `path_separator`.
 
-The documentation-synchronized head must run this same CI contract again before PR creation/merge.
+The documentation-synchronized head must run this same CI contract again before PR creation/merge. P4.1 remains implementation-verified, not phase-complete, until the feature PR/main and governance-closeout chain are also green.
 
 ## 22. Test honesty rule
 

@@ -13,6 +13,7 @@ from gitdock.github.auth_state import GitHubAuthorizationStateService
 from gitdock.github.binding import InstallationBindingService
 from gitdock.github.client import GitHubRestClient
 from gitdock.github.connection import GitHubConnectionService
+from gitdock.github.contents import GitHubContentsGateway
 from gitdock.github.credentials import GitHubUserCredentialStore
 from gitdock.github.repositories import GitHubRepositoryGateway
 from gitdock.github.repository_admin import GitHubRepositoryAdminGateway
@@ -20,6 +21,7 @@ from gitdock.github.search import GitHubRepositorySearchGateway
 from gitdock.github.token_provider import InstallationTokenProvider
 from gitdock.security.crypto import CredentialCipher
 from gitdock.services.confirmations import ConfirmationService
+from gitdock.services.file_browser import FileBrowserService
 from gitdock.services.identity import OwnerIdentityService
 from gitdock.services.repositories import RepositoryReadService
 from gitdock.services.repository_admin import RepositoryAdminService
@@ -38,6 +40,7 @@ class RuntimeServices:
     http_client: httpx.AsyncClient | None
     repository_admin: RepositoryAdminService | None = None
     repository_admin_confirmations: RepositoryAdminConfirmationService | None = None
+    file_browser: FileBrowserService | None = None
 
     async def close(self) -> None:
         if self.http_client is not None:
@@ -96,6 +99,13 @@ def create_runtime_services(
         session_factory,
         confirmations,
     )
+    file_browser = FileBrowserService(
+        session_factory,
+        token_provider,
+        repository_gateway,
+        GitHubContentsGateway(rest_client),
+        confirmations,
+    )
     state_service = GitHubAuthorizationStateService(cipher)
     connection = GitHubConnectionService(
         session_factory,
@@ -114,4 +124,5 @@ def create_runtime_services(
         http_client=http_client,
         repository_admin=repository_admin,
         repository_admin_confirmations=repository_admin_confirmations,
+        file_browser=file_browser,
     )

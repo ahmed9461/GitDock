@@ -35,6 +35,10 @@ The project follows an `Unreleased` section during active development. Versionin
 - P3.3 Arabic Telegram repository-creation wizard and repository-settings UX with centralized renderers, keyboards, callbacks, FSM states, and thin router handlers.
 - P3.3 one-time server-side confirmation cancellation so edit/back/cancel consumes pending authority and old Telegram buttons cannot execute later.
 - P3.3 organization-create, reconciliation, confirmation-cancellation, gateway/service, deletion-negative-path, and Telegram UI coverage expanding the suite from 97 to **117 tests**.
+- P4.1 typed GitHub Contents gateway and `FileBrowserService` for directory browsing, file preview, ref selection, bounded download, create/update/replace/delete, stale-write protection, reconciliation, and audit.
+- P4.1 real Arabic Telegram `📁 الملفات` UX with directory/file pagination, branch/ref input, create/edit/upload/replace/download/delete flows, diff/preview, and compact short-session callbacks.
+- P4.1 durable `file_write_sessions` staging plus Alembic migration `0006_file_write_sessions`; staged content survives restart briefly for reviewed writes and is scrubbed when authority is consumed, cancelled, superseded, expired, or pruned.
+- P4.1 explicit same-path staging supersession regression coverage; full suite is now **148 tests**.
 
 ### Changed
 
@@ -54,7 +58,9 @@ The project follows an `Unreleased` section during active development. Versionin
 - P3.3 personal/organization repository creation uses durable GitHub user OAuth context; repository update/delete uses a repository-scoped installation token requesting `administration: write` only for the selected repository.
 - P3.3 sensitive write previews and Telegram buttons are transport/UI only; execution remains bound to persisted server-side confirmation and refreshed repository preconditions.
 - P3.3 write-like GitHub operations remain no-retry by default; uncertain outcomes reconcile remote state before GitDock reports final applied/failed/uncertain state.
-- Runtime dependencies remain unchanged by P3.1/P3.2/P3.3; existing PEP 751 locks remain byte-for-byte verified on Python 3.12 and 3.13.
+- P4.1 reads use repository-scoped `contents: read`; ordinary writes use `contents: write`; writes under `.github/workflows/` additionally require `workflows: write`.
+- P4.1 repository paths stay in server/FSM context instead of Telegram callback data; callbacks transport short browse session IDs, indexes, and opaque confirmation tokens.
+- Runtime locks were refreshed for current cache-disabled CI resolution: transitive `anyio` moved to `4.15.1` and `multidict` to `6.8.0`; direct runtime pins remain unchanged.
 
 ### Fixed
 
@@ -71,6 +77,8 @@ The project follows an `Unreleased` section during active development. Versionin
 - P3.2 Ruff formatting, one E501 lint finding, and one mypy variable-shadowing inference issue were corrected at their source while preserving intended auth behavior.
 - P3.3 branch CI formatting/Unicode/unused-context findings were corrected at source without weakening format, lint, type, security, or test gates.
 - P3.3 update-message router no longer keeps unused navigation variables after token-aware confirmation cancellation made them unnecessary.
+- P4.1 Telegram formatting/lint/type findings were corrected at source, including a real `message.bot` guard and typed reply markup rather than broad ignores.
+- P4.1 runtime-lock drift exposed after Actions dependency caches were disabled was reconciled and both PEP 751 files again match fresh `pip lock` output byte-for-byte.
 
 ### Security
 
@@ -93,6 +101,10 @@ The project follows an `Unreleased` section during active development. Versionin
 - P3.3 repository update/delete installation credentials are scoped to the selected repository and `administration: write`; personal/organization creation uses the narrower durable user-context path required by GitHub's create endpoints.
 - P3.3 audit records intentionally omit credentials/tokens/raw upstream auth bodies while preserving safe operation/status/repository/request metadata.
 - P3.3 uncertain writes are reconciled instead of blindly replayed, preventing duplicate create/update/delete side effects from automatic retry.
+- P4.1 validates repository paths/refs before GitHub calls and binds write staging to repository ID, branch head, current file SHA, desired blob/content digest, user, operation, nonce/version, and expiry.
+- P4.1 staged file body bytes may exist temporarily in `file_write_sessions` for up to 15 minutes so a reviewed operation survives restart; content bytes are cleared on consume, cancel, same-target supersession, expiry/prune, and are never copied into audit metadata.
+- P4.1 stale write/delete preconditions fail closed; same-target restaging invalidates older pending authority.
+- P4.1 write-like GitHub requests are issued once and uncertain outcomes are reconciled rather than blindly replayed.
 
 ### Verification
 
@@ -138,37 +150,38 @@ P3.1:
 
 P3.2:
 
-- foundation validation head `2faed69d8333c019ec1f307583434d598d2c5c4e` — CI `33459209919` green before UI wiring;
-- complete implementation head before documentation synchronization `5068b58ec41fb5ac417408d3a535bbb5d66207fc` — CI `33515291600` green;
-- final documentation-synchronized feature head `492183bfba311827a965153eff61747bfabf76ed` — branch CI `33517270731` green;
-- non-draft PR #12 CI `33527318485` — green; PR was `mergeable=true` on unchanged head `492183bfba311827a965153eff61747bfabf76ed`;
-- squash merge commit `8a5d692dd875b8959b27b1b0c53bbc5b5359c7f8`;
-- post-feature `main` CI `33527484948` — green;
-- Python 3.12 and Python 3.13 each passed Ruff format/lint, mypy, **97 tests**, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff;
-- PostgreSQL 17 Alembic upgrade -> downgrade -> upgrade including `0004_user_auth` passed;
-- `pip-audit` reported no known runtime vulnerabilities;
-- no secret-scan findings and no PEP 751 lock drift.
+- complete implementation head `5068b58ec41fb5ac417408d3a535bbb5d66207fc` — CI `33515291600` green;
+- documentation-synchronized head `492183bfba311827a965153eff61747bfabf76ed` — CI `33517270731` green;
+- PR #12 CI `33527318485` green;
+- squash merge `8a5d692dd875b8959b27b1b0c53bbc5b5359c7f8`;
+- post-feature `main` CI `33527484948` green;
+- 97 tests on both Python versions plus all configured quality/security/lock/PostgreSQL gates.
 
 P3.3:
 
-- complete implementation head before documentation synchronization `4e71d7f1c962e61584d6532d03c913703dc5295a` — CI `33890407945` green;
-- final documentation-synchronized feature head `0cabc820751482c1c6f3dc13dcef5861aa2901d1` — branch CI `33891756482` green;
-- non-draft PR #14 CI `33891899602` — green; PR was `mergeable=true` on unchanged head `0cabc820751482c1c6f3dc13dcef5861aa2901d1`;
-- squash merge commit `c0ed95a0360d49cdd67cb6c5f702d6beb78e0368`;
-- post-feature `main` CI `33892100584` — green;
-- Python 3.12 and Python 3.13 each passed Ruff format/lint, mypy, **117 tests**, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff;
-- mypy reported no issues in 72 source files;
-- PostgreSQL 17 Alembic upgrade -> downgrade -> upgrade including `0005_audit_log` passed;
+- implementation head `4e71d7f1c962e61584d6532d03c913703dc5295a` — CI `33890407945` green;
+- documentation-synchronized head `0cabc820751482c1c6f3dc13dcef5861aa2901d1` — CI `33891756482` green;
+- PR #14 CI `33891899602` green;
+- squash merge `c0ed95a0360d49cdd67cb6c5f702d6beb78e0368`;
+- post-feature `main` CI `33892100584` green;
+- 117 tests, 72 mypy source files, migration `0005_audit_log`, audit/secrets/locks green.
+
+P4.1 implementation (merge/governance still pending):
+
+- final implementation head `614f013b35644fcdd05e880c9a37ff30fd503fdf` — CI `34639736010` green;
+- Python 3.12 and 3.13 each passed Ruff format/lint, mypy, **148 tests**, compile, `pip-audit`, `detect-secrets`, and PEP 751 lock regeneration/diff;
+- mypy reported no issues in **87 source files**;
+- PostgreSQL 17 Alembic upgrade → downgrade → upgrade including `0006_file_write_sessions` passed;
 - `pip-audit` reported no known runtime vulnerabilities;
 - no secret-scan findings and no PEP 751 lock drift;
-- governance closeout records P3.3 ✅ and hands implementation to P4.1.
+- documentation-head CI, feature PR/merge, post-feature `main` CI, and governance closeout are still pending and must not be represented as complete.
 
 ### Known maintenance warnings
 
-- Green P3.3 verification continues to report a Starlette/FastAPI `TestClient` deprecation warning for the current `httpx` integration/future `httpx2` direction.
+- Green verification reports a Starlette/FastAPI `TestClient` deprecation warning for the current `httpx` integration/future `httpx2` direction.
 - Starlette tests also surface AnyIO's deprecated `anyio.abc.BlockingPortal` alias.
-- Green P3.3 verification continues to report Alembic's `path_separator` deprecation warning because `alembic.ini` does not explicitly set `path_separator` for `prepend_sys_path`.
+- Alembic continues to report the `path_separator` deprecation warning because `alembic.ini` does not explicitly set `path_separator` for `prepend_sys_path`.
 
 These warnings are recorded rather than hidden; they do not currently fail the build.
 
-Operational note: earlier zero-step GitHub Actions failures were caused by exhausted private-repository hosted-runner quota and stopped after the repository became public; they were not application failures.
+Operational note: `main` intentionally disabled GitHub Actions dependency caches on 2026-09-11 (`c5d8b10557deda0bb2c268bf28adb9eed0151e64`). The fresh resolver exposed transitive runtime-lock drift, which P4.1 refreshed and reverified rather than bypassing the lock gate.

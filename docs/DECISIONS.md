@@ -257,6 +257,38 @@ Format:
 
 ---
 
+## D-020 — Single-file writes use durable staged intent with short callback context
+
+**Date:** 2026-09-11  
+**Status:** Accepted
+
+**Context:** P4.1 introduces repository-content writes from Telegram. Repository paths can exceed Telegram callback-data limits, and a safe reviewed write needs enough durable intent to survive restart without turning callback state into authority. File updates/deletes also need stale-content protection, while workflow-file changes require narrower explicit permission handling.
+
+**Decision:**
+
+1. `GitHubContentsGateway` is the typed Contents boundary over the canonical REST client; Telegram handlers never issue raw GitHub Contents HTTP.
+2. Long repository paths do not travel in callback data. File-browser callbacks carry short browse session IDs, indexes, actions, or opaque confirmation tokens and resolve path/context server-side.
+3. Reads use repository-scoped installation authority with `contents: read`.
+4. Create/update/delete use durable `file_write_sessions` staging bound to GitDock user, installation/repository, branch, branch-head SHA, path, expected file SHA where applicable, desired blob/content digest, operation, risk tier, nonce/version, expiry, and commit message.
+5. Staged create/update body bytes may be persisted temporarily so a reviewed write survives restart. The staging TTL is 15 minutes, and body bytes are cleared on consume, cancellation, same-target supersession, expiry/prune, or equivalent staging invalidation. File bodies are never audit payloads.
+6. A new staged operation for the same user/repository/branch/path consumes the older staging authority before issuing the new confirmation. Old Telegram buttons therefore cannot execute an obsolete same-target write.
+7. Ordinary content writes request repository-scoped `contents: write`. Paths under `.github/workflows/` additionally require centralized `workflows: write` capability.
+8. Confirmation is persisted server-side and single-use. Before execution, the service re-resolves current repository context and verifies branch-head/current-file preconditions; stale state fails closed.
+9. GitHub write-like calls are issued once. Potentially uncertain outcomes are reconciled against remote branch/file state instead of blindly replaying PUT/DELETE.
+10. Audit records retain safe operation/status/repository/branch/path/SHA/reconciliation metadata only; they exclude file bodies, access/refresh/installation tokens, and raw upstream auth/error bodies.
+
+**Consequences:**
+
+- file browsing is not constrained by Telegram callback length;
+- reviewed file writes remain restart-safe without trusting stale UI transport;
+- stale edits/deletes cannot silently overwrite newer GitHub content;
+- same-target restaging invalidates older pending authority deterministically;
+- workflow files do not inherit workflow-write authority from ordinary contents-write capability;
+- PostgreSQL briefly contains staged file body bytes for restart durability, so DB access/backup handling remains security-sensitive even though audit/logging excludes that content;
+- later one-file GitHub write features should reuse the same stage → preview → confirm → revalidate → scoped-token → single-write → reconcile → audit lifecycle.
+
+---
+
 ## Adding future decisions
 
 Never rewrite history to make an old decision disappear. Add a new decision with `Supersedes D-xxx`, then mark the older decision Superseded.

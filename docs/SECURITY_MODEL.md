@@ -1,6 +1,6 @@
 # GitDock — Security Model
 
-Status: mandatory baseline + verified P2 foundations + P2.3 repository-read controls + P3.1 search isolation + P3.2 authorization lifecycle + P3.3 repository-administration controls
+Status: mandatory baseline + verified P2 foundations + P2.3 repository-read controls + P3.1 search isolation + P3.2 authorization lifecycle + P3.3 repository-administration controls + P4.1 file-browser/write implementation verification
 
 ## 1. Security goals
 
@@ -10,10 +10,11 @@ Protect:
 - Telegram owner identity and operation intent;
 - GitHub App private key, client secret, webhook secret, installation/user tokens;
 - repository contents, especially private repositories;
+- staged file-write content and preconditions;
 - uploaded ZIP/project data;
 - audit integrity and durable operation/confirmation state.
 
-The main risk is not only credential theft. A Telegram control bot can also cause serious damage through accidental clicks, stale state, replayed callbacks, forged webhooks, unsafe archive extraction, or overpowered permissions. GitDock must defend against both malicious and accidental failure modes.
+The main risk is not only credential theft. A Telegram control bot can also cause serious damage through accidental clicks, stale state, replayed callbacks, forged webhooks, unsafe archive extraction, overpowered permissions, blind overwrite, or replaying a write whose remote outcome is uncertain. GitDock must defend against malicious and accidental failure modes.
 
 ## 2. Trust boundaries
 
@@ -21,14 +22,14 @@ Untrusted inputs include:
 
 - Telegram messages/callbacks/uploads;
 - GitHub webhook bodies until signature validation succeeds;
-- repository names/paths/README text/file contents;
+- repository names, refs, paths, README text, file contents, and commit messages;
 - archive paths/metadata;
 - GitHub API responses until structurally validated;
 - OAuth/setup callback parameters until server-side state and identity checks succeed;
 - setup/install `installation_id` until independently verified through App and authenticated-user contexts;
 - repository IDs carried in Telegram callbacks until user/installation/cache validation succeeds;
 - local repository cache as potentially stale navigation state, never authorization proof;
-- opaque local confirmation tokens carried by Telegram until DB state/preconditions are loaded and validated;
+- opaque confirmation/staging tokens carried by Telegram until DB state/preconditions are loaded and validated;
 - repository-admin form values and exact delete names until operation-specific server-side validation succeeds.
 
 Trusted only after validation:
@@ -38,8 +39,9 @@ Trusted only after validation:
 - validated/persisted one-time OAuth/confirmation state;
 - installation binding whose identity matched across App and authenticated-user contexts;
 - durable GitHub user account identity resolved through authenticated `/user`;
-- repository read state revalidated against the active installation and, for detail, GitHub itself;
-- P3.3 write execution only after server-side confirmation consumption, refreshed preconditions, and correct credential context are established.
+- repository read state revalidated against the active installation and GitHub itself where required;
+- P3.3 administration execution only after server-side confirmation consumption, refreshed preconditions, and correct credential context;
+- P4.1 file execution only after staged-write confirmation consumption, repository/ref/path validation, branch-head/file-SHA precondition checks, and a repository-scoped write token with the required capabilities.
 
 ## 3. Telegram access control
 
@@ -51,18 +53,23 @@ v1 is owner-only.
 - Callback queries re-check authorization; callback payload is not identity proof.
 - Production Telegram webhook validates Telegram secret-token header when configured.
 
-Repository and account callbacks are transport identifiers only. Server-side user, installation/account, operation, expiry, consumed state, and relevant preconditions must still be checked.
+Repository/account/file callbacks are transport identifiers only. Server-side user, installation/account, operation, expiry, consumed state, target, and relevant preconditions must still be checked.
 
 ## 4. GitHub App over broad PAT
 
 Do not use a broad permanent PAT as the product's primary credential model.
 
-Use GitHub App permissions and token contexts with least privilege. High-power permissions are enabled only when the corresponding feature is intentionally implemented.
+Use GitHub App permissions and operation-specific token contexts with least privilege. High-power permissions are enabled only when the corresponding feature is intentionally implemented.
 
-P2.3/P3.1 are read-only. P3.2 adds durable user context but does not itself grant broad repository administration. P3.3 deliberately introduces only the write contexts it needs:
+Verified contexts:
 
-- personal/organization repository creation through durable user OAuth context;
-- repository update/delete through an installation token scoped to the selected repository and requesting centralized `administration: write`.
+- P2.3/P3.1: read-only repository/search paths;
+- P3.2: durable user context, not blanket repository administration;
+- P3.3 personal/organization repository creation: durable user OAuth context;
+- P3.3 repository update/delete: installation token scoped to the selected repository with `administration: write`;
+- P4.1 repository file reads: repository-scoped installation context with contents read;
+- P4.1 create/update/delete: repository-scoped installation token with `contents: write`;
+- P4.1 `.github/workflows/*` writes additionally require `workflows: write`.
 
 ## 5. Credential handling
 
@@ -73,14 +80,14 @@ P2.3/P3.1 are read-only. P3.2 adds durable user context but does not itself gran
 - send tokens to Telegram;
 - include tokens in exception/audit rows;
 - embed tokens in clone commands;
-- store plaintext user access/refresh tokens;
+- store plaintext durable user access/refresh tokens;
 - assume token validity/type from legacy prefix/length alone;
-- store credentials/OAuth/private keys in `repositories_cache`, `pending_confirmations`, or `audit_log`;
+- store credentials/OAuth/private keys in `repositories_cache`, `pending_confirmations`, `file_write_sessions`, or `audit_log`;
 - render OAuth code/state, PKCE verifier, tokens, installation tokens, or raw upstream auth bodies in HTML/Telegram errors.
 
 ### At rest
 
-Durable GitHub user credentials use authenticated encryption from the maintained `cryptography` library through GitDock's existing versioned Fernet abstraction.
+Durable GitHub user credentials use authenticated encryption from the maintained `cryptography` library through GitDock's versioned Fernet abstraction.
 
 Rules:
 
@@ -90,7 +97,7 @@ Rules:
 - old-key decrypt/new-key encrypt supported during rotation windows;
 - no custom cryptography.
 
-P3.2 uses this existing store for explicit durable user-context authorization. P3.3 reuses those credentials for create operations and does not introduce another durable credential store. Installation tokens for update/delete remain short-lived provider output and are not persisted in audit/cache/confirmation state.
+P4.1 does not add another durable credential store. Installation tokens remain short-lived provider output and are not persisted in cache, confirmation, staging, or audit state.
 
 ### Credential generation — P3.2
 
@@ -98,7 +105,7 @@ P3.2 uses this existing store for explicit durable user-context authorization. P
 
 - Persisting a new credential set advances generation.
 - Clearing credential state advances generation.
-- Long-running refresh/disconnect logic must compare the expected generation before applying results.
+- Long-running refresh/disconnect logic compares the expected generation before applying results.
 - A stale generation fails closed rather than overwriting/deleting newer authorization.
 
 ## 6. GitHub webhook validation
@@ -135,40 +142,15 @@ Implemented state rules:
 
 ### Installation-binding rule
 
-The setup/install `installation_id` is an untrusted candidate. Before binding:
-
-1. consume installation-flow state;
-2. start fresh user authorization with one-time state + PKCE;
-3. fetch candidate installation under App JWT context;
-4. fetch same installation under authenticated-user token;
-5. require installation ID/account ID/login/type match;
-6. reject suspended installation;
-7. reject binding owned by another GitDock user;
-8. persist only after all checks pass.
-
-Do not simplify this to trusting query-string installation ID or login alone.
+The setup/install `installation_id` is an untrusted candidate. Binding persists only after the same installation/account identity is independently resolved under App context and authenticated-user context, identities match, suspension checks pass, and cross-user ownership conflicts are rejected.
 
 ### Durable P3.2 user authorization
 
-Standalone user authorization reuses the same one-time state/PKCE system and does not require reinstalling the App.
+Standalone user authorization reuses the same one-time state/PKCE system and does not require reinstalling the App. After OAuth code exchange, GitDock resolves authenticated identity through `GET /user` and persists access/refresh credentials only through encrypted credential storage.
 
-After OAuth code exchange:
+### Refresh-token rotation
 
-- call authenticated `GET /user`;
-- require a valid positive GitHub user ID/login shape;
-- reject a GitHub identity already bound to a different GitDock user;
-- persist access/refresh credentials only through encrypted credential storage.
-
-### Refresh-token rotation — P3.2
-
-Treat refresh tokens as rotating credentials.
-
-- Do not log or expose refresh grant bodies.
-- Before network refresh, snapshot account ID + credential generation.
-- Reject refresh if no usable refresh token exists or refresh expiry has passed.
-- After GitHub returns the rotated pair, re-open durable state and require same user/account/generation and still-active authorization.
-- Persist rotated access + refresh credentials atomically only after preconditions match.
-- If reauthorization/disconnect occurred concurrently, raise a safe changed-authorization condition and do not overwrite current credentials.
+Treat refresh tokens as rotating credentials. Snapshot account ID + `credential_generation` before network refresh and persist the rotated pair only if current durable account/user/generation/authorization state still matches. Concurrent reauthorization/disconnect makes the old refresh fail closed.
 
 ## 8. Permission model
 
@@ -176,131 +158,137 @@ Capabilities map centrally to GitHub App permissions/token context. High-power p
 
 Services still respect actual user/repository authority and GitHub branch protection/rules.
 
-P3.2 durable user context is not itself repository write authority. P3.3 selects credential context per operation:
+P4.1 rules:
 
-- create uses the explicit durable user authorization required for GitHub user/organization create endpoints;
-- update/delete request `administration: write` through the installation token provider and scope the token request to exactly the selected GitHub repository ID.
-
-Permission strings remain in the centralized capability mapping, never Telegram handlers.
+- normal file create/update/delete requests `contents: write`;
+- a workflow path detected under `.github/workflows/` also requests `workflows: write`;
+- the installation token request is scoped to exactly the selected GitHub repository ID;
+- archived repositories are rejected before staging a write;
+- Telegram handlers never build permission dictionaries directly.
 
 ## 9. Confirmation security
 
 A Telegram button is not durable authorization for a sensitive/destructive operation.
 
-`pending_confirmations` introduced in P3.2 is the general restart-safe storage boundary for one-time confirmation state. It stores:
-
-- GitDock user ID;
-- operation type;
-- opaque random token digest;
-- target fingerprint;
-- safe payload/preconditions;
-- risk tier;
-- expiry;
-- consumed timestamp;
-- creation timestamp.
-
-Raw confirmation token may travel in compact Telegram callback data, but only its digest is persisted.
+`pending_confirmations` is the restart-safe one-time confirmation primitive. It stores a digest of the opaque token plus user, operation, target fingerprint, safe payload/preconditions, risk tier, expiry, consumed state, and timestamps.
 
 On confirm: re-check Telegram access, load server-side confirmation, require intended operation/user, require unexpired/unconsumed state, atomically consume, reload current target/preconditions, then apply at most once.
 
-### P3.2 local-disconnect confirmation
+### P3.2 local disconnect
 
-The fingerprint binds:
+Confirmation fingerprints current account identity, credential generation, and installation set. Reauthorization/install-set change makes an older confirmation stale. Home/Cancel invalidates outstanding authority. Local disconnect never claims to uninstall/revoke the GitHub App remotely.
 
-- active GitHub account DB ID when present;
-- GitHub user ID when present;
-- `credential_generation` when present;
-- ordered current installation IDs.
+### P3.3 repository administration
 
-Consequences:
+Create is Tier 1, update is Tier 2, and repository deletion is Tier 3 plus exact typed current `owner/name`. Edit/back/cancel consumes pending confirmation so an old Telegram button cannot remain executable.
 
-- reauthorization makes an old confirmation stale;
-- credential clear/reconnect makes it stale;
-- installation set changes make it stale;
-- cancelled/reused/invalid tokens cannot execute;
-- stale/invalid states return copy that says nothing was deleted.
+### P4.1 file writes
 
-Home consumes outstanding GitHub disconnect confirmations to invalidate old message buttons.
+P4.1 uses a dedicated restart-safe staging record plus the same confirmation primitive:
 
-### P3.3 repository-administration confirmations
+- migration `0006_file_write_sessions` stores one-file staged intent;
+- staging stores user, operation, repository/installation IDs, current repository full name/default branch, branch, path, branch-head SHA, expected file SHA, desired blob SHA, content digest, temporary content bytes, commit message, risk tier, expiry, and consumed state;
+- confirmation payload contains safe identifiers/preconditions only and is fingerprinted server-side;
+- the raw confirmation token is not stored; only its digest is persisted by the confirmation service;
+- staged create/update content is temporary and has a 15-minute TTL;
+- `content_bytes` is cleared on consume, cancel, expiry cleanup, and same-target supersession;
+- before external GitHub write, staging is consumed once and the DB copy of file content is cleared; the already-validated content exists only in the in-process staged object needed for that one execution;
+- a newer staging for the same user + repository + branch + path consumes/supersedes the older staged session and clears its content bytes;
+- cancelled/reused/expired/superseded/invalid confirmation cannot execute later.
 
-Operation-specific rules reuse the same persisted confirmation primitive:
+Risk rules:
 
-- create is Tier 1;
-- update/visibility/archive/default-branch changes are Tier 2;
-- repository deletion is Tier 3;
-- delete requires the exact current `owner/name` to be typed before the pending delete confirmation is issued;
-- target fingerprint/payload binds the intended request and current repository snapshot/preconditions;
-- confirm is user/operation-bound, expiring, atomic, and single-use;
-- stale, expired, reused, cancelled, wrong-operation, wrong-target, and wrong-name paths fail closed;
-- edit/back/cancel is not cosmetic: the operation-specific cancellation service consumes the pending confirmation before navigation;
-- a previously rendered Telegram confirm button therefore loses authority immediately after a successful cancellation.
+- create/update on a non-default branch: Tier 1;
+- create/update on the current default branch: Tier 2;
+- delete: Tier 2 on any branch.
 
-Tests verify one-time cancellation for create/update/delete and negative delete cases including expired, reused, wrong-name, and permission failure.
+## 10. File staging confidentiality/integrity
 
-## 10. P3.2 exact disconnect scope
+P4.1 temporarily persists staged create/update bytes because the write must survive Telegram navigation/process restart long enough for explicit review/confirmation. This is not an audit store or long-term repository mirror.
 
-`🔌 قطع الربط المحلي` is intentionally local-only.
+Integrity controls:
 
-On a valid confirmation GitDock may:
+- store SHA-256 content digest and Git blob SHA alongside temporary bytes;
+- on consume, recompute and require both digests to match;
+- corrupt/tampered staging is consumed, content cleared, and no write executes;
+- staged bytes are absent from confirmation payload/fingerprint and audit details;
+- audit records use safe metadata such as branch, path, expected SHA, desired blob SHA, risk tier, workflow-path flag, request ID, commit SHA, and reconciliation state;
+- audit never stores full file contents.
 
-- clear encrypted local GitHub user credentials;
-- delete GitDock installation bindings for the user;
-- delete local repository navigation cache;
-- invalidate unconsumed local OAuth state/confirmations.
+Operational requirement: production DB backups/access controls must treat temporary staged content as private repository data while it exists.
 
-It does **not** uninstall/revoke the GitHub App on GitHub and must never tell the user that it did.
+## 11. Repository path/ref/content safety — P4.1
 
-A legacy P2.3 installation-only local state with no durable user token can still be disconnected safely.
+Paths:
 
-## 11. Stale-state/conflict protection
+- repository-relative POSIX form only;
+- reject NUL, backslash, leading slash, drive prefixes, empty/dot/dot-dot segments, and overlong paths;
+- nested callbacks use server-side compact context rather than treating arbitrary callback text as a trusted path.
 
-For file updates/batch operations, capture expected SHA/base commit and revalidate before write. If source moved, stop and require refresh/review.
+Refs:
 
-For merges/actions, refresh critical state before final write where practical.
+- must be non-empty trimmed text within configured length;
+- reject control characters and Git-invalid patterns such as `..`, `@{`, repeated slash, invalid suffixes/segments, and forbidden ref characters.
 
-For repository reads, stale cache is revalidated against GitHub.
+Content/commit limits:
 
-For P3.2 credentials/confirmations, credential generation and target fingerprints are the relevant durable stale-state preconditions.
+- text preview classification limit: 256 KiB;
+- single staged upload limit: 20 MiB;
+- text preview page target: 2800 characters;
+- path max: 1024 characters;
+- ref max: 255 characters;
+- commit message max: 500 characters;
+- content over the single-file limit is rejected before staging.
 
-For P3.3 update/delete:
+Binary/non-UTF-8/NUL-containing or oversized files use metadata/fallback behavior rather than pretending to be safe text preview.
 
-- cache selection is resolved inside the current user/installation context;
-- current GitHub repository state is refreshed before sensitive execution;
-- confirmation fingerprint/request preconditions are compared against current state;
-- stale repository state stops the write rather than silently targeting a renamed/reconfigured resource.
+## 12. P4.1 stale-state/conflict protection
 
-## 12. Uncertain-write reconciliation — P3.3
+GitHub remains source of truth. A staged file write binds to remote preconditions captured during review.
 
-Write-like GitHub methods remain no-retry by default. A timeout/transient response can occur after GitHub applied a mutation, so automatically replaying create/update/delete can duplicate or misreport side effects.
+Before execution GitDock requires:
 
-P3.3 therefore uses operation-specific reconciliation:
+- current selected repository still belongs to the same installation/context;
+- current repository full name and default branch still match staged context;
+- target branch still exists;
+- current branch HEAD SHA exactly matches staged `branch_head_sha`;
+- create: target file is still absent;
+- update/delete: current file exists and SHA equals staged `expected_file_sha`.
 
-- create: inspect current remote repository state for a repository matching the intended creation before deciding outcome;
-- update: re-fetch and compare requested fields against remote state;
-- delete: re-fetch to determine whether the target still exists;
-- if reconciliation proves the requested state, record a reconciled applied outcome;
-- if reconciliation disproves it safely, record failure where justified;
-- if the remote outcome cannot be established, retain an explicit `UNCERTAIN` result instead of claiming success/failure.
+Any mismatch yields `STALE` and no GitHub write.
 
-Reconciliation is not permission bypass and must use the correct current credential context. It never justifies blind replay.
+This intentionally blocks unrelated commits that move the branch HEAD after staging; the user must refresh/review against current GitHub state rather than allowing a confirmation to silently apply to a changed base.
 
-## 13. Archive/ZIP security
+## 13. Same-target write serialization
 
-Uploaded archives are untrusted. Before extraction enforce upload size, member inspection, traversal/absolute/device/special/link policy, depth/count/uncompressed-size limits, duplicate normalized paths, isolated workspace, and cleanup.
+P4.1 prevents multiple live staged authorities for the same user/repository/branch/path.
 
-Never execute uploaded code or automatically source `.env`/shell files. Scan/flag secret-like content where feasible without claiming certainty.
+Creating a newer staging consumes the older unresolved `file_write_sessions` row for that target and clears its temporary content. The older confirmation may remain visible in Telegram but cannot produce a valid staged write when consumed.
 
-## 14. Secret-like file safeguards
+This is application-level stale/replay protection; it does not replace GitHub SHA/branch preconditions.
 
-Warn/block candidates include `.env` except reviewed safe examples, private keys, credential/token files, unexpected local DBs, and auth/session caches. Scanner is a safety layer, not proof that an upload is secret-free.
+## 14. File write execution and uncertain-result reconciliation
 
-## 15. Repository path safety
+Write-like GitHub methods remain no-retry by default.
 
-- repository-relative POSIX paths;
-- reject leading slash, drive paths, NUL, traversal;
-- short UI IDs resolve server-side rather than becoming paths directly;
-- `.github/workflows/*` requires explicit Workflows capability.
+Execution:
+
+- create/update use Contents API PUT with branch/message/content and expected SHA for update;
+- delete uses Contents API DELETE with exact expected file SHA;
+- non-delete success additionally checks GitHub's returned content SHA against the desired Git blob SHA;
+- a response SHA mismatch is classified `UNCERTAIN`, not success.
+
+Potentially uncertain gateway failures are reconciled rather than blindly replayed:
+
+- create/update: re-fetch target and compare current file SHA to desired Git blob SHA;
+- delete: not-found after uncertain delete is evidence that deletion applied;
+- if reconciliation proves requested state, record reconciled applied outcome;
+- if the result cannot be proven, retain `UNCERTAIN`;
+- never turn ambiguity into a second automatic PUT/DELETE.
+
+## 15. P3.3 repository-administration reconciliation
+
+Repository create/update/delete retain their established operation-specific reconciliation rules. P4.1 follows the same safety precedent without coupling file writes to repository-administration permissions.
 
 ## 16. Repository callback/cache safety
 
@@ -311,18 +299,37 @@ Mandatory rules:
 - safe non-secret metadata only;
 - scope to GitDock user + installation;
 - stable GitHub repository ID for compact callback resolution;
-- no arbitrary long names in callback payloads;
 - validate parser/version/positive IDs;
-- require current user ownership and unsuspended installation;
-- obtain token through normal provider;
-- re-fetch GitHub detail before render;
-- delete/reject stale inaccessible cache rows;
-- never infer write/admin authority from cache;
-- never store credentials/OAuth/PKCE/private-key/raw-error material.
+- require current user ownership and active installation context;
+- obtain tokens through normal providers;
+- re-fetch authoritative GitHub state where required;
+- never infer file/admin write authority from cache existence;
+- never store credentials/OAuth/PKCE/private-key/raw-error/file-content material in repository cache.
 
-P3.3 uses repository cache only to resolve navigation context. Update/delete authority is rebuilt from current user/install binding, fresh GitHub repository state, persisted confirmation, and current scoped token capability.
+## 17. GitHub API/network restrictions
 
-## 17. Command-generation safety
+Core GitHub clients target approved GitHub endpoints. No generic fetch-URL-from-Telegram capability.
+
+Canonical REST transport accepts repository-relative API paths or canonical HTTPS `api.github.com`; rejects scheme-relative, credential-bearing, external-host, non-HTTPS, fragment-bearing, and noncanonical targets before network I/O. Redirects are not followed automatically by the generic transport.
+
+GET/HEAD bounded retry remains separate from write safety.
+
+## 18. GitHub Actions/workflow safety
+
+- Actions read is separate from Actions write;
+- dispatch shows workflow/ref/inputs and requires confirmation;
+- re-run/cancel targets explicit run/job IDs;
+- never display Actions secrets;
+- P4.1 workflow YAML/content edits under `.github/workflows/*` require `workflows: write` in addition to normal file-write safeguards and `contents: write`;
+- workflow-path detection does not weaken stale SHA/branch-head confirmation rules.
+
+## 19. Archive/ZIP security
+
+Uploaded archives remain untrusted. Before extraction enforce upload size, member inspection, traversal/absolute/device/special/link policy, depth/count/uncompressed-size limits, duplicate normalized paths, isolated workspace, and cleanup.
+
+Never execute uploaded code or automatically source `.env`/shell files. ZIP/project sync remains P8 work and is not implied by P4.1 single-file support.
+
+## 20. Command-generation safety
 
 Clone/setup/run generates commands only.
 
@@ -333,47 +340,24 @@ Clone/setup/run generates commands only.
 - trusted templates + detected metadata;
 - uncertainty labelled.
 
-## 18. SSRF/network restrictions
-
-Core GitHub clients target approved GitHub endpoints. No generic fetch-URL-from-Telegram capability.
-
-Canonical REST transport allows repository-relative API paths or HTTPS `api.github.com`; rejects scheme-relative, credential-bearing, external-host, non-HTTPS, fragment-bearing, and noncanonical targets before network I/O. Redirects are not automatically followed.
-
-## 19. GitHub API writes
-
-- use preconditions/current SHA where supported;
-- serialize conflicting same-path operations;
-- batch coherent multi-file changes;
-- never blindly retry destructive/non-idempotent writes after uncertain result; reconcile first;
-- distinguish a reconciled applied write from an ordinary direct response in application result/audit state;
-- if uncertainty remains after reconciliation, expose safe uncertainty instead of lying about success/failure.
-
-GET/HEAD bounded retry remains separate from write safety.
-
-## 20. GitHub Actions safety
-
-- Actions read separate from Actions write;
-- dispatch shows workflow/ref/inputs and requires confirmation;
-- re-run/cancel targets explicit run/job IDs;
-- never display Actions secrets;
-- workflow YAML edits require Workflows write plus normal file-review safeguards.
-
 ## 21. Database security
 
 - parameterized ORM/query use only;
-- unique constraints for identity/delivery bindings where needed;
 - transactions for consume/apply transitions;
 - migrations reviewed/tested;
 - backups/access control documented before production launch;
 - repository cache contains no credentials;
-- audit rows contain safe identifiers/metadata only and are not a credential sink.
+- audit rows contain safe identifiers/metadata only and are not a credential sink;
+- temporary `file_write_sessions.content_bytes` must be treated as private repository content and cleared through the lifecycle described above.
 
-Migration verification:
+Migration chain includes:
 
-- `0003` repository cache remains in PostgreSQL round trip;
-- `0004_user_auth` adds credential-generation/confirmation lifecycle;
-- P3.3 `0005_audit_log` adds durable administration audit rows;
-- PostgreSQL 17 upgrade -> downgrade -> upgrade including `0005_audit_log` passed in implementation CI `33890407945`.
+- `0003` repository cache;
+- `0004_user_auth` credential-generation/confirmation lifecycle;
+- `0005_audit_log` durable GitHub-write audit rows;
+- `0006_file_write_sessions` restart-safe one-file staging.
+
+PostgreSQL 17 upgrade -> downgrade -> upgrade including `0006_file_write_sessions` passed in CI `34639736010`.
 
 ## 22. Logging/redaction
 
@@ -381,17 +365,19 @@ Redact authorization, access/refresh token, installation token, client/webhook s
 
 Authentication/gateway errors must not echo raw GitHub response bodies. Do not log full private webhook bodies by default.
 
-Repository-administration audit details must never serialize credential objects or raw upstream auth/error bodies.
+Repository/file audit must never serialize credential objects, raw upstream auth/error bodies, or staged file contents.
 
 ## 23. Audit log
 
-Audit user-triggered GitHub writes with operation ID, Telegram/GitDock user identity, GitHub account/installation context where safe, repository/resource, timestamp, result/status, GitHub request ID when safe, and reconciliation outcome where relevant.
+Audit user-triggered GitHub writes with operation ID, Telegram/GitDock user identity, safe installation/repository context, repository/resource/path, branch, timestamp, result/status, GitHub request ID when safe, commit SHA where available, and reconciliation outcome where relevant.
 
-Do not place secrets or full sensitive file contents in audit rows.
+P4.1 stable operations are:
 
-P3.3 `AuditLog` records repository create/update/delete success/failure/reconciled/uncertain context while keeping credential material out of `details`.
+- `file.create`;
+- `file.update`;
+- `file.delete`.
 
-Successful update refreshes repository cache metadata. Confirmed successful/reconciled delete removes the deleted repository from local cache so navigation state does not imply the resource still exists.
+P4.1 audit details intentionally exclude file content and staged `content_bytes`.
 
 ## 24. Error handling
 
@@ -399,25 +385,29 @@ Telegram receives stable local errors, not raw tracebacks or auth bodies.
 
 Gateway categories remain authentication, permission, not-found, conflict, validation, rate-limit, transient, unexpected.
 
-P3.2 additionally distinguishes safe reauthorization-required, changed/stale authorization, stale confirmation, and invalid/consumed confirmation states. Copy must never claim deletion when preconditions fail.
+Higher layers distinguish safe states such as reauthorization-required, stale/invalid confirmation, `APPLIED`, `STALE`, `INVALID`, and `UNCERTAIN`.
 
-P3.3 adds explicit safe repository-admin outcome states including applied/stale/invalid/uncertain. An uncertain write is never rendered as definite failure if reconciliation cannot prove that assertion.
+For P4.1:
+
+- stale branch/file/repository preconditions claim no write occurred;
+- expired/reused/cancelled/superseded staging claims no write occurred;
+- uncertain remote outcome explicitly says GitDock did not automatically replay the write.
 
 ## 25. Dependency/supply-chain baseline
 
 - exact direct runtime pins in `requirements.txt`;
 - exact dev/test pins in `requirements-dev.txt`;
 - Python/platform PEP 751 runtime locks committed for 3.12/3.13 Linux;
-- CI regenerates/compares locks;
+- CI regenerates/compares locks byte-for-byte;
 - maintained libraries only;
 - `pip-audit` and secret scan in CI;
 - no dynamic package install from Telegram input.
 
-P3.3 adds no runtime dependency drift. Implementation CI `33890407945` reports no known runtime vulnerabilities, no secret findings, and no PEP 751 lock drift on Python 3.12/3.13.
+During P4.1 verification, disabling Actions dependency caches exposed normal transitive resolver drift to `anyio 4.15.1` and `multidict 6.8.0`. The two runtime lock files were refreshed to exactly the resolver output. Direct runtime pins were unchanged. CI `34639736010` subsequently verified both locks byte-for-byte.
 
 ## 26. Known non-blocking maintenance warnings
 
-Green P3.3 implementation CI still reports:
+Green P4.1 implementation CI still reports:
 
 - Starlette/FastAPI `TestClient` deprecation warning around current `httpx` integration/future `httpx2` direction;
 - Starlette test-client usage surfaces AnyIO's deprecated `anyio.abc.BlockingPortal` alias;
@@ -425,22 +415,24 @@ Green P3.3 implementation CI still reports:
 
 Tracked maintenance debt; not hidden test failures.
 
-## 27. P3.3 verification facts
+## 27. P4.1 implementation verification facts
 
-Implementation head before documentation synchronization: `4e71d7f1c962e61584d6532d03c913703dc5295a`.
+Verified implementation head before documentation synchronization: `614f013b35644fcdd05e880c9a37ff30fd503fdf`.
 
-CI `33890407945` verified:
+CI `34639736010` verified:
 
 - Ruff format/lint green on Python 3.12 and 3.13;
-- mypy clean on 72 source files;
-- **117 tests passed** on both supported Python versions;
+- mypy clean on **87 source files**;
+- **148 tests passed** on both supported Python versions;
 - compile green;
-- `pip-audit` no known runtime vulnerabilities;
-- `detect-secrets` no findings;
-- PEP 751 locks reproduce byte-for-byte;
-- PostgreSQL 17 migration upgrade -> downgrade -> upgrade including `0005_audit_log`.
+- `pip-audit` reported no known runtime vulnerabilities;
+- `detect-secrets` reported no findings;
+- Python 3.12 and 3.13 PEP 751 locks reproduced byte-for-byte;
+- PostgreSQL 17 migration upgrade -> downgrade -> upgrade including `0006_file_write_sessions`.
 
-P3.3 remains merge/governance pending until the documentation-head CI, non-draft PR, unchanged-head merge, post-merge `main` CI, and governance closeout finish.
+The 148-test suite includes direct regression coverage that a newer staged write for the same user/repository/branch/path invalidates the old staging, clears its temporary content, and leaves only the newest staging consumable.
+
+P4.1 remains merge/governance pending until the documentation-head CI, non-draft PR, unchanged-head merge, post-merge `main` CI, and governance closeout complete.
 
 ## 28. Deployment baseline
 
@@ -453,5 +445,6 @@ Before public production use:
 - non-root service where practical;
 - reverse-proxy limits aligned with upload policy;
 - least-privileged PostgreSQL credentials;
+- DB access/backups treated as sensitive because short-lived staged private file bytes may exist in `file_write_sessions`;
 - backup/restore tested;
 - health/readiness reveal no secrets.

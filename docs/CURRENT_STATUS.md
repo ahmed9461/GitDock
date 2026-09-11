@@ -1,6 +1,6 @@
 # GitDock — Current Status / Handoff
 
-Last updated: 2026-09-04
+Last updated: 2026-09-11
 
 ## Project state
 
@@ -15,65 +15,85 @@ Last updated: 2026-09-04
 - P3.2 — durable GitHub user-context authorization/disconnect ✅
 - P3.3 — repository create/settings administration ✅
 
-**Current phase:** P4 — Repository contents, Git tools & run-command assistant
+**Current phase:** P4 — Repository contents, Git tools & run-command assistant.
 
-**Current implementation item:** **P4.1 — File browser**.
+**Current implementation item:** **P4.1 — File browser — implementation verified; merge/governance pending.**
 
-## P3.3 final verification chain
+Do not mark P4.1 phase-complete yet. The implementation head is green, but documentation-head CI, non-draft PR CI, unchanged-head merge, post-merge `main` CI, and governance closeout still remain.
 
-- implementation head `4e71d7f1c962e61584d6532d03c913703dc5295a` — CI `33890407945` green;
-- documentation-synchronized head `0cabc820751482c1c6f3dc13dcef5861aa2901d1` — CI `33891756482` green;
-- non-draft PR #14 — PR CI `33891899602` green and mergeable on unchanged head;
-- squash merge `c0ed95a0360d49cdd67cb6c5f702d6beb78e0368`;
-- post-feature `main` CI `33892100584` green.
+## P4.1 implementation verification
 
-Verified suite: **117 tests** on Python 3.12 and 3.13, plus Ruff format/lint, mypy, compile, dependency audit, secret scan, PEP 751 lock verification, and PostgreSQL 17 Alembic upgrade/downgrade/re-upgrade including `0005_audit_log`.
+- Final implementation head: `614f013b35644fcdd05e880c9a37ff30fd503fdf`.
+- Feature CI: `34639736010` — fully green.
+- Python 3.12 and 3.13: Ruff format/lint, mypy, pytest, compile, dependency audit, secret scan, and PEP 751 runtime-lock verification all green.
+- `mypy`: **87 source files**.
+- `pytest`: **148 passed** on both Python versions.
+- PostgreSQL 17 Alembic upgrade → downgrade → upgrade is green through migration `0006_file_write_sessions`.
+- Runtime locks were refreshed after the cache-disabled CI environment exposed current transitive resolution for `anyio==4.15.1` and `multidict==6.8.0`; direct dependency pins are unchanged.
 
-## P3.3 delivered behavior
+## P4.1 delivered behavior
 
-- Personal and authorized organization repository creation.
-- Repository name, description, visibility, archive/unarchive, and default-branch updates.
-- Tier 1 create, Tier 2 update, and Tier 3 delete confirmation flows.
-- Exact current `owner/name` required before repository deletion.
-- Repository-scoped administration authority for update/delete.
-- Server-side one-time cancellation of pending create/update/delete confirmations.
-- Stale/expired/reused/cancelled confirmation paths fail closed.
-- Uncertain create/update/delete outcomes reconcile current GitHub state instead of blindly replaying writes.
-- Durable repository-administration audit records through migration `0005_audit_log`.
-- Arabic Telegram repository creation wizard and repository settings UI with thin handlers and centralized callbacks/keyboards/renderers/FSM.
+- Real `📁 الملفات` repository action in Telegram.
+- Directory browsing with pagination and parent navigation.
+- Branch/Tag/SHA ref selection for reads.
+- UTF-8 text preview with pagination; binary/large/missing-content fallback.
+- File download when GitHub returns bounded content.
+- Text-file create/edit, document create/replace, and file delete flows.
+- Diff/preview before writes.
+- Durable staged create/update/delete intent through `file_write_sessions` and persisted confirmations.
+- Current branch-head/file-SHA preconditions reject stale overwrites/deletes.
+- A newer staged write for the same user/repository/branch/path invalidates the older staged authority; regression coverage is explicit.
+- Normal writes use repository-scoped `contents: write`; `.github/workflows/*` writes additionally require `workflows: write`.
+- Write-like requests are issued once; uncertain outcomes reconcile GitHub state instead of blind replay.
+- File-write audit records contain safe metadata, not file bodies or credentials.
+- Long repository paths are never placed in Telegram callback data; callbacks carry short session IDs/indexes/tokens and resolve server-side context.
 
-## Durable invariants carried into P4
+## P4.1 staging/data-lifetime facts
+
+- File body bytes may be persisted temporarily in `file_write_sessions` so a reviewed write survives process restart.
+- Staged write TTL is **15 minutes**.
+- Staged content is cleared on consume, cancel, same-target supersession, expiry/prune, or invalidation paths that consume the staged session.
+- This staged file content is **not** audit-log data.
+- Audit metadata excludes access/refresh/installation tokens and file bodies.
+
+## Executable P4.1 limits
+
+- text preview ceiling: 256 KiB;
+- single Telegram upload/download boundary used by P4.1: 20 MiB;
+- preview page: 2800 characters;
+- repository path: 1024 characters;
+- ref: 255 characters;
+- commit message: 500 characters;
+- browse session entropy: 6 bytes;
+- durable file-write staging TTL: 900 seconds.
+
+## Durable invariants carried forward
 
 - GitHub remains source of truth.
 - GitHub App remains the primary credential model.
 - Repository cache is navigation/context state, never authorization proof.
-- Sensitive execution depends on current server-side preconditions and persisted confirmation state.
-- Telegram callbacks are transport only.
-- Do not blindly retry uncertain/destructive GitHub writes; reconcile remote state first.
-- Repository deletion remains Tier 3 and exact-name gated.
+- Telegram callbacks are transport only; sensitive authority is server-side.
+- Current remote state and scoped permissions are revalidated before sensitive execution.
+- No blind retry of uncertain/destructive GitHub writes; reconcile remote state first.
+- Repository deletion remains Tier 3 exact-name gated.
 
 ## Known non-blocking maintenance warnings
 
 - Starlette/FastAPI TestClient deprecation toward httpx2.
-- AnyIO BlockingPortal alias deprecation surfaced through Starlette tests.
-- Alembic prepend_sys_path warning because path_separator is not yet explicit.
+- AnyIO `BlockingPortal` alias deprecation surfaced through Starlette tests.
+- Alembic `prepend_sys_path` warning because `path_separator` is not yet explicit.
 
-These remain maintenance debt, not hidden test failures.
+These are maintenance debt, not hidden test failures.
 
-## Exact next task — P4.1 File browser
+## Exact next work
 
-Implement on a new feature branch from the post-closeout `main` head:
+Finish the P4.1 governance chain on the unchanged verified feature head:
 
-1. directory navigation;
-2. text preview/pagination;
-3. binary/large-file metadata fallback;
-4. branch/ref selection;
-5. create file;
-6. update/replace file;
-7. delete file;
-8. current-SHA stale-write protection;
-9. special workflow-file permission handling;
-10. persisted write confirmation/preconditions and audit behavior;
-11. thin Telegram handlers over the canonical GitHub gateway.
+1. synchronize control docs and run documentation-head CI;
+2. open a non-draft P4.1 PR to `main`;
+3. require green PR CI and mergeable unchanged head;
+4. squash-merge with expected-head protection;
+5. require post-feature `main` CI green;
+6. perform the docs-only P4.1 governance closeout and verify it through PR + post-closeout `main` CI.
 
-P4.1 follows the same completion discipline: synchronized docs, green final-head CI, non-draft PR, unchanged-head merge, post-merge `main` CI, and governance closeout.
+Only after that closeout does **P4.2 — Branch/commit tools** become the exact implementation task.
