@@ -126,7 +126,8 @@ Final feature-delivery verification chain:
 - documentation-synchronized head `185d99d33e863e0909e7e0459d9fcf7fe5df1244` — CI `34641130457` green;
 - non-draft PR #16 CI `34641248664` green;
 - squash merge `32ef6ec55772f01fcce4ba8c6db1d836aadb45c6`;
-- post-feature `main` CI `34641411838` green.
+- post-feature `main` CI `34641411838` green;
+- governance closeout `d113872e703b005f4c3c8e2b1da8fc2597e8ecd7`.
 
 Implementation/acceptance:
 
@@ -153,9 +154,17 @@ Implementation/acceptance:
 - [x] PostgreSQL 17 migration round-trip through `0006_file_write_sessions`.
 - [x] documentation-head CI, non-draft PR CI, protected squash merge, post-feature main CI, and governance handoff verified.
 
-### P4.2 Branch/commit tools — implementation verified, governance in progress
+### P4.2 Branch/commit tools ✅
 
-Implementation head `5a4f7aa4eb557e69665a7311f32c8060e38b1518` — CI `34647181024` green.
+Final feature-delivery verification chain:
+
+- implementation head `5a4f7aa4eb557e69665a7311f32c8060e38b1518` — CI `34647181024` green;
+- documentation-synchronized feature head `73e48dfced65d72d0d27e9defc4c3e107527107f` — push CI `34647866083` green;
+- non-draft PR #18 CI `34648080794` green on unchanged mergeable head;
+- protected squash merge `b4e7dcd9de5db1e958e831508443d3fa1445213d`;
+- post-feature `main` CI `34648224733` green.
+
+Implementation/acceptance:
 
 - [x] list branches from authoritative GitHub state.
 - [x] case-insensitive search/filter over fetched branch list.
@@ -175,10 +184,10 @@ Implementation head `5a4f7aa4eb557e69665a7311f32c8060e38b1518` — CI `346471810
 - [x] compact callback/navigation context.
 - [x] no normal v1 force-push/force-update/branch-delete UI.
 - [x] **165 tests** on Python 3.12 and 3.13; mypy clean on **94 source files**.
-- [x] Ruff/compile/audit/secret/PEP 751/PostgreSQL gates green on implementation head.
-- [~] documentation-head CI, non-draft PR CI, protected merge, post-feature main CI, and final governance handoff.
+- [x] Ruff/compile/audit/secret/PEP 751/PostgreSQL gates green.
+- [x] documentation-head CI, non-draft PR CI, protected squash merge, post-feature `main` CI, and final governance handoff verified.
 
-### P4.3 Clone/setup/run assistant — next after P4.2 governance
+### P4.3 Clone/setup/run assistant — active
 
 - [ ] fresh clone commands.
 - [ ] update-existing-clone commands.
@@ -187,14 +196,14 @@ Implementation head `5a4f7aa4eb557e69665a7311f32c8060e38b1518` — CI `346471810
 - [ ] Linux commands.
 - [ ] macOS commands.
 - [ ] confidence/source explanation.
+- [ ] safe path/ref quoting where applicable.
 - [ ] no token insertion/no arbitrary command execution.
 
 P4 acceptance:
 
 - [x] owner can browse and safely update one file at a time without blind overwrite;
 - [x] repository-controlled file/README text is displayed only and never automatically executed by P4.1;
-- [x] P4.2 branch/commit implementation and acceptance tests are complete;
-- [ ] P4.2 governance/merge chain complete;
+- [x] P4.2 branch/commit implementation, acceptance tests, merge, post-merge CI, and governance are complete;
 - [ ] P4.3 generated commands clearly separate clone/update/setup/run.
 
 ---
