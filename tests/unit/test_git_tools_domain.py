@@ -3,14 +3,18 @@ from datetime import UTC
 import pytest
 
 from gitdock.github.git_tools import (
+    CompareFile,
+    CompareSnapshot,
     parse_branch,
     parse_commit_detail,
     parse_commit_summary,
     parse_compare,
     parse_created_branch,
 )
+from gitdock.services.git_tools import CompareView
 from gitdock.services.repositories import RepositoryFilter
 from gitdock.telegram import git_callbacks
+from gitdock.telegram.renderers.git_tools import render_compare
 
 
 def test_parse_branch_and_created_ref() -> None:
@@ -62,6 +66,37 @@ def test_commit_parsers_and_compare() -> None:
     )
     assert comparison.ahead_by == 2
     assert comparison.files[0].changes == 5
+
+
+def test_large_compare_summary_is_bounded() -> None:
+    files = tuple(
+        CompareFile(
+            filename=f"file-{index:02d}.py",
+            status="modified",
+            additions=1,
+            deletions=1,
+            changes=2,
+        )
+        for index in range(15)
+    )
+    text = render_compare(
+        CompareView(
+            repository_full_name="ahmed9461/GitDock",
+            base="main",
+            head="feature/x",
+            comparison=CompareSnapshot(
+                status="ahead",
+                ahead_by=15,
+                behind_by=0,
+                total_commits=15,
+                files=files,
+            ),
+        )
+    )
+    assert "Files: 15" in text
+    assert text.count("\n• ") == 10
+    assert "file-09.py" in text
+    assert "file-10.py" not in text
 
 
 def test_branch_parser_rejects_invalid_sha() -> None:

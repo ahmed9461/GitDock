@@ -266,6 +266,33 @@ async def test_reads_branches_commits_and_compare() -> None:
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_branch_search_is_case_insensitive() -> None:
+    engine, _, service, _, _, user_id = await _build_service()
+    view = await service.list_branches(
+        user_id=user_id,
+        github_repository_id=_REPOSITORY_ID,
+        query="FEATURE",
+    )
+    assert [branch.name for branch in view.branches] == ["feature/x"]
+    await engine.dispose()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_commit_detail_reads_requested_sha() -> None:
+    engine, _, service, _, _, user_id = await _build_service()
+    view = await service.commit_detail(
+        user_id=user_id,
+        github_repository_id=_REPOSITORY_ID,
+        ref="c" * 40,
+    )
+    assert view.commit.sha == "c" * 40
+    assert view.commit.changed_files == 1
+    await engine.dispose()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_branch_create_is_preview_confirm_and_scoped_write() -> None:
     engine, sessions, service, git, tokens, user_id = await _build_service()
     plan = await service.begin_create_branch(
@@ -284,6 +311,36 @@ async def test_branch_create_is_preview_confirm_and_scoped_write() -> None:
             select(AuditLog).where(AuditLog.operation == "git.branch.create")
         )
         assert audit is not None and audit.status == "success"
+    await engine.dispose()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_branch_create_rejects_duplicate_without_write() -> None:
+    engine, _, service, git, _, user_id = await _build_service()
+    with pytest.raises(ValueError, match="already exists"):
+        await service.begin_create_branch(
+            user_id=user_id,
+            github_repository_id=_REPOSITORY_ID,
+            branch="feature/x",
+            base_ref="main",
+        )
+    assert git.create_calls == 0
+    await engine.dispose()
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_branch_create_rejects_missing_base_without_write() -> None:
+    engine, _, service, git, _, user_id = await _build_service()
+    with pytest.raises(GitHubNotFoundError):
+        await service.begin_create_branch(
+            user_id=user_id,
+            github_repository_id=_REPOSITORY_ID,
+            branch="feature/new",
+            base_ref="missing",
+        )
+    assert git.create_calls == 0
     await engine.dispose()
 
 
