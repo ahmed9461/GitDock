@@ -3,7 +3,7 @@
 Status legend:
 
 - [ ] not started
-- [~] in progress
+- [~] in progress / delivery closeout pending
 - [x] verified implementation/acceptance item
 - `[BLOCKED]` blocked with reason in `docs/CURRENT_STATUS.md`
 
@@ -68,63 +68,50 @@ A phase is complete only after implementation, required CI, merge, post-merge ve
 - [x] **165 tests** on Python 3.12/3.13; mypy clean on **94 source files**.
 
 ### P4.3 Clone/setup/run assistant ✅
-
-Final feature-delivery chain:
-
-- implementation head `fba538e3c6071365361def7d5970ff7b19b5819c` — CI `34650497474` green;
-- documentation-synchronized head `989e826f8e845934b9255a78c91bfeca48f10538` — CI `34650840434` green;
-- non-draft PR #20 CI `34650940874` green on unchanged mergeable head;
-- protected squash merge `0f0750388a1a919917ba81586fad42ae2ab11336`;
-- post-feature `main` CI `34651051039` green.
-
-Implementation/acceptance:
-
-- [x] fresh clone commands.
-- [x] update-existing-clone commands.
+- [x] Fresh clone commands.
+- [x] Update-existing-clone commands.
 - [x] Windows PowerShell, Linux, and macOS targets.
-- [x] bounded evidence detection for Python/Node/Docker/Gradle/Maven.
-- [x] explicit confidence/source explanation.
-- [x] safe path/ref quoting where applicable.
-- [x] public unauthenticated evidence reads; installed/private reads through installation context.
-- [x] repository/search UI entry points with compact callbacks.
-- [x] stale public-search sessions fail closed.
+- [x] Bounded evidence detection for Python/Node/Docker/Gradle/Maven.
+- [x] Explicit confidence/source explanation.
+- [x] Safe path/ref quoting where applicable.
+- [x] Public unauthenticated evidence reads; installed/private reads through installation context.
+- [x] Repository/search UI entry points with compact callbacks.
+- [x] Stale public-search sessions fail closed.
 - [x] README/script bodies are never copied/executed as arbitrary shell commands.
-- [x] generated commands never contain GitHub credentials.
-- [x] output warns about repository-controlled hooks/build logic/scripts.
-- [x] command generation only; no automatic shell execution.
+- [x] Generated commands never contain GitHub credentials.
+- [x] Output warns about repository-controlled hooks/build logic/scripts.
+- [x] Command generation only; no automatic shell execution.
 - [x] **182 tests** on Python 3.12/3.13; mypy clean on **100 source files**.
-- [x] Ruff/compile/audit/secret/PEP 751/PostgreSQL gates green.
-- [x] documentation-head CI, non-draft PR CI, protected squash merge, and post-feature `main` CI verified.
-
-P4 acceptance:
-
-- [x] owner can browse and safely update one file at a time without blind overwrite.
-- [x] branch/commit operations preserve stale-safe/scoped-write invariants.
-- [x] generated clone/update/setup/run commands are OS-aware, evidence-backed, credential-free, and non-executing.
-- [x] repository-controlled README/script text is never silently executed.
-- [x] P4 feature delivery and post-merge verification complete.
+- [x] Documentation-head CI, non-draft PR CI, protected squash merge, post-feature `main` CI, and governance closeout verified.
 
 ---
 
 ## P5 — Webhooks & notification engine
 
-### P5.1 Secure ingestion — ACTIVE
+### P5.1 Secure ingestion — IMPLEMENTATION VERIFIED / DELIVERY CLOSEOUT ACTIVE
 
-- [~] Establish secure, durable webhook ingestion boundary.
-- [ ] GitHub webhook endpoint in existing FastAPI ingress.
-- [ ] Verify `X-Hub-Signature-256` against the exact raw request body using HMAC-SHA256.
-- [ ] Reject missing/forged signatures before trusted processing.
-- [ ] Validate/capture GitHub delivery ID and event name.
-- [ ] Durable webhook/event inbox.
-- [ ] Unique delivery-ID deduplication/idempotency.
-- [ ] Fast HTTP acknowledgement after validation + durable acceptance.
-- [ ] Retryable/restart-safe processing state.
-- [ ] Bounded payload/logging/retention policy.
-- [ ] Migration and unit/integration/contract coverage.
+Implementation head `e55c6e99001bb657ed2064459e92caca1f2e3481`, push CI `34652564335` green.
 
-Acceptance: forged signatures rejected; duplicate delivery is idempotent; accepted work survives restart; acknowledgement is fast; raw secrets/auth material are not overlogged.
+- [x] GitHub webhook endpoint in existing FastAPI ingress.
+- [x] Verify `X-Hub-Signature-256` against exact raw request body using HMAC-SHA256.
+- [x] Reject missing/forged/malformed signatures before trusted processing.
+- [x] Validate/capture GitHub delivery ID and event name.
+- [x] Durable `github_webhook_deliveries` inbox.
+- [x] Unique delivery-ID deduplication/idempotency.
+- [x] Same delivery ID with different event/content is explicit conflict.
+- [x] Fast HTTP 202 acknowledgement after validation + durable acceptance.
+- [x] Retryable/restart-safe `pending/processing/failed/processed` state.
+- [x] Processing lease recovers abandoned work after crash/restart.
+- [x] Bounded payload/logging/retention policy; `GITHUB_WEBHOOK_MAX_BODY_BYTES=25_000_000`.
+- [x] Processed payload pruning after retention expiry.
+- [x] Migration `0007_github_webhook_deliveries.py` / revision `0007_webhook_inbox`.
+- [x] Unit/integration/contract coverage for signature, duplicate/conflict, route security, persistence/restart, retry/lease, retention, migration.
+- [x] **213 tests** on Python 3.12/3.13; mypy **104 source files**; Ruff **176 files**; compile/audit/secrets/locks/PostgreSQL green.
+- [~] Documentation-head CI → non-draft PR CI → protected squash merge → post-feature `main` CI → governance closeout.
 
-### P5.2 Event normalization
+Acceptance implementation is satisfied. P5.1 is not formally complete until the delivery chain above is finished.
+
+### P5.2 Event normalization — NOT ACTIVE YET
 
 - [ ] push.
 - [ ] issues.

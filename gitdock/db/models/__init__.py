@@ -6,6 +6,7 @@ from gitdock.db.models.file_write import FileWriteSession
 from gitdock.db.models.github_auth import GitHubAuthorizationState
 from gitdock.db.models.identity import GitHubAccount, GitHubInstallation, TelegramAccount, User
 from gitdock.db.models.repository import RepositoryCache
+from gitdock.db.models.webhook import GitHubWebhookDelivery
 
 __all__ = [
     "AuditLog",
@@ -13,6 +14,7 @@ __all__ = [
     "GitHubAccount",
     "GitHubAuthorizationState",
     "GitHubInstallation",
+    "GitHubWebhookDelivery",
     "PendingConfirmation",
     "RepositoryCache",
     "TelegramAccount",
