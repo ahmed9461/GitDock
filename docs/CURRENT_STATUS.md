@@ -16,20 +16,29 @@ Last updated: 2026-09-12
 - P3.3 — repository create/settings administration ✅
 - P4.1 — repository file browser + stale-safe single-file writes ✅
 - P4.2 — branch/commit tools ✅
+- P4.3 — clone/setup/run assistant ✅
+- P4 — Repository contents, Git tools & run-command assistant ✅
 
-**Current phase:** P4 — Repository contents, Git tools & run-command assistant.
+**Current phase:** P5 — Webhooks & notification engine.
 
-**Current implementation item:** **P4.3 — Clone/setup/run assistant (implementation verified; delivery closeout pending).**
+**Current implementation item:** **P5.1 — Secure webhook ingestion.**
 
-P4.3 code and direct acceptance coverage are implemented on `feat/p4-3-run-assistant`. Push CI is green. The remaining delivery steps are documentation-head CI, non-draft PR CI/mergeability, protected squash merge, post-merge `main` CI, and final governance closeout. Do not start P5 implementation until those steps are complete.
+P4 is fully delivered and feature-verified. This branch is governance closeout only; do not reopen P4 unless a real regression is found. New implementation work belongs in a fresh P5.1 feature branch after this closeout is merged.
 
-## P4.3 implementation verification
+## P4.3 final delivery chain
 
-- verified implementation head `fba538e3c6071365361def7d5970ff7b19b5819c` — CI `34650497474` green;
-- Python 3.12 and 3.13 quality jobs green;
+- implementation head `fba538e3c6071365361def7d5970ff7b19b5819c` — push CI `34650497474` green;
+- documentation-synchronized head `989e826f8e845934b9255a78c91bfeca48f10538` — push CI `34650840434` green;
+- non-draft PR #20 on the unchanged head — PR CI `34650940874` green and mergeable;
+- protected squash merge `0f0750388a1a919917ba81586fad42ae2ab11336`;
+- post-feature `main` CI `34651051039` green.
+
+Verified P4.3 contract:
+
+- Python 3.12 and 3.13;
+- **182 tests passed** on both versions;
 - Ruff format/lint green on **167 files**;
 - mypy clean on **100 source files**;
-- **182 tests passed** on both Python versions;
 - compileall green;
 - `pip-audit` reported no known runtime vulnerabilities;
 - `detect-secrets` reported no findings;
@@ -40,39 +49,29 @@ Known maintenance warnings remain unchanged: Starlette/FastAPI TestClient deprec
 
 ## P4.3 delivered behavior
 
-- Repository dashboard and public-search detail expose a real `📥 تشغيل/تنزيل` / download-command assistant entry point.
-- User chooses Windows PowerShell, Linux, or macOS before command generation.
-- Fresh clone and update-existing-clone commands are generated separately.
-- Stack inference supports Python, Node.js, Docker, Gradle, and Maven from bounded repository evidence.
-- Setup/run suggestions show inference confidence and evidence sources.
-- Public repositories can be inspected without an Authorization header; installed/private repositories continue through the existing installation read context.
-- P4.3 reuses the canonical `GitHubRestClient`/Contents gateway instead of introducing a parallel HTTP stack.
+- Repository dashboard and public-search detail expose a real clone/setup/run command assistant.
+- Explicit target OS selection: Windows PowerShell, Linux, or macOS.
+- Fresh-clone and update-existing-clone commands are separated from setup and run suggestions.
+- Bounded evidence-driven inference supports Python, Node.js, Docker, Gradle, and Maven.
+- Inferred setup/run suggestions expose confidence and evidence sources.
+- Public repositories use unauthenticated read-only Contents access; installed/private repositories reuse existing installation read context.
+- P4.3 reuses the canonical `GitHubRestClient`/Contents gateway; there is no parallel HTTP stack.
 - Generated commands never contain GitHub tokens or credentials.
 - GitDock never executes generated commands automatically.
-- README text is treated as untrusted evidence and is never copied/executed as shell instructions.
-- Node package script bodies are never copied into generated shell text; GitDock emits only the bounded script invocation form such as `npm run <safe-name>`.
-- Python entry-point/script names used for generated commands are constrained to safe identifiers.
-- Branch/ref/path shell arguments use target-OS-aware quoting where applicable.
-- Evidence collection is bounded by known root files and file-size/read limits rather than arbitrary repository crawling.
-- Stale public-search callbacks remain fail-closed through the existing active search-session contract.
-- The rendered result explicitly warns that setup/run commands can execute hooks, build logic, or scripts contained in the repository when the user runs them locally.
-
-## P4.2 final delivery chain
-
-- implementation head `5a4f7aa4eb557e69665a7311f32c8060e38b1518` — CI `34647181024` green;
-- documentation-synchronized feature head `73e48dfced65d72d0d27e9defc4c3e107527107f` — push CI `34647866083` green;
-- non-draft PR #18 on the unchanged head — PR CI `34648080794` green and mergeable;
-- protected squash merge `b4e7dcd9de5db1e958e831508443d3fa1445213d`;
-- post-feature `main` CI `34648224733` green.
-
-The verified P4.2 contract remains **165 tests** on Python 3.12/3.13 with mypy clean on **94 source files** and all quality/security/migration gates green.
+- README/script text is untrusted and is never copied as arbitrary shell instructions.
+- Node script bodies are never copied; only validated script names may produce `npm run <name>` style invocations.
+- Python entry-point/script names used in generated commands are constrained to safe identifiers.
+- Path/ref material is quoted for the selected shell where applicable.
+- Evidence reads are bounded to known root candidates and configured read-size limits.
+- Stale public-search callbacks continue to fail closed.
+- Output explicitly warns that dependency/build/run commands may execute repository-controlled hooks, build logic, or scripts when the user runs them locally.
 
 ## Durable invariants carried forward
 
 - GitHub remains source of truth.
 - GitHub App remains the primary credential model.
 - Repository cache is navigation/context state, never authorization proof.
-- Telegram callbacks are transport only; sensitive authority is server-side.
+- Telegram callbacks are transport only; sensitive authority stays server-side.
 - Current remote state and scoped permissions are revalidated before sensitive execution.
 - GET/HEAD may use bounded safe retry; write-like GitHub calls are not blindly replayed.
 - Uncertain write outcomes remain uncertain unless reconciliation proves final state.
@@ -81,15 +80,25 @@ The verified P4.2 contract remains **165 tests** on Python 3.12/3.13 with mypy c
 - Branch creation remains preview → persisted confirmation → base/target revalidation → scoped token → single create-ref → reconcile → audit.
 - No normal v1 force-push/force-update UI.
 - Repository/README/script text is untrusted input and is never automatically executed.
-- Clone/setup/run is command generation only; GitDock does not provide arbitrary shell execution.
+- Clone/setup/run remains command generation only; GitDock does not provide arbitrary shell execution.
+- Webhook verification must use the exact raw HTTP body before JSON parsing.
+- Webhook delivery deduplication must be durable and keyed by GitHub delivery identity, not volatile process memory.
+- Webhook HTTP acknowledgement must stay fast; durable processing belongs behind the ingestion boundary.
 
-## Active closeout — P4.3 Clone/setup/run assistant
+## Active task — P5.1 Secure webhook ingestion
 
-Implementation and push verification are complete. Finish only these delivery steps next:
+Required scope:
 
-1. synchronize `ROADMAP.md`, `PROJECT_MEMORY.md`, and `CHANGELOG.md` with the verified P4.3 contract;
-2. verify the documentation-synchronized feature head in CI;
-3. open a non-draft PR to `main` and require green PR CI + mergeability;
-4. squash merge without bypassing protections;
-5. verify post-merge `main` CI;
-6. perform governance closeout and only then mark P4 complete / P5.1 active.
+- GitHub webhook endpoint in the existing FastAPI ingress;
+- exact raw-body HMAC-SHA256 signature verification using the configured webhook secret;
+- reject missing/invalid signatures before trusted event processing;
+- capture GitHub delivery ID and event name using bounded validated headers;
+- durable webhook/event inbox with unique delivery ID deduplication;
+- duplicate deliveries must be idempotent and must not create duplicate downstream work;
+- fast HTTP acknowledgement after validation + durable acceptance;
+- explicit processing state suitable for retryable worker consumption and restart recovery;
+- bounded payload storage/retention policy and no secret/raw-auth overlogging;
+- migration + unit/integration/contract coverage for valid signature, forged signature, duplicate delivery, restart-safe persistence, and failure/retry state;
+- continue using existing persistence/runtime composition patterns rather than introducing a second service stack.
+
+Before coding, inspect current FastAPI routes, settings/security boundaries, SQLAlchemy/Alembic conventions, and test fixtures. P5.1 is ingestion/durability only; event-specific normalization and Telegram notification UX belong to P5.2/P5.3.
