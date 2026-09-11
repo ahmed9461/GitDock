@@ -1,6 +1,6 @@
 # GitDock — Telegram UI/UX Specification
 
-Status: authoritative v1 interaction contract, updated through P4.1 file-browser implementation verification
+Status: authoritative v1 interaction contract, verified through P4.2 branch/commit implementation.
 
 ## 1. Experience goal
 
@@ -22,9 +22,9 @@ Arabic is the primary UI language. Technical values such as repository names, br
 - Keep primary screens concise; secondary detail behind buttons.
 - Default to at most two primary buttons per row.
 - Destructive/sensitive actions are isolated from harmless navigation.
-- Always show target/consequence before write or sensitive local cleanup.
-- Use consistent icons from `docs/CONSTANTS.md`.
-- Never render access/refresh/installation tokens, OAuth code/state, PKCE verifier, private key, client secret, raw upstream auth body, or staged file body as hidden callback authority.
+- Always show target/consequence before a write or sensitive local cleanup.
+- Never render access/refresh/installation tokens, OAuth code/state, PKCE verifier, private key, client secret, or raw upstream auth material.
+- Do not treat callback possession as authority.
 
 ## 3. Navigation contract
 
@@ -40,7 +40,7 @@ During active wizards:
 [❌ إلغاء] [⬅️ رجوع]
 ```
 
-Home/Cancel/Back must remain predictable. Home cancels transient search/input state and invalidates pending local-disconnect authority where applicable. Once a persisted write confirmation/staging authority exists, edit/back/cancel must revoke or consume that authority before leaving the flow so an old Telegram confirmation cannot remain executable.
+Home/Cancel/Back must remain predictable. Home cancels transient search/input state where continuing would surprise the user. Once a persisted sensitive confirmation/staging authority exists, leaving the flow must consume/revoke that authority where applicable so old Telegram buttons do not remain executable.
 
 ## 4. Home screen
 
@@ -67,76 +67,24 @@ Current connected keyboard contract:
 [🔄 تحديث]
 ```
 
-`👤 حساب GitHub` is real since P3.2. `➕ مستودع جديد` is real since P3.3. Repository-dashboard `📁 الملفات` is real in P4.1. Other entries remain placeholders until their roadmap milestone.
+`👤 حساب GitHub` is real since P3.2. `➕ مستودع جديد` is real since P3.3. Other future Home entries may remain placeholders until their milestone.
 
-Disconnected example:
+Disconnected users may still use public GitHub search. Installed-repository administration/write flows require current server-side authorization and never become executable merely because an old callback exists.
 
-```text
-🐙 GitDock
+## 5. GitHub account — P3.2
 
-لم يتم ربط حساب GitHub بعد.
-اربط الحساب لعرض مستودعاتك وإدارتها بأمان.
-```
-
-```text
-[🔎 البحث في GitHub]
-[🔗 ربط GitHub]
-[ℹ️ كيف يعمل الربط؟]
-[🔄 تحديث]
-```
-
-Public search remains available independently of connection state. Repository creation/file writes require current server-side authorization and do not become executable merely because a callback exists.
-
-## 5. GitHub account screen — P3.2 verified
-
-The account screen separates durable GitHub **user authorization** from local GitHub App **installation bindings**.
-
-Authorized example:
-
-```text
-👤 حساب GitHub
-
-GitHub: octocat
-✅ صلاحية المستخدم: مفعلة
-🏢 التثبيتات المرتبطة: 2
-🔄 التجديد: متاح
-
-تُحفظ رموز التفويض مشفرة داخل GitDock ولا يتم عرضها هنا.
-```
-
-```text
-[🔐 إعادة التفويض]
-[🔄 تحديث]
-[🔌 قطع الربط المحلي]
-[🏠 الرئيسية]
-```
-
-Legacy installation-only example:
-
-```text
-👤 حساب GitHub
-
-⚠️ صلاحية المستخدم الدائمة غير مفعلة
-🏢 التثبيتات المرتبطة: 1
-
-يمكن تفعيل صلاحية المستخدم دون إعادة تثبيت GitHub App.
-```
-
-```text
-[🔐 تفعيل صلاحية المستخدم]
-[🔌 قطع الربط المحلي]
-[🏠 الرئيسية]
-```
+Authorized account screen shows linked GitHub login, durable-user-authorization state, installation count, and safe refresh/re-authorization actions. Local disconnect uses a persisted confirmation and explicitly states that it does not uninstall the GitHub App remotely.
 
 Rules:
 
-- activate/re-authorize starts standalone OAuth + PKCE through the established secure flow;
-- it does not reinstall the GitHub App;
-- refresh may perform expiry-aware token rotation server-side, but UI never displays token material;
-- local disconnect is isolated and uses persisted one-time confirmation;
-- UI states clearly that local disconnect does not uninstall the GitHub App remotely.
+- activate/re-authorize starts the established OAuth + PKCE flow;
+- refresh may rotate credentials server-side but UI never displays token material;
+- local disconnect is isolated from remote App uninstall;
+- stale/cancelled/reused disconnect confirmation removes nothing.
 
 ## 6. Repository list
+
+Repository list is paginated/filterable and uses compact stable repository-ID callbacks. Long repository names do not travel as callback authority.
 
 Example:
 
@@ -144,26 +92,11 @@ Example:
 📦 مستودعاتي
 
 1) 🔒 GitDock
-   Python • main • تم التحديث قبل 8 دقائق
+   Python • main
 
 2) 🌐 WebHub
    Kotlin • main • ⭐ 14
-
-3) 🔒 Wasl
-   TypeScript • main
-
-الصفحة 1 من 3
 ```
-
-```text
-[1 • GitDock] [2 • WebHub]
-[3 • Wasl]    [4 • ...]
-[◀️ السابق]   [التالي ▶️]
-[🎛 تصفية]    [🔄 تحديث]
-[🏠 الرئيسية]
-```
-
-Do not place full long repository names in callback payloads; use compact stable IDs.
 
 ## 7. Repository dashboard
 
@@ -174,12 +107,8 @@ Example:
 🔒 خاص
 
 🌿 الفرع الافتراضي: main
-📝 آخر Commit: docs: define system architecture
+📝 آخر Commit: docs: update architecture
 ⭐ 0   🍴 0
-❗ Issues: 0   🔀 PRs: 0
-⚙️ Actions: لا توجد عمليات بعد
-
-آخر تحديث: قبل 3 دقائق
 ```
 
 Keyboard contract:
@@ -193,161 +122,57 @@ Keyboard contract:
 [🏠 الرئيسية]      [⬅️ رجوع]
 ```
 
-`📁 الملفات` is real in P4.1. `⚙️ إعدادات المستودع` is real in P3.3. Unimplemented entries remain placeholders until their milestone.
+Verified real entries now are:
 
-## 8. Create repository wizard — P3.3 verified
+- `📁 الملفات` — P4.1;
+- `📝 Commits` — P4.2;
+- `🌿 الفروع` — P4.2;
+- `⚙️ إعدادات المستودع` — P3.3.
 
-Flow: repository name → description/skip → visibility → preview → persisted confirmation.
+Other entries remain placeholders until their roadmap milestone.
 
-Preview pattern:
+## 8. Create repository — P3.3
 
-```text
-✅ مراجعة الإنشاء
+Flow: name → description/skip → visibility → explicit preview → persisted confirmation.
 
-الاسم: MyProject
-المالك: ahmed9461
-النوع: 🔒 خاص
-الوصف: ...
+Creation does not occur before preview + confirmation. Edit/back/cancel consumes issued confirmation. Reused/expired/cancelled confirmation creates nothing.
 
-سيتم إنشاء المستودع في حساب GitHub المرتبط.
-```
+## 9. Repository settings — P3.3
 
-```text
-[✅ إنشاء المستودع]
-[✏️ تعديل البيانات]
-[❌ إلغاء]
-```
+Settings include name, description, visibility, archive/unarchive, default branch, and isolated delete.
 
 Rules:
 
-- creation never occurs before preview + persisted Tier 1 confirmation;
-- personal create uses current durable GitHub user authorization;
-- organization create is supported at service/gateway level when explicitly requested/authorized; current Telegram wizard defaults to linked personal account;
-- edit/cancel consumes issued confirmation;
-- reused/expired/cancelled confirmation creates nothing.
+- state-changing settings use persisted preview/confirmation;
+- stale target/preconditions perform no write;
+- delete requires exact current `owner/repo` plus Tier 3 confirmation;
+- edit/back/cancel after preview consumes pending authority.
 
-## 9. Repository settings — P3.3 verified
+## 10. File browser — P4.1
 
-```text
-⚙️ إعدادات GitDock
-
-الاسم: GitDock
-الظهور: 🔒 خاص
-الفرع الافتراضي: main
-الحالة: نشط
-```
-
-```text
-[✏️ الاسم]       [📝 الوصف]
-[🌐 جعله عامًا / 🔒 جعله خاصًا] [📦 أرشفة / 📤 إلغاء الأرشفة]
-[🌿 الفرع الافتراضي]
-[🗑 حذف المستودع]
-[🏠 الرئيسية] [⬅️ رجوع]
-```
+Directory actions include entry buttons, pagination, create/upload, change ref, refresh, parent directory, Home/Back.
 
 Rules:
 
-- delete is isolated;
-- name/description/default branch collect input then preview;
-- visibility/archive/unarchive use persisted Tier 2 preview/confirmation, not one-tap execution;
-- Back/Cancel after preview consumes pending confirmation;
-- stale target/preconditions produce no write;
-- deletion requires exact current `owner/repo` then separate persisted Tier 3 confirmation.
-
-## 10. File browser — P4.1 verified implementation
-
-Directory screen:
-
-```text
-📁 GitDock / docs
-🌿 main
-
-📁 api
-📁 assets
-📄 ARCHITECTURE.md
-📄 ROADMAP.md
-📄 SECURITY_MODEL.md
-
-الصفحة 1 من 2
-```
-
-Current directory actions include entry buttons plus:
-
-```text
-[◀️ السابق] [التالي ▶️]
-[➕ ملف] [⬆️ رفع/استبدال]
-[🌿 تغيير الفرع] [🔄 تحديث]
-[⬅️ مجلد أعلى]
-[🏠 الرئيسية] [⬅️ رجوع]
-```
-
-Rules:
-
-- directory page size is 8 entries;
-- entry callbacks contain short browse session ID + numeric index, never the repository path itself;
+- directory page size is 8;
+- entry callbacks carry short browse session ID + numeric index, never repository path;
 - stale/unknown browse session fails closed;
-- parent navigation operates on validated server-side path context;
-- ref input accepts a validated branch/Tag/SHA for read navigation;
+- ref input accepts validated branch/tag/SHA for read navigation;
 - write flows require a real writable branch and current preconditions, not merely a readable detached ref.
 
-### P4.1 file view
+File view behavior:
 
-```text
-📄 docs/ARCHITECTURE.md
-🌿 main
-📦 18.4 KB
+- UTF-8 text is previewed only within the 256 KiB preview ceiling and split into ~2800-character pages;
+- binary content is described as binary;
+- large/missing-inline-content uses safe metadata/fallback;
+- bounded downloadable content may be sent as Telegram document;
+- arbitrary browser/GitHub URLs never become a generic outbound fetch primitive.
 
-<text preview>
+## 11. P4.1 one-file write UX
 
-الجزء 1 من 4
-```
+Create/upload/edit/replace/delete all stage a reviewable plan before GitHub changes.
 
-Current actions:
-
-```text
-[◀️] [▶️]
-[✏️ تعديل] [♻️ استبدال]
-[🌿 تغيير الفرع] [📥 تنزيل]
-[🗑 حذف]
-[🏠 الرئيسية] [⬅️ رجوع]
-```
-
-Behavior:
-
-- UTF-8 text is previewed only within the 256 KiB preview ceiling and split into 2800-character pages;
-- binary content is described as binary, not rendered as fake text;
-- large content uses a clear metadata/fallback message;
-- missing inline content uses a safe fallback rather than guessing;
-- bounded downloadable content is sent as a Telegram document; unsupported/too-large content directs the user to GitHub rather than attempting an unbounded fetch;
-- UI never turns GitHub/browser URLs into arbitrary outbound fetch targets.
-
-## 11. P4.1 create/upload/edit/replace/delete flows
-
-### Create text file
-
-1. `➕ ملف` from current directory.
-2. Ask for **one filename segment only** (for example `README.md`); nested paths are rejected in this input step.
-3. Ask for full text content.
-4. Server stages the intended create and returns Preview.
-5. User confirms or cancels.
-
-### Upload / create-or-replace
-
-`⬆️ رفع/استبدال` asks for a Telegram document. The server combines the validated current directory with the document filename and checks whether that path currently exists at the selected ref. Existing target becomes an update/replace plan; missing target becomes create. The UI does not choose create/update solely from filename assumptions.
-
-### Edit / replace existing file
-
-- `✏️ تعديل` asks for full replacement text.
-- `♻️ استبدال` asks for a replacement Telegram document.
-- Both stage a reviewable update against current GitHub preconditions before any write.
-
-### Delete
-
-`🗑 حذف` stages a delete plan for the currently selected file and shows the same explicit write-review/confirmation pattern. It never deletes directly from the file-view tap.
-
-## 12. P4.1 single-file write confirmation
-
-Text-write preview pattern:
+Text preview example:
 
 ```text
 ✏️ مراجعة التغيير
@@ -371,139 +196,170 @@ Update docs/README.md via GitDock
 [❌ إلغاء]
 ```
 
-Binary/non-text plan explicitly says a textual Diff is unavailable rather than inventing one.
+If branch/file state changed after preview, UI states clearly that nothing was overwritten/deleted and asks the user to refresh/review. If final remote outcome cannot be proven, UI says the result is uncertain and does not suggest blindly replaying the operation.
 
-Durable behavior:
+## 12. Branch list/search — P4.2
 
-- preview creates server-side staged intent + persisted confirmation; callback token is transport only;
-- staged intent is tied to repository, branch, path, branch head/current file SHA, desired content digest, operation, user, expiry, and nonce/version;
-- a newer staging for the same user/repository/branch/path invalidates the older staged authority;
-- cancel consumes the pending authority and clears staged content;
-- staged content is temporary and can survive restart for at most 15 minutes; it is cleared on consume/cancel/supersede/expiry/prune;
-- audit contains no file body.
+`🌿 الفروع` is a real repository-dashboard flow.
 
-If file/branch state changed:
+Screen contract:
 
 ```text
-⚠️ تغير الملف أو الفرع في GitHub بعد فتحه.
-لم يتم استبدال أو حذف أي شيء.
-حدّث الملف وراجع التغييرات من جديد.
+🌿 الفروع — owner/repo
+الافتراضي: main
+
+عدد الفروع: N
+
+• main 🔒 — 1a2b3c4
+• feature/x — 5d6e7f8
 ```
 
-If the final remote result cannot be proven after an uncertain GitHub error:
+Current actions:
 
 ```text
-⚠️ نتيجة العملية غير محسومة.
-
-تعذر إثبات نجاح أو فشل التغيير بعد انقطاع/خطأ GitHub.
-لا تعِد تنفيذ العملية بشكل أعمى؛ افتح الملف أو GitHub وحدّث الحالة أولًا.
+[➕ فرع جديد] [🔎 بحث]
+[🔀 مقارنة refs] [🔄 تحديث]
+[⬅️ رجوع] [🏠 الرئيسية]
 ```
 
-Never label uncertainty as definite failure/success merely to simplify UX.
+Rules:
 
-## 13. P4.1 permission/capability UX
+- branch data comes from GitHub, not repository cache;
+- optional search is case-insensitive filtering over the fetched branch names;
+- technical branch names/SHA remain unchanged;
+- no one-tap branch replacement/update exists;
+- no normal v1 force-push/force-update/branch-delete UI exists.
 
-- browsing requires current installed-repository `contents: read` authority;
-- ordinary create/update/delete requires repository-scoped `contents: write`;
-- writes under `.github/workflows/` additionally require `workflows: write`;
-- permission denial uses safe missing-permission copy and says no change occurred;
-- cache/callback presence is never presented as permission proof.
+## 13. Branch creation — P4.2
 
-## 14. ZIP/project synchronization — future P8 target
+Flow:
 
-ZIP/project sync remains a later batch flow: scan archive → compare → review added/modified/deleted/unchanged/warnings → persisted immutable plan → review branch + coherent commit by default → optional PR. Direct default-branch mass update, if ever enabled, is a separate Tier 2 exception and never the default.
+1. user taps `➕ فرع جديد`;
+2. enter target branch name;
+3. enter explicit base branch/tag/SHA ref;
+4. server resolves base to a concrete current commit SHA and verifies target is absent;
+5. render review screen;
+6. persist one-time Tier 1 confirmation;
+7. confirm or cancel.
 
-## 15. Clone / update / run commands — P4.3 target
-
-Show detected stack/evidence, choose OS, then separate copyable sections for fresh clone, update existing clone, and setup/run. Never present uncertain guessed commands as verified and never insert tokens or automatically execute repository-controlled instructions.
-
-## 16. GitHub search — P3.1 verified
-
-Search supports query, stars/update sorting, language/min-stars/owner/topic/archive filters, result pagination, active-session callbacks, and detail re-fetch. Public search does not imply repository installation/authorization. `📥 أوامر التنزيل` remains P4.3 placeholder functionality.
-
-## 17. Actions / Issues / PRs / Releases / notifications — future targets
-
-Future screens keep the established control-panel pattern: concise detail, stable resource context, safe navigation, explicit write confirmation, current checks/preconditions before high-impact operations, and no GitHub secret exposure.
-
-Notifications are sent as durable new messages rather than replacing navigation state. Preferences are per repository/event type.
-
-## 18. Loading/empty states
-
-Use concise loading copy only for noticeable operations, then edit to final state where practical. Empty states describe the missing resource without implying auth failure. Installation-only account state is not mislabeled fully disconnected.
-
-## 19. Error copy contract
-
-Authentication/reauthorization:
+Review pattern:
 
 ```text
-🔐 يحتاج GitDock إلى إعادة تفويض GitHub لإكمال هذه العملية.
-```
+✅ مراجعة إنشاء الفرع
 
-Missing permission:
+📦 owner/repo
+🌿 الفرع الجديد: feature/new
+الأساس: main
+Base SHA: 0123456789abcdef...
+
+لن يتم إنشاء أي ref في GitHub حتى التأكيد.
+إذا تحرك base قبل التأكيد ستتوقف العملية كـ stale.
+```
 
 ```text
-⚠️ هذه العملية تحتاج صلاحية GitHub غير مفعلة حاليًا.
-لم يتم إجراء أي تغيير.
+[✅ إنشاء الفرع]
+[❌ إلغاء]
 ```
 
-Rate limit:
+Execution UX rules:
+
+- target/base shown before write;
+- missing base or existing target produces no write;
+- confirm-time moved base produces explicit stale message and no write;
+- target is checked again before write;
+- successful create shows new branch + SHA;
+- existing target is never silently replaced;
+- uncertain result explicitly says it is unresolved and asks the user to refresh branch state; GitDock does not blindly retry create-ref;
+- cancellation consumes the persisted authority.
+
+## 14. Commits — P4.2
+
+`📝 Commits` is a real repository-dashboard flow.
+
+List screen:
 
 ```text
-⏳ وصل GitDock مؤقتًا إلى حد طلبات GitHub.
-لم يتم فقدان أي تغيير. جرّب بعد وقت إعادة الضبط المعروض.
+📝 آخر الـCommits — owner/repo
+🌿 المرجع: main
+
+المعروض: N
 ```
 
-Invalid/reused confirmation:
+Commit buttons show short SHA + bounded first-line message. List pagination is 8 commit buttons per Telegram page; service fetch currently requests up to 30 recent commits.
+
+Actions include changing the ref (`branch`, `tag`, or SHA), refresh/navigation, and opening commit detail.
+
+Commit detail shows:
+
+- full SHA;
+- author name;
+- authored UTC time;
+- bounded first-line message;
+- changed-file count;
+- additions/deletions;
+- parent count;
+- canonical GitHub commit link.
+
+Commit detail is re-fetched from GitHub using the selected SHA/ref.
+
+## 15. Compare refs — P4.2
+
+From branches screen, user selects `🔀 مقارنة refs`, then enters base and head refs.
+
+Summary includes:
 
 ```text
-ℹ️ انتهى أو استُخدم هذا التأكيد.
-لم يتم تنفيذ أي تغيير.
+🔀 مقارنة — owner/repo
+base ← head
+
+الحالة: ahead/behind/diverged/identical
+Ahead: N
+Behind: N
+Commits: N
+Files: N
 ```
 
-Unexpected:
+For returned changed files, Telegram renders at most the first **10** rows with filename/status/additions/deletions, followed by a remaining-files indicator when needed. This keeps large comparisons bounded instead of dumping unbounded diff content into chat.
 
-```text
-❌ لم تكتمل العملية.
-لم يتم تأكيد أي تغيير غير معروف.
+P4.2 compare is read-only; it does not merge, reset, force-update, or execute patch content.
 
-معرّف العملية: GD-...
-```
+## 16. P4.2 callback/context contract
 
-Never show stack traces, secret-bearing raw auth errors, token/private-key data, staged file body, or claim a definite result when reconciliation remains uncertain.
+- repository identity arrives through compact repository callback context established by P2.3;
+- P4.2 internal callbacks are compact and versioned;
+- commit-detail buttons carry page/index rather than full commit metadata;
+- confirmation buttons carry opaque one-time confirmation token only;
+- repository/base/target/precondition authority is resolved from server-side/FSM/persisted context;
+- callback possession is never permission proof.
 
-## 20. Danger confirmation patterns
+## 17. Permission/capability UX
 
-- Tier 2 GitHub writes show operation, repository, current/requested values, and consequence before persisted confirmation.
-- Tier 3 repository deletion first requires exact full repository name, then isolated persisted final confirmation.
-- Sensitive local account cleanup is labelled local and never implies remote uninstall.
-- P4.1 one-file writes use persisted staged intent/confirmation even where the operation is narrower than repository-admin Tier 2/3 because stale/replay/restart safety still requires server-side authority.
+- installed repository read paths require current GitHub authorization context;
+- P4.1 ordinary file writes require repository-scoped `contents: write` and workflow files additionally require `workflows: write`;
+- P4.2 branch creation obtains repository-scoped `contents: write` only after confirmation and precondition revalidation;
+- permission denial uses safe user-facing copy and must not claim a change occurred;
+- cache/callback presence is never presented as authority proof.
 
-## 21. Interaction state rules
+## 18. Clone/setup/run — P4.3 target
 
-- Simple browsing may use lightweight callback/FSM context.
-- Long repository paths do not belong in callback data; P4.1 uses short session/index/token context.
-- High-impact/sensitive operation state must be persisted server-side with expiry/preconditions.
-- Back restores previous meaningful state.
-- Cancel invalidates pending confirmation/staged authority and returns safely.
-- Repeated callbacks on completed/consumed operations are idempotent or return clear expired/already-used copy.
-- Callback payload never serves as sole proof of current authorization.
+Future UI must separate fresh clone, update existing clone, setup, and run commands. It should show detected stack/evidence, ask for OS where needed, produce copyable sections, label inference confidence/source, never insert tokens, and never auto-execute README/script instructions.
 
-## 22. Copy style
+## 19. ZIP/project synchronization — P8 target
 
-- Direct and calm.
-- Avoid unnecessary jargon.
-- Use warnings where consequences matter, not on harmless screens.
-- Visually isolate repository/branch/path/login values from prose.
-- Avoid excessive emojis; icons communicate category/status rather than decoration.
-- When an operation is local-only, say “محلي”.
-- When a remote write outcome remains uncertain, say it is uncertain and never imply blind retry is safe.
+Future batch flow remains: scan archive → compare → review added/modified/deleted/unchanged/warnings → persisted immutable plan → review branch + coherent commit by default → optional PR. Direct default-branch mass update, if ever enabled, is a separate Tier 2 exception and never the default.
 
-## 23. Verification state
+## 20. Notification, Issues/PR, Actions/release future rules
 
-P3.3 repository administration is fully merged/post-merge/governance verified.
+- notifications use durable event/preferences context and do not leak private payloads;
+- PR merge must show current target/head/check state before confirmation;
+- Actions dispatch shows workflow/ref/inputs and requires confirmation;
+- logs are bounded/paginated/document-backed;
+- Actions secrets are never displayed.
 
-P4.1 implementation head before documentation synchronization: `614f013b35644fcdd05e880c9a37ff30fd503fdf`.
+## 21. Accessibility/readability
 
-CI `34639736010` verified P4.1 as part of the **148-test** suite on Python 3.12 and 3.13, with Ruff format/lint, mypy across **87 source files**, compile, dependency audit, secret scan, byte-for-byte PEP 751 locks, and PostgreSQL 17 migration roundtrip through `0006_file_write_sessions` all green.
-
-P4.1 remains **implementation verified, merge/governance pending** until documentation-head CI, non-draft PR CI, unchanged-head merge, post-feature `main` CI, and governance closeout complete.
+- Arabic explanatory copy should be simple and concise;
+- technical identifiers remain unmodified;
+- avoid overly dense Telegram messages;
+- bound lists/diffs and paginate where useful;
+- state uncertainty and stale conflicts explicitly rather than hiding them behind generic failure text.
