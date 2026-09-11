@@ -124,7 +124,7 @@ Final feature-delivery verification chain:
 
 - implementation head `614f013b35644fcdd05e880c9a37ff30fd503fdf` — CI `34639736010` green;
 - documentation-synchronized head `185d99d33e863e0909e7e0459d9fcf7fe5df1244` — CI `34641130457` green;
-- non-draft PR #16 CI `34641248664` green on unchanged mergeable head;
+- non-draft PR #16 CI `34641248664` green;
 - squash merge `32ef6ec55772f01fcce4ba8c6db1d836aadb45c6`;
 - post-feature `main` CI `34641411838` green.
 
@@ -149,25 +149,36 @@ Implementation/acceptance:
 - [x] audit excludes file bodies and credentials.
 - [x] short callback sessions/indexes/tokens keep long paths out of callback data.
 - [x] temporary staged content scrubbed on consume/cancel/supersede/expiry/prune.
-- [x] PEP 751 lock refresh after cache-disabled resolver drift, with direct pins unchanged and byte-for-byte CI verification.
 - [x] **148 tests** on Python 3.12 and 3.13; mypy clean on **87 source files**.
-- [x] PostgreSQL 17 upgrade → downgrade → upgrade through `0006_file_write_sessions`.
-- [x] documentation-head CI, non-draft PR CI, unchanged-head protected squash merge, and post-feature `main` CI verified.
-- [x] governance closeout records P4.1 complete and hands the exact next task to P4.2.
+- [x] PostgreSQL 17 migration round-trip through `0006_file_write_sessions`.
+- [x] documentation-head CI, non-draft PR CI, protected squash merge, post-feature main CI, and governance handoff verified.
 
-### P4.2 Branch/commit tools — next
+### P4.2 Branch/commit tools — implementation verified, governance in progress
 
-- [ ] list branches.
-- [ ] search/filter branches where useful.
-- [ ] create branch from explicit known base ref/SHA.
-- [ ] recent commits.
-- [ ] commit detail/diff summary.
-- [ ] compare refs.
-- [ ] compact callback/navigation context.
-- [ ] stale-safe branch-create preconditions and explicit preview where required.
-- [ ] no normal v1 force-push/update UI.
+Implementation head `5a4f7aa4eb557e69665a7311f32c8060e38b1518` — CI `34647181024` green.
 
-### P4.3 Clone/setup/run assistant
+- [x] list branches from authoritative GitHub state.
+- [x] case-insensitive search/filter over fetched branch list.
+- [x] create branch from explicit known base ref/SHA with resolved base commit SHA.
+- [x] persisted Tier 1 branch-create preview/confirmation.
+- [x] revalidate base SHA at confirm time; moved base returns stale without write.
+- [x] check target absence before preview and again before write.
+- [x] duplicate branch handling without replacement/update.
+- [x] missing base handling without write.
+- [x] repository-scoped `contents: write` for create-ref.
+- [x] single create-ref request; uncertain outcome reconciles remote target rather than replaying POST.
+- [x] safe branch-create audit metadata.
+- [x] recent commits from default or explicit ref.
+- [x] commit detail.
+- [x] compare refs.
+- [x] bounded large-compare summary.
+- [x] compact callback/navigation context.
+- [x] no normal v1 force-push/force-update/branch-delete UI.
+- [x] **165 tests** on Python 3.12 and 3.13; mypy clean on **94 source files**.
+- [x] Ruff/compile/audit/secret/PEP 751/PostgreSQL gates green on implementation head.
+- [~] documentation-head CI, non-draft PR CI, protected merge, post-feature main CI, and final governance handoff.
+
+### P4.3 Clone/setup/run assistant — next after P4.2 governance
 
 - [ ] fresh clone commands.
 - [ ] update-existing-clone commands.
@@ -182,7 +193,8 @@ P4 acceptance:
 
 - [x] owner can browse and safely update one file at a time without blind overwrite;
 - [x] repository-controlled file/README text is displayed only and never automatically executed by P4.1;
-- [ ] P4.2 branch/commit tooling complete;
+- [x] P4.2 branch/commit implementation and acceptance tests are complete;
+- [ ] P4.2 governance/merge chain complete;
 - [ ] P4.3 generated commands clearly separate clone/update/setup/run.
 
 ---
