@@ -88,9 +88,7 @@ A phase is complete only after implementation, required CI, merge, post-merge ve
 
 ## P5 — Webhooks & notification engine
 
-### P5.1 Secure ingestion — IMPLEMENTATION VERIFIED / DELIVERY CLOSEOUT ACTIVE
-
-Implementation head `e55c6e99001bb657ed2064459e92caca1f2e3481`, push CI `34652564335` green.
+### P5.1 Secure ingestion ✅
 
 - [x] GitHub webhook endpoint in existing FastAPI ingress.
 - [x] Verify `X-Hub-Signature-256` against exact raw request body using HMAC-SHA256.
@@ -107,11 +105,12 @@ Implementation head `e55c6e99001bb657ed2064459e92caca1f2e3481`, push CI `3465256
 - [x] Migration `0007_github_webhook_deliveries.py` / revision `0007_webhook_inbox`.
 - [x] Unit/integration/contract coverage for signature, duplicate/conflict, route security, persistence/restart, retry/lease, retention, migration.
 - [x] **213 tests** on Python 3.12/3.13; mypy **104 source files**; Ruff **176 files**; compile/audit/secrets/locks/PostgreSQL green.
-- [~] Documentation-head CI → non-draft PR CI → protected squash merge → post-feature `main` CI → governance closeout.
+- [x] Documentation-head CI `34654662909` green.
+- [x] Non-draft PR #22 CI `34654757724` green on unchanged mergeable head.
+- [x] Protected squash merge `c13c16cf9d2354079294ebf01afbe098635b6247`.
+- [x] Post-feature `main` CI `34654852954` green.
 
-Acceptance implementation is satisfied. P5.1 is not formally complete until the delivery chain above is finished.
-
-### P5.2 Event normalization — NOT ACTIVE YET
+### P5.2 Event normalization — ACTIVE
 
 - [ ] push.
 - [ ] issues.
@@ -124,6 +123,8 @@ Acceptance implementation is satisfied. P5.1 is not formally complete until the 
 - [ ] star.
 - [ ] fork.
 - [ ] installation/install-repository changes.
+
+P5.2 consumes only authenticated durable P5.1 deliveries, preserves source delivery identity/idempotency, and produces normalized event data. Telegram notification preferences/rendering/delivery remain P5.3.
 
 ### P5.3 Notification UX/preferences
 
