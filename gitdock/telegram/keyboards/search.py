@@ -7,7 +7,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from gitdock.core.constants import NAV_BACK, NAV_HOME
 from gitdock.github.search import RepositorySearchResult
 from gitdock.services.search import SearchCriteria, SearchLanguage, SearchResultPage, SearchSort
-from gitdock.telegram import callbacks
+from gitdock.telegram import callbacks, run_callbacks
 
 
 def search_prompt_keyboard() -> InlineKeyboardMarkup:
@@ -88,7 +88,11 @@ def search_detail_keyboard(
             [
                 InlineKeyboardButton(
                     text="📥 أوامر التنزيل",
-                    callback_data=callbacks.placeholder("clone"),
+                    callback_data=run_callbacks.search_open(
+                        session_id,
+                        page,
+                        repository.github_repository_id,
+                    ),
                 )
             ],
             [
