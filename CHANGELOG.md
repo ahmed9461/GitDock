@@ -14,7 +14,7 @@ All notable project changes are recorded here. This repository is pre-v1; entrie
 - Added durable `github_webhook_deliveries` inbox with unique delivery identity.
 - Added durable `pending`, `processing`, `failed`, and `processed` delivery states.
 - Added worker claim state, attempt counting, processing leases, retry scheduling, completion/failure transitions, and processed-payload pruning.
-- Added migration `0007_github_webhook_inbox` with work/retention indexes.
+- Added migration file `0007_github_webhook_deliveries.py` with Alembic revision `0007_webhook_inbox` and work/retention indexes.
 - Added unit/integration/contract coverage for cryptographic verification, HTTP ingress, durable idempotency, restart survival, retry/lease recovery, retention, secrecy, and migrations.
 
 #### P4 and earlier
@@ -30,7 +30,7 @@ All notable project changes are recorded here. This repository is pre-v1; entrie
 
 - `GITDOCK_GITHUB_WEBHOOK_SECRET` is now consumed by the webhook ingestion service; no parallel secret/config model was introduced.
 - Webhook request bodies are read as bounded raw bytes before trusted event processing.
-- Payload ceiling is **25 MiB**.
+- Payload ceiling is exactly **25,000,000 bytes** (`GITHUB_WEBHOOK_MAX_BODY_BYTES=25_000_000`).
 - Successful HTTP acknowledgement is emitted only after durable insert or exact duplicate recognition.
 - Exact duplicate delivery ID/event/body is idempotent; reused delivery ID with different content is an explicit conflict.
 - Raw payload retention is bounded and processed rows can be pruned.
@@ -90,7 +90,7 @@ All notable project changes are recorded here. This repository is pre-v1; entrie
 - `pip-audit`: no known runtime vulnerabilities;
 - `detect-secrets`: no findings;
 - PEP 751 runtime locks reproduce byte-for-byte;
-- PostgreSQL 17 Alembic upgrade → downgrade → upgrade green through `0007_github_webhook_inbox`.
+- PostgreSQL 17 Alembic upgrade → downgrade → upgrade green through revision `0007_webhook_inbox`.
 
 P5.1 implementation is verified. Formal delivery remains open until documentation-head CI, non-draft PR CI, protected squash merge, post-feature `main` CI, and governance closeout complete.
 
