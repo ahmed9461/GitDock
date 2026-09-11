@@ -193,10 +193,44 @@ Durable P4.2 facts:
 - unresolved results remain `UNCERTAIN`;
 - branch-create audit stores safe target/base/SHA/risk/request/result metadata only;
 - callbacks remain compact transport context only;
-- no normal v1 force-push, force branch update, or branch-delete UI exists;
-- direct tests cover branch search, known-base create, duplicate target, missing base, stale base, recent commits, commit detail, compare refs, bounded large comparison rendering, callback round-trips, no-replay semantics, and reconciliation;
-- intentional Arabic/emoji UI strings use narrow `RUF001` per-file ignores only on the three P4.2 Telegram UI files;
-- compare contract testing checks `httpx.URL.raw_path` for `%2F` because `.path` is decoded by httpx; production behavior was already correct.
+- no normal v1 force-push, force branch update, or branch-delete UI exists.
+
+### P4.3 — clone/setup/run assistant — implementation verified; delivery closeout pending
+
+Implementation verification head `fba538e3c6071365361def7d5970ff7b19b5819c`; CI `34650497474` green.
+
+Verified implementation contract:
+
+- **182 tests** on Python 3.12 and 3.13;
+- Ruff format/lint green on **167 files**;
+- mypy clean on **100 source files**;
+- compile green;
+- `pip-audit` reported no known runtime vulnerabilities;
+- `detect-secrets` reported no findings;
+- PEP 751 runtime locks reproduce byte-for-byte;
+- PostgreSQL 17 Alembic round-trip remains green through `0006_file_write_sessions`.
+
+Durable P4.3 facts:
+
+- `RunAssistantService` is the orchestration boundary for collecting bounded repository evidence and building an OS-specific command plan;
+- `gitdock.domain.run_assistant` is the pure inference/command-generation layer and is testable without Telegram or live GitHub;
+- the assistant generates commands only and never executes shell commands;
+- fresh-clone and update-existing-clone flows are rendered separately from setup and run suggestions;
+- target OS is explicit: Windows PowerShell, Linux, or macOS;
+- baseline stack inference supports Python, Node.js, Docker, Gradle, and Maven from known repository files;
+- inference exposes confidence and evidence sources rather than presenting guesses as fact;
+- public repository evidence reads use the existing Contents gateway without Authorization; installed/private repositories use the current installation read context;
+- P4.3 extends read-only Contents access only; write methods keep their existing token/permission requirements;
+- public-search command generation remains bound to the active opaque search session and stale sessions fail closed;
+- repository dashboard and public search detail both expose real command-assistant entry points using compact callbacks;
+- README is untrusted evidence: its shell snippets are never copied or automatically executed;
+- Node script bodies from `package.json` are not copied into output; only safe script names may produce `npm run <name>` style invocations;
+- Python entry-point/script names used in generated commands are constrained to safe identifiers;
+- generated clone/update commands use target-OS-aware quoting for repository path/branch material where applicable;
+- generated output never contains GitHub tokens, credentials, OAuth material, or installation secrets;
+- evidence collection is bounded to known root candidates and bounded file reads; P4.3 is not an arbitrary repository crawler;
+- output warns that dependency/setup/run commands may execute repository-controlled hooks, build logic, or scripts when the user chooses to run them locally;
+- direct unit/integration/contract tests cover stack inference, OS variants, quoting, malicious script bodies, public unauthenticated evidence reads, installed/private service reads, UI callback compactness, and renderer safety.
 
 ## Dependency reproducibility
 
@@ -249,6 +283,7 @@ These are maintenance debt, not hidden failures.
 - Do not implement arbitrary shell execution as normal bot capability.
 - Clone/setup/run generates commands only; it does not silently execute repository instructions.
 - Repository/README/script text is untrusted input.
+- Generated setup/run commands may invoke repository-controlled hooks/build logic when the user runs them; the UI must say so.
 - No normal v1 force-push/force-update UI.
 - High-impact multi-step operations must not depend only on volatile FSM state.
 - Audit GitHub writes without secret/file-body material.
@@ -261,22 +296,19 @@ These are maintenance debt, not hidden failures.
 
 `AGENTS.md` is mandatory. Green tests with stale project state are not Done. Successful work updates the relevant control documentation and leaves an explicit handoff.
 
-P4.2 is complete. **P4.3 is now the active implementation item.**
+P4.3 implementation and push verification are complete, but P4.3 is **not yet delivery-complete** until docs-head CI, PR CI/mergeability, protected squash merge, post-merge `main` CI, and final governance closeout all succeed.
 
 ## Active milestone / handoff
 
-**P4.3 — Clone/setup/run assistant**
+**P4.3 — delivery closeout**
 
-Required scope:
+Remaining work:
 
-- fresh clone commands;
-- update-existing-clone commands;
-- Python/Node/Docker/Gradle/Maven inference from repository evidence;
-- Windows PowerShell, Linux, and macOS variants;
-- explicit inference confidence/source;
-- safe quoting for generated commands;
-- no token insertion;
-- no arbitrary automatic execution of README/scripts/repository instructions.
+- verify the documentation-synchronized feature head;
+- open a non-draft PR and require green PR CI + mergeability;
+- squash merge without bypassing protections;
+- verify `main` after merge;
+- close governance and only then mark P4 complete / P5.1 active.
 
 ## Do not forget later
 
