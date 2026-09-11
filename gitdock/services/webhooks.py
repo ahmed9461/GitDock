@@ -298,13 +298,27 @@ class GitHubWebhookIngestionService:
             payload_bytes=bytes(model.payload_bytes),
             state=WebhookDeliveryState(model.status),
             attempt_count=model.attempt_count,
-            processing_started_at=model.processing_started_at,
-            next_attempt_at=model.next_attempt_at,
-            processed_at=model.processed_at,
+            processing_started_at=_as_utc(model.processing_started_at),
+            next_attempt_at=_as_utc(model.next_attempt_at),
+            processed_at=_as_utc(model.processed_at),
             last_error_code=model.last_error_code,
-            expires_at=model.expires_at,
-            created_at=model.created_at,
+            expires_at=_required_utc(model.expires_at),
+            created_at=_required_utc(model.created_at),
         )
 
     def _now(self) -> datetime:
         return self._clock().astimezone(UTC)
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
+
+
+def _required_utc(value: datetime) -> datetime:
+    normalized = _as_utc(value)
+    assert normalized is not None
+    return normalized
