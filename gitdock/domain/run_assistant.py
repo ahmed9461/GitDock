@@ -208,10 +208,7 @@ def _python_suggestions(
 ) -> tuple[CommandSuggestion, CommandSuggestion | None]:
     sources = tuple(by_name[name].path for name in _PYTHON_FILES if name in by_name)
     commands = [_workdir_command(repository, target_os), "python -m venv .venv"]
-    if target_os is TargetOS.WINDOWS:
-        commands.append(r".\.venv\Scripts\Activate.ps1")
-    else:
-        commands.append("source .venv/bin/activate")
+    commands.append(_activate_venv(target_os))
     if "requirements.txt" in by_name:
         commands.append("python -m pip install -r requirements.txt")
     if "pyproject.toml" in by_name:
@@ -234,7 +231,7 @@ def _python_suggestions(
         commands=(
             _workdir_command(repository, target_os),
             _activate_venv(target_os),
-            _quote_command_name(command_name, target_os),
+            _command_name(command_name),
         ),
         confidence=Confidence.HIGH,
         sources=(by_name["pyproject.toml"].path,),
@@ -459,9 +456,7 @@ def _package_scripts(entry: EvidenceFile | None) -> frozenset[str]:
         return frozenset()
     scripts = cast(dict[object, object], scripts_raw)
     return frozenset(
-        key
-        for key, value in scripts.items()
-        if isinstance(key, str) and isinstance(value, str)
+        key for key, value in scripts.items() if isinstance(key, str) and isinstance(value, str)
     )
 
 
@@ -514,10 +509,10 @@ def _activate_venv(target_os: TargetOS) -> str:
     return "source .venv/bin/activate"
 
 
-def _quote_command_name(value: str, target_os: TargetOS) -> str:
+def _command_name(value: str) -> str:
     if _COMMAND_NAME_RE.fullmatch(value) is None:
         raise ValueError("repository command name is invalid")
-    return _quote(value, target_os)
+    return value
 
 
 def _quote(value: str, target_os: TargetOS) -> str:
