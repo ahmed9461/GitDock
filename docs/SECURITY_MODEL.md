@@ -4,29 +4,13 @@ Status: mandatory baseline through verified P5.1 secure webhook-ingestion implem
 
 ## 1. Security goals
 
-Protect:
-
-- GitHub repositories and write authority;
-- Telegram owner identity and intent;
-- GitHub App private key, client secret, webhook secret, installation/user tokens;
-- private repository metadata/content;
-- staged write content/preconditions;
-- durable webhook payloads and processing state;
-- audit integrity and durable confirmation/operation state.
+Protect GitHub repositories/write authority, Telegram owner identity/intent, GitHub App/client/webhook secrets and tokens, private repository content, staged write content/preconditions, durable webhook payloads/processing state, and audit/confirmation integrity.
 
 GitDock must resist credential theft, accidental clicks, stale/replayed authority, forged webhooks, unsafe repository/archive input, overpowered credentials, blind overwrite, and blind write replay.
 
 ## 2. Trust boundaries
 
-Untrusted inputs include:
-
-- Telegram messages/callbacks/uploads;
-- GitHub webhook body and webhook headers until signature validation succeeds;
-- repository names, refs, paths, branch names, README/script/file/commit text;
-- GitHub API responses until structurally validated;
-- OAuth/setup callback parameters until server-side state/identity validation;
-- local repository cache as stale navigation state;
-- opaque confirmation/staging tokens until durable state is loaded and validated.
+Untrusted inputs include Telegram messages/callbacks/uploads; GitHub webhook body and headers until signature verification succeeds; repository names/refs/paths/README/scripts/files/commit text; GitHub API responses until validated; OAuth/setup parameters; local cache; and opaque confirmation/staging tokens until durable state is loaded.
 
 Trusted only after validation include configured deployment secrets, owner identity, consumed server-side confirmation authority, verified GitHub identities/permissions, current remote preconditions, and authenticated GitHub webhook bytes/metadata.
 
@@ -54,7 +38,7 @@ Mandatory order implemented in P5.1:
 
 1. receive `POST /github/webhook` in existing FastAPI ingress;
 2. require configured `GITDOCK_GITHUB_WEBHOOK_SECRET` or return unavailable;
-3. read the **original raw body bytes** with a 25 MiB ceiling;
+3. read the **original raw body bytes** with a `25_000_000` byte ceiling;
 4. require a syntactically valid `X-Hub-Signature-256` SHA-256 digest;
 5. compute HMAC-SHA256 with the configured webhook secret over those exact raw bytes;
 6. compare using constant-time `hmac.compare_digest`;
@@ -70,7 +54,7 @@ The webhook secret, supplied signature, raw auth material, and raw payload are n
 - `X-GitHub-Event` is required, bounded to 128 characters, and restricted to a safe event-name character set.
 - authenticated malformed metadata returns a client error without persistence.
 - unauthenticated malformed metadata still fails at the signature boundary first.
-- request body is bounded to 25 MiB; over-limit bodies are rejected without durable persistence.
+- request body is bounded to exactly `25_000_000` bytes; over-limit bodies are rejected without durable persistence.
 - P5.1 does not trust/parse event-specific JSON for business behavior; normalization is deferred to P5.2.
 
 ## 8. Durable idempotency/conflict safety
@@ -156,9 +140,9 @@ Migration chain now includes:
 - `0004_user_auth` credential/confirmation lifecycle;
 - `0005_audit_log`;
 - `0006_file_write_sessions`;
-- `0007_github_webhook_inbox`.
+- `0007_github_webhook_deliveries.py` with revision `0007_webhook_inbox`.
 
-PostgreSQL 17 upgrade → downgrade → upgrade through `0007_github_webhook_inbox` passed CI `34652564335`.
+PostgreSQL 17 upgrade → downgrade → upgrade through revision `0007_webhook_inbox` passed CI `34652564335`.
 
 ## 20. Security verification — P5.1 implementation head
 
