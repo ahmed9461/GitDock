@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 
 from gitdock.core.constants import NAV_BACK, NAV_HOME
@@ -67,8 +69,11 @@ def search_os_keyboard(
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-def _os_rows(callback_factory, selected: TargetOS | None) -> list[list[InlineKeyboardButton]]:
-    buttons = []
+def _os_rows(
+    callback_factory: Callable[[TargetOS], str],
+    selected: TargetOS | None,
+) -> list[list[InlineKeyboardButton]]:
+    buttons: list[InlineKeyboardButton] = []
     for target_os in (TargetOS.WINDOWS, TargetOS.LINUX, TargetOS.MACOS):
         prefix = "✅ " if selected is target_os else ""
         buttons.append(
