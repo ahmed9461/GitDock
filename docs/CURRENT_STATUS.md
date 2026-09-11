@@ -30,7 +30,7 @@ P5.1 implementation is feature-verified on branch `feat/p5-1-webhook-ingestion`,
 - `pip-audit`: no known runtime vulnerabilities;
 - `detect-secrets`: no findings;
 - PEP 751 runtime locks reproduce byte-for-byte;
-- PostgreSQL 17 Alembic upgrade → downgrade → upgrade green through `0007_github_webhook_inbox`.
+- PostgreSQL 17 Alembic upgrade → downgrade → upgrade green through revision `0007_webhook_inbox` in `0007_github_webhook_deliveries.py`.
 
 Known maintenance warnings remain unchanged: Starlette/FastAPI TestClient deprecation toward httpx2, AnyIO `BlockingPortal` alias deprecation through Starlette, and Alembic `prepend_sys_path`/`path_separator` warning. They are not test failures.
 
@@ -42,7 +42,7 @@ Known maintenance warnings remain unchanged: Starlette/FastAPI TestClient deprec
 - `X-Hub-Signature-256` is verified with HMAC-SHA256 over the exact raw body using constant-time digest comparison.
 - Missing, malformed, or forged signatures fail closed before trusted event metadata processing or persistence.
 - `X-GitHub-Delivery` and `X-GitHub-Event` are validated with bounded fail-closed syntax after authentication.
-- Payload acceptance is bounded to **25 MiB**, matching the documented GitHub webhook payload ceiling used by this phase.
+- Payload acceptance is bounded to **25,000,000 bytes**.
 - Accepted deliveries are persisted durably before the endpoint returns HTTP 202.
 - `github_webhook_deliveries.delivery_id` is unique and is the durable idempotency key.
 - Exact duplicate delivery/content returns `202 {"status":"duplicate"}` without creating a second inbox item.
