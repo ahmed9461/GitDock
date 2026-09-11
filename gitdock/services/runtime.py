@@ -32,6 +32,7 @@ from gitdock.services.repository_admin_confirmations import RepositoryAdminConfi
 from gitdock.services.run_assistant import RunAssistantService
 from gitdock.services.search import RepositorySearchService
 from gitdock.services.user_authorization import GitHubUserAuthorizationService
+from gitdock.services.webhooks import GitHubWebhookIngestionService
 
 
 @dataclass(slots=True)
@@ -47,6 +48,7 @@ class RuntimeServices:
     file_browser: FileBrowserService | None = None
     git_tools: GitToolsService | None = None
     run_assistant: RunAssistantService | None = None
+    webhook_ingestion: GitHubWebhookIngestionService | None = None
 
     async def close(self) -> None:
         if self.http_client is not None:
@@ -63,6 +65,11 @@ def create_runtime_services(
     contents_gateway = GitHubContentsGateway(rest_client)
     repository_search = RepositorySearchService(GitHubRepositorySearchGateway(rest_client))
     public_run_assistant = RunAssistantService(contents_gateway)
+    webhook_ingestion = None
+    if settings.github_webhook_secret is not None:
+        webhook_secret = settings.github_webhook_secret.get_secret_value()
+        if webhook_secret:
+            webhook_ingestion = GitHubWebhookIngestionService(session_factory, webhook_secret)
 
     if not settings.github_auth_configured:
         return RuntimeServices(
@@ -73,6 +80,7 @@ def create_runtime_services(
             user_authorization=None,
             http_client=http_client,
             run_assistant=public_run_assistant,
+            webhook_ingestion=webhook_ingestion,
         )
 
     jwt_issuer = GitHubAppJwtIssuer.from_settings(settings)
@@ -147,4 +155,5 @@ def create_runtime_services(
         file_browser=file_browser,
         git_tools=git_tools,
         run_assistant=run_assistant,
+        webhook_ingestion=webhook_ingestion,
     )
