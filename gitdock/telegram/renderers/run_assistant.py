@@ -69,6 +69,7 @@ def render_command_plan(plan: CommandPlan) -> str:
         (
             "",
             "🔒 لا تتضمن الأوامر أي GitHub token أو بيانات دخول، ولا ينفذ GitDock أي أمر تلقائيًا.",
+            "⚠️ أوامر الإعداد/التشغيل قد تشغّل hooks أو build logic أو scripts من داخل المشروع عند تنفيذك لها؛ راجع المشروع والأمر قبل التشغيل.",
         )
     )
     return "\n".join(sections)
