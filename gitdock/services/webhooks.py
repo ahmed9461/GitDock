@@ -8,8 +8,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
+from typing import cast
 
 from sqlalchemy import and_, delete, or_, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -243,11 +245,14 @@ class GitHubWebhookIngestionService:
 
         now = self._now()
         async with self._session_factory() as session:
-            result = await session.execute(
-                delete(GitHubWebhookDelivery).where(
-                    GitHubWebhookDelivery.status == WebhookDeliveryState.PROCESSED.value,
-                    GitHubWebhookDelivery.expires_at <= now,
-                )
+            result = cast(
+                CursorResult[tuple[int]],
+                await session.execute(
+                    delete(GitHubWebhookDelivery).where(
+                        GitHubWebhookDelivery.status == WebhookDeliveryState.PROCESSED.value,
+                        GitHubWebhookDelivery.expires_at <= now,
+                    )
+                ),
             )
             await session.commit()
             return int(result.rowcount or 0)
@@ -257,10 +262,13 @@ class GitHubWebhookIngestionService:
         session: AsyncSession,
         delivery_id: str,
     ) -> GitHubWebhookDelivery | None:
-        return await session.scalar(
-            select(GitHubWebhookDelivery)
-            .where(GitHubWebhookDelivery.delivery_id == delivery_id)
-            .with_for_update()
+        return cast(
+            GitHubWebhookDelivery | None,
+            await session.scalar(
+                select(GitHubWebhookDelivery)
+                .where(GitHubWebhookDelivery.delivery_id == delivery_id)
+                .with_for_update()
+            ),
         )
 
     @staticmethod
@@ -268,8 +276,13 @@ class GitHubWebhookIngestionService:
         session: AsyncSession,
         delivery_id: str,
     ) -> GitHubWebhookDelivery | None:
-        return await session.scalar(
-            select(GitHubWebhookDelivery).where(GitHubWebhookDelivery.delivery_id == delivery_id)
+        return cast(
+            GitHubWebhookDelivery | None,
+            await session.scalar(
+                select(GitHubWebhookDelivery).where(
+                    GitHubWebhookDelivery.delivery_id == delivery_id
+                )
+            ),
         )
 
     @staticmethod
