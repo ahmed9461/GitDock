@@ -23,11 +23,13 @@ from gitdock.github.token_provider import InstallationTokenProvider
 from gitdock.security.crypto import CredentialCipher
 from gitdock.services.confirmations import ConfirmationService
 from gitdock.services.file_browser import FileBrowserService
+from gitdock.services.file_context import FileRepositoryContextResolver
 from gitdock.services.git_tools import GitToolsService
 from gitdock.services.identity import OwnerIdentityService
 from gitdock.services.repositories import RepositoryReadService
 from gitdock.services.repository_admin import RepositoryAdminService
 from gitdock.services.repository_admin_confirmations import RepositoryAdminConfirmationService
+from gitdock.services.run_assistant import RunAssistantService
 from gitdock.services.search import RepositorySearchService
 from gitdock.services.user_authorization import GitHubUserAuthorizationService
 
@@ -44,6 +46,7 @@ class RuntimeServices:
     repository_admin_confirmations: RepositoryAdminConfirmationService | None = None
     file_browser: FileBrowserService | None = None
     git_tools: GitToolsService | None = None
+    run_assistant: RunAssistantService | None = None
 
     async def close(self) -> None:
         if self.http_client is not None:
@@ -57,7 +60,9 @@ def create_runtime_services(
     identity = OwnerIdentityService(session_factory)
     http_client = httpx.AsyncClient()
     rest_client = GitHubRestClient(http_client)
+    contents_gateway = GitHubContentsGateway(rest_client)
     repository_search = RepositorySearchService(GitHubRepositorySearchGateway(rest_client))
+    public_run_assistant = RunAssistantService(contents_gateway)
 
     if not settings.github_auth_configured:
         return RuntimeServices(
@@ -67,6 +72,7 @@ def create_runtime_services(
             github_connection=None,
             user_authorization=None,
             http_client=http_client,
+            run_assistant=public_run_assistant,
         )
 
     jwt_issuer = GitHubAppJwtIssuer.from_settings(settings)
@@ -106,7 +112,7 @@ def create_runtime_services(
         session_factory,
         token_provider,
         repository_gateway,
-        GitHubContentsGateway(rest_client),
+        contents_gateway,
         confirmations,
     )
     git_tools = GitToolsService(
@@ -115,6 +121,10 @@ def create_runtime_services(
         repository_gateway,
         GitHubGitToolsGateway(rest_client),
         confirmations,
+    )
+    run_assistant = RunAssistantService(
+        contents_gateway,
+        FileRepositoryContextResolver(session_factory, token_provider, repository_gateway),
     )
     state_service = GitHubAuthorizationStateService(cipher)
     connection = GitHubConnectionService(
@@ -136,4 +146,5 @@ def create_runtime_services(
         repository_admin_confirmations=repository_admin_confirmations,
         file_browser=file_browser,
         git_tools=git_tools,
+        run_assistant=run_assistant,
     )
