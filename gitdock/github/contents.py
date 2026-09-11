@@ -1,4 +1,4 @@
-"""Typed GitHub repository-contents endpoints for P4.1."""
+"""Typed GitHub repository-contents endpoints for P4.1/P4.3."""
 
 from __future__ import annotations
 
@@ -61,7 +61,7 @@ class GitHubContentsGateway:
 
     async def list_directory(
         self,
-        token: SecretStr,
+        token: SecretStr | None,
         *,
         owner_login: str,
         repository_name: str,
@@ -78,7 +78,7 @@ class GitHubContentsGateway:
 
     async def get_file(
         self,
-        token: SecretStr,
+        token: SecretStr | None,
         *,
         owner_login: str,
         repository_name: str,

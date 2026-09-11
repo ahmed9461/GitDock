@@ -6,23 +6,25 @@ All notable project changes are recorded here. This repository is pre-v1; entrie
 
 ### Added
 
+#### P4.3 — clone/setup/run assistant
+
+- Added pure `gitdock.domain.run_assistant` inference and command-generation logic.
+- Added `RunAssistantService` to collect bounded repository evidence and generate a command plan without executing repository instructions.
+- Added target OS selection for Windows PowerShell, Linux, and macOS.
+- Added separate fresh-clone and update-existing-clone command groups.
+- Added baseline evidence-driven setup/run inference for Python, Node.js, Docker, Gradle, and Maven.
+- Added explicit confidence and source information for inferred setup/run suggestions.
+- Added repository-dashboard and public-search entry points for `📥 تشغيل/تنزيل` command generation.
+- Added compact P4.3 callback encoding/decoding and OS-selection keyboards.
+- Added bounded public repository evidence reads through the existing Contents gateway without Authorization while installed/private repositories continue through the existing installation read context.
+- Added direct unit/integration/contract coverage for stack inference, OS variants, quoting, service evidence collection, public unauthenticated reads, callback compactness, renderer behavior, and malicious repository-script bodies.
+
 #### P4.2 — branch/commit tools
 
-- Added typed `GitHubGitToolsGateway` on the canonical REST transport for:
-  - branch listing and branch detail lookup;
-  - recent commits and commit detail;
-  - compare refs;
-  - create Git ref/branch.
+- Added typed `GitHubGitToolsGateway` on the canonical REST transport for branch listing/detail, recent commits/detail, compare refs, and create-ref.
 - Added `GitToolsService` for GitHub-backed branch/commit reads plus branch-create confirmation, stale checks, scoped credential selection, uncertain-result reconciliation, and audit.
 - Made repository dashboard `🌿 الفروع` and `📝 Commits` actions real.
-- Added Arabic branch listing/search flow with explicit create/compare/refresh/navigation actions.
-- Added recent-commits flow with default or explicit branch/tag/SHA ref selection.
-- Added commit detail UI with SHA, author/time, message, changed-file/addition/deletion/parent summary, and canonical GitHub link.
-- Added compare-refs flow with ahead/behind/commit/file summary and bounded first-10-file rendering.
-- Added Tier 1 branch creation from explicit target + base ref/SHA with preview showing repository, target, base ref, and resolved base commit SHA.
-- Reused restart-safe `pending_confirmations` for branch create; P4.2 introduces no new DB migration.
-- Added branch-create audit entries using existing `audit_log`.
-- Added direct unit/integration/contract coverage for branch search, known-base create, duplicate target, missing base, stale base, recent commits, commit detail, compare refs, large compare summary, callback compactness, encoded refs, scoped write authority, cancellation/reuse, no-retry create-ref, and uncertain-result reconciliation.
+- Added Arabic branch listing/search, recent commits, commit detail, compare refs, and Tier 1 branch creation flows.
 
 #### P4.1 — repository files
 
@@ -44,18 +46,26 @@ All notable project changes are recorded here. This repository is pre-v1; entrie
 
 ### Changed
 
+#### P4.3 inference, safety, and UX
+
+- `GitHubRestClient`/Contents remains the canonical read path; P4.3 introduces no parallel raw HTTP stack.
+- Read-only `list_directory`/`get_file` paths can operate without a token for public repository evidence, while write operations retain their existing token/permission requirements.
+- Public-search command generation remains tied to an active opaque search session and stale sessions fail closed.
+- Generated commands use target-OS-aware quoting for repository path/ref material where applicable.
+- README is treated as untrusted evidence and its shell snippets are never copied or automatically executed.
+- Node package script bodies are not copied into output; only safe script names can produce an invocation such as `npm run <name>`.
+- Python entry-point/script names used for generated commands are constrained to safe identifiers.
+- Generated output never includes GitHub tokens or credentials.
+- Rendered results explicitly warn that setup/run commands may invoke repository-controlled hooks, build logic, or scripts when the user executes them locally.
+- Evidence collection is bounded to known root candidates and bounded file reads rather than arbitrary repository crawling.
+
 #### P4.2 safety and UX
 
-- Branch create now follows preview → persisted one-time confirmation → confirm-time repository/base/target revalidation → repository-scoped `contents: write` → one create-ref request → reconciliation → audit.
-- Persisted branch-create fingerprint binds repository ID, target branch, base ref, and exact resolved base SHA.
-- A moved base after preview now returns stale and performs no write.
-- Existing target branch now returns exists and is never replaced/force-updated by the create flow.
-- Missing base ref performs no write.
-- Create-ref POST remains no-retry; uncertain response is reconciled by re-reading target branch and only exact expected SHA proves applied.
+- Branch create follows preview → persisted one-time confirmation → confirm-time repository/base/target revalidation → repository-scoped `contents: write` → one create-ref request → reconciliation → audit.
+- A moved base after preview returns stale and performs no write.
+- Existing target branch is never replaced/force-updated by the create flow.
+- Create-ref POST remains no-retry; uncertain response is reconciled by re-reading target branch.
 - No normal v1 force-push, branch force-update, or branch-delete UI was introduced.
-- P4.2 callbacks use compact repository/page/index/token context rather than long GitHub data.
-- Ruff `RUF001` is ignored only for the three intended P4.2 Telegram UI files so Arabic/emoji copy remains readable while the rule stays active elsewhere.
-- P4.2 governance is complete and P4.3 is now the active roadmap item.
 
 #### P4.1/P3 safety
 
@@ -65,24 +75,41 @@ All notable project changes are recorded here. This repository is pre-v1; entrie
 
 ### Fixed
 
+#### P4.3 verification
+
+- Corrected PowerShell generated path/entry-point rendering so commands are valid shell syntax rather than over-escaped or rendered as inert text.
+- Added explicit typing for OS keyboard construction before mypy verification.
+- Added direct public-read gateway coverage to prove no Authorization header is sent for unauthenticated public evidence reads.
+- Kept intentional Arabic/emoji renderer copy under a narrow P4.3 `RUF001` per-file ignore rather than weakening lint globally.
+- Formatted P4.3 UI tests after Ruff identified one assertion layout mismatch.
+- Wrapped the repository-code execution warning after lint correctly flagged an overlong line.
+
 #### P4.2 verification
 
-- Formatted the initial P4.2 implementation after CI correctly identified nine Ruff-format mismatches.
-- Resolved intentional Arabic/emoji `RUF001` lint findings with narrow per-file ignores instead of disabling the rule project-wide or altering Arabic UI copy.
-- Corrected the compare-ref contract assertion to inspect `httpx.URL.raw_path`; `URL.path` is decoded by httpx and therefore cannot prove `%2F` raw encoding. Production compare URL construction did not require a behavior change.
-- Added direct acceptance tests for branch search, commit detail, duplicate branch rejection, missing base rejection, and bounded large-compare rendering rather than checking the test matrix by implication.
+- Resolved initial Ruff-format mismatches and intentional Arabic/emoji `RUF001` findings with narrow per-file ignores.
+- Corrected compare-ref contract assertion to inspect `httpx.URL.raw_path` for encoded refs.
+- Added direct acceptance tests for branch search, commit detail, duplicate/missing-base rejection, and bounded large-compare rendering.
 
 ### Security
+
+#### P4.3
+
+- GitDock generates commands only; it never provides arbitrary automatic shell execution through this feature.
+- README/script contents are untrusted repository-controlled input and are never copied into arbitrary generated shell commands.
+- Package-script bodies are intentionally ignored even when malicious; only validated script names can be referenced.
+- Generated commands never embed installation tokens, OAuth credentials, PATs, or other GitHub secrets.
+- Public evidence reads intentionally omit Authorization rather than leaking installation context into unrelated public repository requests.
+- Installed/private reads reuse the existing installation authorization boundary.
+- Evidence collection is bounded by candidate names and read-size limits.
+- The UI warns that dependency/build/run tools may execute repository-controlled code when the user chooses to run generated commands.
 
 #### P4.2
 
 - Branch creation is Tier 1 and requires persisted one-time confirmation.
-- Confirmation payload/fingerprint contains safe target/base preconditions only and no credentials.
 - Confirm-time exact base-SHA check blocks stale branch creation.
-- Target branch absence is checked both before review and before write.
-- Write token is requested only after confirmation/revalidation and scoped to exactly the selected repository with `contents: write` + metadata read.
+- Target branch absence is checked before review and before write.
+- Write token is repository-scoped with `contents: write` + metadata read.
 - Create-ref is issued once; uncertain state reconciles rather than blindly replaying POST.
-- Audit stores safe branch/base/SHA/risk/request/result metadata only.
 - Normal v1 UI exposes no force-push/force branch update.
 
 #### Existing security baseline
@@ -96,6 +123,24 @@ All notable project changes are recorded here. This repository is pre-v1; entrie
 
 ### Verification
 
+#### P4.3 implementation verification
+
+- implementation head `fba538e3c6071365361def7d5970ff7b19b5819c` — CI `34650497474` green.
+
+Verified implementation contract:
+
+- Python 3.12 and 3.13 quality jobs green.
+- **182 tests passed** on both versions.
+- mypy: **100 source files**, no issues.
+- Ruff: **167 files already formatted**, lint clean.
+- compileall green.
+- `pip-audit`: no known runtime vulnerabilities.
+- `detect-secrets`: no findings.
+- PEP 751 runtime locks reproduce byte-for-byte.
+- PostgreSQL 17 Alembic upgrade → downgrade → upgrade green through `0006_file_write_sessions`.
+
+Delivery closeout remains pending until the documentation-synchronized head CI, non-draft PR CI/mergeability, protected squash merge, post-feature `main` CI, and governance closeout all succeed.
+
 #### P4.2 final feature-delivery chain
 
 - implementation head `5a4f7aa4eb557e69665a7311f32c8060e38b1518` — CI `34647181024` green;
@@ -104,17 +149,7 @@ All notable project changes are recorded here. This repository is pre-v1; entrie
 - protected squash merge `b4e7dcd9de5db1e958e831508443d3fa1445213d`;
 - post-feature `main` CI `34648224733` green.
 
-Verified contract:
-
-- Python 3.12 and 3.13 quality jobs green.
-- **165 tests passed** on both versions.
-- mypy: **94 source files**, no issues.
-- Ruff: **157 files already formatted**, lint clean.
-- compileall green.
-- `pip-audit`: no known runtime vulnerabilities.
-- `detect-secrets`: no findings.
-- PEP 751 runtime locks reproduce byte-for-byte.
-- PostgreSQL 17 Alembic upgrade → downgrade → upgrade green through `0006_file_write_sessions`.
+Verified contract: **165 tests** on Python 3.12/3.13, mypy clean on **94 source files**, Ruff/compile/audit/secret/PEP 751/PostgreSQL gates green.
 
 #### P4.1 final reference
 

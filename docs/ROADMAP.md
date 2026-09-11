@@ -187,24 +187,37 @@ Implementation/acceptance:
 - [x] Ruff/compile/audit/secret/PEP 751/PostgreSQL gates green.
 - [x] documentation-head CI, non-draft PR CI, protected squash merge, post-feature `main` CI, and final governance handoff verified.
 
-### P4.3 Clone/setup/run assistant — active
+### P4.3 Clone/setup/run assistant — implementation verified; delivery closeout pending
 
-- [ ] fresh clone commands.
-- [ ] update-existing-clone commands.
-- [ ] detect Python/Node/Docker/Gradle/Maven baseline from repository evidence.
-- [ ] Windows PowerShell commands.
-- [ ] Linux commands.
-- [ ] macOS commands.
-- [ ] confidence/source explanation.
-- [ ] safe path/ref quoting where applicable.
-- [ ] no token insertion/no arbitrary command execution.
+Implementation verification head `fba538e3c6071365361def7d5970ff7b19b5819c`; CI `34650497474` green.
+
+- [x] fresh clone commands.
+- [x] update-existing-clone commands.
+- [x] detect Python/Node/Docker/Gradle/Maven baseline from bounded repository evidence.
+- [x] Windows PowerShell commands.
+- [x] Linux commands.
+- [x] macOS commands.
+- [x] confidence/source explanation.
+- [x] safe path/ref quoting where applicable.
+- [x] public-repository evidence reads without Authorization and installed/private reads through existing installation context.
+- [x] repository/search UI entry points and compact callback round-trips.
+- [x] stale public-search sessions continue to fail closed.
+- [x] README/script bodies are never copied/executed as arbitrary shell commands.
+- [x] generated commands never contain GitHub tokens/credentials.
+- [x] setup/run output warns that local execution can invoke repository-controlled hooks/build logic/scripts.
+- [x] direct unit/integration/contract coverage for inference, OS variants, quoting, safe script invocation, public reads, service evidence collection, and UI callbacks.
+- [x] **182 tests** on Python 3.12 and 3.13; mypy clean on **100 source files**.
+- [x] Ruff/compile/audit/secret/PEP 751/PostgreSQL gates green on implementation head.
+- [~] documentation-head CI, non-draft PR CI, protected squash merge, post-feature `main` CI, and governance handoff.
 
 P4 acceptance:
 
 - [x] owner can browse and safely update one file at a time without blind overwrite;
 - [x] repository-controlled file/README text is displayed only and never automatically executed by P4.1;
 - [x] P4.2 branch/commit implementation, acceptance tests, merge, post-merge CI, and governance are complete;
-- [ ] P4.3 generated commands clearly separate clone/update/setup/run.
+- [x] P4.3 generated commands clearly separate clone/update/setup/run;
+- [x] P4.3 command generation is OS-aware, evidence-backed, credential-free, and non-executing;
+- [~] P4 phase closeout waits for P4.3 merge, post-merge CI, and final governance truth.
 
 ---
 
