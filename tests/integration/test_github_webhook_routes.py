@@ -11,9 +11,9 @@ from fastapi.testclient import TestClient
 
 from gitdock.app import create_app
 from gitdock.core.config import Settings
-from gitdock.core.constants import GITHUB_WEBHOOK_MAX_BODY_BYTES
 from gitdock.db.base import Base
 from gitdock.db.session import create_engine
+from gitdock.services.webhooks import GitHubWebhookIngestionService
 
 
 def _settings(db_path: Path, *, webhook_secret: str | None = "route-webhook-key") -> Settings:
@@ -170,11 +170,15 @@ def test_github_webhook_rejects_oversized_body_without_persistence(tmp_path: Pat
     db_path = tmp_path / "oversized.db"
     settings = _settings(db_path)
     asyncio.run(_create_schema(settings.database_url))
-    body = b"x" * (GITHUB_WEBHOOK_MAX_BODY_BYTES + 1)
 
     app = create_app(settings)
     with TestClient(app) as client:
-        response = client.post("/github/webhook", content=body)
+        app.state.runtime_services.webhook_ingestion = GitHubWebhookIngestionService(
+            app.state.db_session_factory,
+            "route-webhook-key",
+            max_payload_bytes=4,
+        )
+        response = client.post("/github/webhook", content=b"12345")
 
     assert response.status_code == 413
     assert _delivery_count(db_path) == 0
