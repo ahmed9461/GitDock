@@ -1,10 +1,10 @@
 # GitDock — Current Status / Handoff
 
-Last updated: 2026-09-11
+Last updated: 2026-09-12
 
 ## Project state
 
-**Verified complete before this feature branch:**
+**Verified complete:**
 
 - P0 — Planning and governance foundation ✅
 - P1 — Project skeleton & quality gates ✅
@@ -15,18 +15,23 @@ Last updated: 2026-09-11
 - P3.2 — durable GitHub user-context authorization/disconnect ✅
 - P3.3 — repository create/settings administration ✅
 - P4.1 — repository file browser + stale-safe single-file writes ✅
+- P4.2 — branch/commit tools ✅
 
 **Current phase:** P4 — Repository contents, Git tools & run-command assistant.
 
-**Current implementation item:** **P4.2 — Branch/commit tools.**
+**Current implementation item:** **P4.3 — Clone/setup/run assistant.**
 
-P4.2 implementation and acceptance coverage are complete on the feature branch. The remaining work for this item is governance only: documentation-head CI, non-draft PR CI, protected merge, post-merge `main` CI, then final handoff. Do not start P4.3 until that chain is complete.
+P4.2 is fully delivered and governance-verified. Do not reopen it unless a real regression is found. New implementation work should now target P4.3 only.
 
-## P4.2 implementation verification
+## P4.2 final delivery chain
 
-Implementation head: `5a4f7aa4eb557e69665a7311f32c8060e38b1518`.
+- implementation head `5a4f7aa4eb557e69665a7311f32c8060e38b1518` — CI `34647181024` green;
+- documentation-synchronized feature head `73e48dfced65d72d0d27e9defc4c3e107527107f` — push CI `34647866083` green;
+- non-draft PR #18 on the unchanged head — PR CI `34648080794` green and mergeable;
+- protected squash merge `b4e7dcd9de5db1e958e831508443d3fa1445213d`;
+- post-feature `main` CI `34648224733` green.
 
-GitHub Actions run `34647181024` is fully green:
+The verified P4.2 contract remains:
 
 - Python 3.12 and 3.13;
 - Ruff format/lint;
@@ -48,44 +53,14 @@ Known maintenance warnings remain unchanged: Starlette/FastAPI TestClient deprec
 - Commit detail with SHA, author, authored time, first-line message, parent count, changed-file count, additions/deletions, and canonical GitHub link.
 - Ref comparison through GitHub Compare API with ahead/behind/commit/file summary and a bounded first-10-files Telegram rendering for large comparisons.
 - Branch creation from an explicit current base ref/SHA using preview → persisted one-time confirmation → revalidation → scoped write token → single create-ref request → reconciliation/audit.
-- Branch-create preview binds repository ID, target branch, base ref, and resolved base commit SHA.
 - Confirm-time base SHA revalidation rejects a moved base as `STALE` before any write.
-- Target branch is checked for absence before preview and checked again immediately before write; duplicate target produces no replacement/update.
+- Target branch absence is checked before preview and again before write; duplicate targets are never replaced/force-updated.
 - Missing base ref fails before write.
 - Branch creation is Tier 1 and uses a repository-scoped installation token requesting `contents: write` + metadata read only for the selected repository.
-- Create-ref POST is never blindly retried. If the response is uncertain, GitDock re-reads the target branch: exact expected SHA can prove applied; otherwise the result remains explicit `UNCERTAIN`.
-- Audit records contain safe branch/base/SHA/result/request metadata only; no credentials.
-- Telegram callbacks remain compact; repository/ref/confirmation authority is resolved server-side/FSM-side rather than inferred from callback possession.
-- No normal v1 force-push, branch force-update, or branch-delete UI was introduced.
-
-## P4.2 direct acceptance coverage
-
-The current suite directly covers:
-
-- list/search branches;
-- create branch from a known base;
-- duplicate branch rejection without write;
-- missing base rejection without write;
-- stale base rejection without write;
-- recent commits;
-- commit detail;
-- compare refs;
-- bounded large-diff summary;
-- compact callback round trips;
-- scoped write authority;
-- cancel/reuse rejection;
-- uncertain-create reconciliation without replay;
-- REST method/path/body/token contracts, including encoded compare refs.
-
-## P4.1 final feature-delivery reference
-
-P4.1 remains complete and must not be reopened unless a real regression is found:
-
-- implementation `614f013b35644fcdd05e880c9a37ff30fd503fdf` — CI `34639736010`;
-- documentation head `185d99d33e863e0909e7e0459d9fcf7fe5df1244` — CI `34641130457`;
-- PR #16 CI `34641248664`;
-- squash merge `32ef6ec55772f01fcce4ba8c6db1d836aadb45c6`;
-- post-feature `main` CI `34641411838`.
+- Create-ref POST is never blindly retried. Uncertain outcomes are reconciled by re-reading the target branch; only exact expected SHA proves applied.
+- Audit records safe branch/base/SHA/result/request metadata only; no credentials.
+- Telegram callbacks remain compact and transport-only.
+- No normal v1 force-push, branch force-update, or branch-delete UI exists.
 
 ## Durable invariants carried forward
 
@@ -98,19 +73,25 @@ P4.1 remains complete and must not be reopened unless a real regression is found
 - Uncertain write outcomes remain uncertain unless reconciliation proves final state.
 - Repository deletion remains Tier 3 exact-name gated.
 - Single-file writes remain stage → preview → confirm → revalidate → scoped token → single write → reconcile → audit.
-- Branch creation follows preview → persisted confirmation → base/target revalidation → scoped token → single create-ref → reconcile → audit.
+- Branch creation remains preview → persisted confirmation → base/target revalidation → scoped token → single create-ref → reconcile → audit.
 - No normal v1 force-push/force-update UI.
+- Repository/README/script text is untrusted input and is never automatically executed.
 
-## Exact next work after P4.2 governance completes
+## Active task — P4.3 Clone/setup/run assistant
 
-**P4.3 — Clone/setup/run assistant.**
+Implement command **generation only**, not arbitrary execution.
 
-Scope:
+Required scope:
 
-- fresh-clone commands;
+- fresh clone commands;
 - update-existing-clone commands;
 - detect Python/Node/Docker/Gradle/Maven baseline from repository evidence;
-- Windows PowerShell, Linux, and macOS command variants;
-- label confidence/source of inference;
-- never insert GitHub tokens into commands;
+- Windows PowerShell commands;
+- Linux commands;
+- macOS commands;
+- explicit confidence/source explanation for inferred setup/run commands;
+- safe quoting for paths/refs where applicable;
+- never insert GitHub tokens or credentials into generated commands;
 - never automatically execute repository/README/script instructions.
+
+Before coding P4.3, inspect existing repository/search/detail UI and tests, then update this file if implementation is split into a narrower active subtask.
